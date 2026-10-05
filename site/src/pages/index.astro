@@ -5,7 +5,7 @@ import Site from "../components/Site.astro";
 import { SITE_NAME, link } from "../lib/site";
 ---
 
-<Site title={SITE_NAME} description="Markets, charts and news, with the AI analysis tools of Market Hub. Sign in with Google for your private portfolio dashboard." sample>
+<Site title={SITE_NAME} description="Markets, charts and news, with the AI analysis tools of Market Hub. Sign in with Google for your private portfolio dashboard." notice="Headlines are sample placeholders while the news feed is being connected; they are not real news. Prices come from the data provider and may be delayed.">
 	<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
 		<div class="min-w-0 space-y-4">
 			<section class="panel overflow-hidden" aria-labelledby="overview-title">
@@ -93,7 +93,7 @@ import { SITE_NAME, link } from "../lib/site";
 	import { priceChart } from "../lib/lwc";
 	import { news, overview, type Snapshot } from "../lib/market";
 	import { link } from "../lib/site";
-	import { failed, moversTable, newsFeature, newsRow, quoteGroup, sectorBars, tabbed } from "../lib/widgets";
+	import { failed, flagSample, moversTable, newsFeature, newsRow, quoteGroup, sectorBars, tabbed } from "../lib/widgets";
 
 	const MAIN = ["SPX", "NDX", "DJI", "RUT"];
 	const hero = document.getElementById("hero")!;
@@ -143,6 +143,10 @@ import { SITE_NAME, link } from "../lib/site";
 			]);
 			document.getElementById("movers-tabs")!.replaceChildren(t.tabs);
 			document.getElementById("movers")!.replaceChildren(t.body);
+			flagSample(o, ["indices"], document.getElementById("overview-title"));
+			flagSample(o, ["indices", "rates", "commodities", "currencies", "crypto"], document.getElementById("markets-title"));
+			flagSample(o, ["sectors"], document.getElementById("sectors-title"));
+			flagSample(o, ["movers"], document.getElementById("movers-title"));
 		})
 		.catch(() => {
 			for (const id of ["hero", "markets", "sectors", "movers"]) failed(document.getElementById(id)!);

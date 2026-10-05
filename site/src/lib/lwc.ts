@@ -43,6 +43,8 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
   let style = opts.style ?? "area";
   let data: ChartData | null = null;
   let seq = 0;
+  // Intraday bars are not in every data plan: without them, the 1D and 5D ranges go away.
+  let intraday = true;
 
   const rangeTabs = h("div", "tabs");
   rangeTabs.setAttribute("role", "tablist");
@@ -70,7 +72,7 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
     }));
   }
   const drawTabs = () => {
-    tabs(rangeTabs, RANGES, () => range, (v) => ((range = v), load()));
+    tabs(rangeTabs, RANGES.filter((r) => intraday || (r !== "1D" && r !== "5D")), () => range, (v) => ((range = v), load()));
     tabs(styleTabs, ["area", "candles"], () => style, (v) => ((style = v as typeof style), draw()), { area: "Line", candles: "Candles" });
   };
 
@@ -154,7 +156,13 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
       draw();
       opts.onData?.(d);
     } catch {
-      if (mine === seq) status.textContent = "The chart is not available right now.";
+      if (mine !== seq) return;
+      if (range === "1D" || range === "5D") {
+        intraday = false;
+        range = "1M";
+        return load();
+      }
+      status.textContent = "The chart is not available right now.";
     }
   }
   load();

@@ -4,7 +4,7 @@ import Search from "../components/Search.astro";
 import Site from "../components/Site.astro";
 ---
 
-<Site title="Quote" description="Price, chart, key figures and headlines for any US-listed stock, index or market." sample>
+<Site title="Quote" description="Price, chart, key figures and headlines for any US-listed stock, index or market." notice="Headlines are sample placeholders while the news feed is being connected; they are not real news. Prices come from the data provider and may be delayed.">
 	<section id="empty" class="mx-auto max-w-xl py-16 text-center" hidden>
 		<h1 class="text-2xl font-bold text-ink-strong">Look up a stock</h1>
 		<p class="mt-2 text-[13px] text-muted">Any US-listed company or fund, by ticker or name.</p>
@@ -95,8 +95,8 @@ import Site from "../components/Site.astro";
 			q.volume ? row("Volume", compact(q.volume)) : null,
 			q.avg_volume ? row("Avg. volume (3M)", compact(q.avg_volume)) : null,
 			eq && q.market_cap ? row("Market cap", money(q.market_cap)) : null,
-			q.kind === "stock" ? row("P/E (trailing)", q.pe == null ? "—" : q.pe.toFixed(1)) : null,
-			q.kind === "stock" ? row("EPS (trailing)", q.eps == null ? "—" : `$${q.eps.toFixed(2)}`) : null,
+			q.kind === "stock" && q.pe != null ? row("P/E (trailing)", q.pe.toFixed(1)) : null,
+			q.kind === "stock" && q.eps != null ? row("EPS (trailing)", `$${q.eps.toFixed(2)}`) : null,
 			eq ? row("Dividend yield", q.dividend_yield == null ? "—" : `${(q.dividend_yield * 100).toFixed(2)}%`) : null,
 			q.kind === "stock" ? row("Beta (5Y)", q.beta == null ? "—" : q.beta.toFixed(2)) : null,
 		];

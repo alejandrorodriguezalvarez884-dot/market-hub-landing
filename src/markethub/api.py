@@ -11,11 +11,13 @@
     GET    /api/dashboard           positions valued at today's prices, favourites, history
     GET    /api/search?q=           companies by ticker or name
     GET    /api/public/overview     markets: indices, rates, commodities, currencies, sectors, movers
+                                    (?detail=1 adds 1-month, YTD and 1-year returns)
     GET    /api/public/chart        ?symbol=&range=  price bars for the charts
     GET    /api/public/quote        ?t=  a stock's figures and headlines
     GET    /api/public/news         ?category=&ticker=  headlines
 
-The /api/public/ answers are sample data for now (see sample.py) and say so with "sample": true.
+Market figures come from FMP when there is a key (live.py), else from sample.py; the overview
+names any part that is sample data in "sample_sections". Headlines are sample data for now.
 
 Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build.
 """
@@ -38,6 +40,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import dashboard, sample
+from .live import default_markets
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
@@ -101,13 +104,18 @@ class HostScopedCookieDomain:
 def create_app(users: UserStore | None = None, market: Fmp | None = None, directory: Directory | None = None,
                verifier: Verifier = google_verifier, client_id: str | None = None,
                session_secret: str | None = None, secure_cookies: bool | None = None,
-               static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN) -> FastAPI:
+               static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN, markets=None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
+    # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
+    # key out of the logs.
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     app = FastAPI(title="Market Hub", docs_url=None, redoc_url=None, openapi_url=None)
     users = users or default_users()
     market = market or Fmp()
     directory = directory or Directory()
+    markets = markets or default_markets(market)
     client_id = GOOGLE_CLIENT_ID if client_id is None else client_id
     secret = session_secret or SESSION_SECRET
     if not secret:
@@ -267,18 +275,24 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         return found.name.title() if found.name.isupper() else found.name
 
     @app.get("/api/public/overview")
-    def public_overview() -> dict:
-        return sample.overview()
+    def public_overview(detail: bool = Query(False)) -> dict:
+        return markets.overview(detail=detail)
 
     @app.get("/api/public/chart")
     def public_chart(symbol_: str = Query(alias="symbol", max_length=12), range_: str = Query("1Y", alias="range", max_length=4)) -> dict:
         t = symbol(symbol_)
-        return sample.chart(t, range_, name=company_name(t))
+        try:
+            return markets.chart(t, range_, name=company_name(t))
+        except MarketUnavailable:
+            raise HTTPException(503, "Prices for this range are not available right now.") from None
 
     @app.get("/api/public/quote")
     def public_quote(t: str = Query(max_length=12)) -> dict:
         t = symbol(t)
-        return sample.quote(t, name=company_name(t))
+        try:
+            return markets.quote(t, name=company_name(t))
+        except MarketUnavailable:
+            raise HTTPException(404, "No quote for that ticker right now.") from None
 
     @app.get("/api/public/news")
     def public_news(category: str | None = Query(None, max_length=30), ticker: str | None = Query(None, max_length=12),

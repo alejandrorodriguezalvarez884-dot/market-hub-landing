@@ -1,7 +1,7 @@
 // Pieces shared by the public pages: quote rows, change pills, headlines, sectors and movers.
 import { add, h, linkTo } from "./dom";
 import { change, compact, level, signedPct, timeAgo, toneClass } from "./format";
-import type { Mover, NewsItem, Sector, Snapshot } from "./market";
+import type { Mover, NewsItem, Overview, Sector, Snapshot } from "./market";
 import { link } from "./site";
 import { sparkline } from "./spark";
 
@@ -112,7 +112,7 @@ export function heatmap(sectors: Sector[]): HTMLElement {
       h("span", "text-[13px] font-semibold text-white", s.name),
       add(h("div", "flex items-end justify-between gap-2"),
         h("span", "num text-lg font-bold text-white", signedPct(s.change_pct, 2)),
-        h("span", "num text-[11px] text-white/75", `YTD ${signedPct(s.return_ytd)}`)));
+        s.return_ytd == null ? null : h("span", "num text-[11px] text-white/75", `YTD ${signedPct(s.return_ytd)}`)));
     tile.style.background = shade(s.change_pct);
     return tile;
   }));
@@ -136,6 +136,14 @@ export function newsFeature(n: NewsItem): HTMLElement {
     h("h2", "text-xl font-bold leading-snug text-ink-strong sm:text-2xl", n.title),
     h("p", "mt-2 max-w-2xl text-[14px] leading-relaxed text-ink", n.summary),
     n.tickers.length ? add(h("div", "mt-3 flex flex-wrap gap-1"), ...n.tickers.map((t) => linkTo(quoteHref(t), "chip", t))) : null);
+}
+
+// A part of the overview the provider did not answer is sample data: mark its panel title.
+export function flagSample(o: Overview, sections: string[], title: Element | null) {
+  if (!title || !sections.some((s) => o.sample_sections?.includes(s))) return;
+  const badge = h("span", "ml-2 rounded bg-warn-soft px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-warn", "Sample");
+  badge.title = "The data provider did not answer this part: these figures are sample placeholders.";
+  title.append(badge);
 }
 
 export function failed(el: HTMLElement, text = "Not available right now.") {

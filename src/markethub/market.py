@@ -64,6 +64,16 @@ class Fmp:
             raise MarketUnavailable(f"The market data provider answered {resp.status_code}.")
         return resp.json()
 
+    def cached(self, path: str, ttl: float, **params: Any) -> Any:
+        """Any provider path, answered from memory for ``ttl`` seconds."""
+        key = path + "?" + "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        hit = self.cache.get(key, ttl)
+        if hit is not None:
+            return hit
+        data = self._get(path, **params)
+        self.cache.put(key, data)
+        return data
+
     def quotes(self, tickers: list[str]) -> dict[str, dict]:
         """Last price, day change and 52-week range per ticker. Unknown tickers are left out."""
         out, missing = {}, []
@@ -96,6 +106,10 @@ class Fmp:
                     "year_low": _num(row.get("yearLow")),
                     "market_cap": _num(row.get("marketCap")),
                     "volume": _num(row.get("volume")),
+                    "open": _num(row.get("open")),
+                    "day_low": _num(row.get("dayLow")),
+                    "day_high": _num(row.get("dayHigh")),
+                    "exchange": row.get("exchange") or "",
                     "timestamp": row.get("timestamp"),
                 }
                 self.cache.put(f"q:{t}", q)
@@ -123,7 +137,10 @@ class Fmp:
         rows = self._get("profile", symbol=ticker) or []
         row = rows[0] if rows else {}
         p = {"sector": row.get("sector") or "", "industry": row.get("industry") or "",
-             "name": row.get("companyName") or ticker, "is_etf": bool(row.get("isEtf"))}
+             "name": row.get("companyName") or ticker, "is_etf": bool(row.get("isEtf")),
+             "exchange": row.get("exchange") or row.get("exchangeShortName") or "",
+             "beta": _num(row.get("beta")), "last_dividend": _num(row.get("lastDividend")),
+             "average_volume": _num(row.get("averageVolume", row.get("volAvg")))}
         self.cache.put(f"p:{ticker}", p)
         return p
 

@@ -1,4 +1,5 @@
-// The public market API (sample data for now: every answer has `sample: true`).
+// The public market API. Prices come from the data provider; a part that is sample data says so
+// (`sample: true`, or its name in the overview's `sample_sections`). Headlines are sample data.
 import { api } from "./api";
 
 export type Kind = "index" | "stock" | "etf" | "rate" | "commodity" | "fx" | "crypto";
@@ -6,10 +7,10 @@ export type Snapshot = {
   symbol: string; name: string; kind: Kind; price: number; change: number; change_pct: number;
   return_1m: number | null; return_ytd: number | null; return_1y: number | null; spark: number[];
 };
-export type Mover = Snapshot & { volume: number; sector: string };
-export type Sector = { name: string; change_pct: number; return_ytd: number; members: string[] };
+export type Mover = Snapshot & { volume: number | null; sector: string };
+export type Sector = { name: string; change_pct: number; return_ytd: number | null; members: string[] };
 export type Overview = {
-  sample: boolean; as_of: string;
+  sample: boolean; sample_sections: string[]; source: string; as_of: string;
   tape: Snapshot[]; indices: Snapshot[]; rates: Snapshot[]; commodities: Snapshot[]; currencies: Snapshot[]; crypto: Snapshot[];
   sectors: Sector[]; movers: { gainers: Mover[]; losers: Mover[]; active: Mover[] };
 };
@@ -27,8 +28,12 @@ export type Quote = Snapshot & {
 export const RANGES = ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y"] as const;
 
 // The overview feeds several parts of a page (the ticker tape and the page itself): one request.
-let overviewOnce: Promise<Overview> | null = null;
-export const overview = () => (overviewOnce ??= api<Overview>("/api/public/overview"));
+// `detail` adds the 1-month, YTD and 1-year returns (the markets page's tables).
+const overviews = new Map<boolean, Promise<Overview>>();
+export function overview(detail = false): Promise<Overview> {
+  if (!overviews.has(detail)) overviews.set(detail, api<Overview>(`/api/public/overview${detail ? "?detail=1" : ""}`));
+  return overviews.get(detail)!;
+}
 export const chartData = (symbol: string, range: string) =>
   api<ChartData>(`/api/public/chart?symbol=${encodeURIComponent(symbol)}&range=${encodeURIComponent(range)}`);
 export const quote = (t: string) => api<Quote>(`/api/public/quote?t=${encodeURIComponent(t)}`);

@@ -11,10 +11,10 @@ import TickerTape from "./TickerTape.astro";
 interface Props {
 	title: string;
 	description: string;
-	sample?: boolean; // the page shows sample market data: say so under the header
+	notice?: string; // a line under the header: what on the page is sample data
 	tape?: boolean;
 }
-const { title, description, sample = false, tape = true } = Astro.props;
+const { title, description, notice, tape = true } = Astro.props;
 const path = Astro.url.pathname;
 const nav = [
 	{ href: link("/"), label: "Home", exact: true },
@@ -57,12 +57,9 @@ const nav = [
 		</nav>
 	</header>
 	{tape && <TickerTape />}
-	{sample && (
+	{notice && (
 		<div class="border-b border-warn/20 bg-warn-soft">
-			<p class="mx-auto max-w-[1400px] px-4 py-1.5 text-xs text-warn">
-				<strong class="font-semibold">Sample data.</strong> Prices, charts and headlines on this page are placeholders while the
-				data feed is being connected. They are not real quotes or news.
-			</p>
+			<p class="mx-auto max-w-[1400px] px-4 py-1.5 text-xs text-warn">{notice}</p>
 		</div>
 	)}
 	<main class="mx-auto max-w-[1400px] px-4 pb-16 pt-6">
