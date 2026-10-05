@@ -4,11 +4,11 @@ import Site from "../components/Site.astro";
 ---
 
 <Site title="Tools" description="The analysis tools of Market Hub: Fundamentals Lab and the Earnings Radar.">
-	<div class="mb-6">
-		<h1 class="text-2xl font-bold text-ink-strong">Analysis tools</h1>
-		<p class="mt-1 max-w-2xl text-[13px] text-muted">Each tool works on any US-listed company and opens with your Market Hub sign-in. From a quote page or from your hub, every stock links straight to them.</p>
+	<div class="mb-10 max-w-2xl">
+		<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Read a company in depth</h1>
+		<p class="mt-3 text-ink">Two tools, each for any US-listed company. They open with your Market Hub sign-in, and every stock page links straight to them.</p>
 	</div>
-	<div id="tools" class="grid gap-4 md:grid-cols-2"><div class="skeleton h-56"></div><div class="skeleton h-56"></div></div>
+	<div id="tools" class="grid gap-x-14 gap-y-10 md:grid-cols-2"><div class="skeleton h-56"></div><div class="skeleton h-56"></div></div>
 </Site>
 
 <script>
@@ -19,14 +19,25 @@ import Site from "../components/Site.astro";
 		{
 			key: "fundamentals_lab" as const,
 			name: "Fundamentals Lab",
-			tag: "Numbers",
-			text: "Ten years of statements and twelve quarters, margins and returns on capital, valuation against the company's own history, forward multiples from the analysts' consensus, technical analysis and side-by-side comparison of up to five companies. With an AI reading of the numbers.",
+			about: "The numbers",
+			points: [
+				"Statements, margins and returns on capital, year by year",
+				"Valuation against the company's own history",
+				"Forward multiples from the analysts' consensus",
+				"Technical picture and side-by-side comparison of up to five companies",
+				"An AI reading that comments the numbers and invents none",
+			],
 		},
 		{
 			key: "earnings_radar" as const,
 			name: "Earnings Radar",
-			tag: "Results",
-			text: "Reads a company's latest results release the moment you ask: is guidance raised or cut, is demand weakening, are margins under pressure, which themes it talks about. Plus market trends across 99 large companies since 2021.",
+			about: "The results release",
+			points: [
+				"Reads a company's latest results release when you ask",
+				"Is guidance raised or cut, is demand weakening, are margins under pressure",
+				"Which themes the company talks about",
+				"Trends across 99 large companies since 2021",
+			],
 		},
 	];
 	const root = document.getElementById("tools")!;
@@ -34,13 +45,12 @@ import Site from "../components/Site.astro";
 		.then((cfg) => {
 			root.replaceChildren(...TOOLS.map((t) => {
 				const url = cfg.tools[t.key];
-				const el = h(url ? "a" : "div", `panel block p-6 ${url ? "transition-colors hover:border-line-strong hover:bg-[#222632]" : ""}`);
-				if (url) (el as HTMLAnchorElement).href = url;
-				return add(el,
-					add(h("div", "flex items-center justify-between gap-3"),
-						add(h("div", "flex items-center gap-2"), h("h2", "text-lg font-bold text-ink-strong", t.name), h("span", "chip", t.tag)),
-						h("span", url ? "text-xs font-semibold text-[#5b8cff]" : "text-xs text-muted", url ? "Open ↗" : "Coming soon")),
-					h("p", "mt-3 text-[13px] leading-relaxed text-muted", t.text));
+				const open = url ? h("a", "btn btn-primary mt-6", `Open ${t.name}`) : h("span", "mt-6 inline-block text-sm text-muted", "Not open yet");
+				if (url) (open as HTMLAnchorElement).href = url;
+				return add(h("section", "sec"),
+					add(h("div", "sec-head"), h("h2", "text-xl font-medium text-ink-strong", t.name), h("span", "sec-note", t.about)),
+					add(h("ul", "divide-y divide-line text-ink"), ...t.points.map((p) => h("li", "py-2", p))),
+					open);
 			}));
 		})
 		.catch(() => root.replaceChildren(h("p", "text-sm text-muted", "The tools list is not available right now.")));

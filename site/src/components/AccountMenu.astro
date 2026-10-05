@@ -25,7 +25,7 @@ import { link } from "../lib/site";
 			button.type = "button";
 			button.setAttribute("aria-label", "Account");
 			button.append(avatar(who.user));
-			const menu = h("div", "absolute right-0 top-full z-50 mt-2 w-64 rounded-md border border-line-strong bg-panel p-1.5 text-sm shadow-2xl shadow-black/50");
+			const menu = h("div", "absolute right-0 top-full z-50 mt-2 w-64 rounded-[3px] border border-line-strong bg-panel p-1.5 text-sm shadow-2xl shadow-black/60");
 			menu.hidden = true;
 			const item = (href: string, text: string) => linkTo(href, "block rounded px-3 py-2 text-ink hover:bg-raised", text);
 			const out = h("button", "w-full rounded px-3 py-2 text-left text-ink hover:bg-raised", "Sign out");

@@ -1,76 +1,80 @@
 ---
-// Markets: every instrument of the overview in tables, the sector heatmap and the movers.
+// Markets: every instrument of the overview in tables, with the day's move on the ruler, the
+// sectors and the movers.
 import Site from "../components/Site.astro";
 ---
 
 <Site title="Markets" description="US and world indices, rates, commodities, currencies, crypto, sectors and the day's movers.">
-	<div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+	<div class="mb-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
 		<div>
-			<h1 class="text-2xl font-bold text-ink-strong">Markets</h1>
-			<p id="as-of" class="mt-1 text-xs text-muted">&nbsp;</p>
+			<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Markets</h1>
+			<p id="as-of" class="mt-1 text-[13px] text-muted">&nbsp;</p>
 		</div>
 		<nav class="tabs" aria-label="Sections">
 			<a class="tab-btn" href="#indices">Indices</a>
 			<a class="tab-btn" href="#sectors">Sectors</a>
-			<a class="tab-btn" href="#movers">Movers</a>
 			<a class="tab-btn" href="#rates">Rates</a>
 			<a class="tab-btn" href="#commodities">Commodities</a>
 			<a class="tab-btn" href="#currencies">Currencies</a>
+			<a class="tab-btn" href="#movers">Movers</a>
 		</nav>
 	</div>
 
-	<div class="grid gap-4">
-		<section id="indices" class="panel scroll-mt-32">
-			<header class="panel-head"><h2 class="panel-title">Indices</h2></header>
-			<div id="t-indices"><div class="skeleton m-4 h-72"></div></div>
+	<div class="grid gap-12">
+		<section id="indices" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">Stock indices</h2></div>
+			<div id="t-indices"><div class="skeleton h-72"></div></div>
 		</section>
 
-		<section id="sectors" class="panel scroll-mt-32">
-			<header class="panel-head"><h2 class="panel-title">Sectors</h2><span class="text-xs text-muted">Today's move</span></header>
-			<div id="t-sectors" class="p-4"><div class="skeleton h-48"></div></div>
+		<section id="sectors" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">US sectors</h2><span class="sec-note">Average move of each sector's stocks today</span></div>
+			<div id="t-sectors" class="max-w-3xl" style="--track: 280px"><div class="skeleton h-72"></div></div>
 		</section>
 
-		<section id="movers" class="grid scroll-mt-32 gap-4 lg:grid-cols-3">
-			<div class="panel"><header class="panel-head"><h2 class="panel-title">Top gainers</h2></header><div id="t-gainers"></div></div>
-			<div class="panel"><header class="panel-head"><h2 class="panel-title">Top losers</h2></header><div id="t-losers"></div></div>
-			<div class="panel"><header class="panel-head"><h2 class="panel-title">Most active</h2></header><div id="t-active"></div></div>
-		</section>
-
-		<div class="grid gap-4 xl:grid-cols-2">
-			<section id="rates" class="panel scroll-mt-32">
-				<header class="panel-head"><h2 class="panel-title">Rates</h2><span class="text-xs text-muted">Government bond yields</span></header>
+		<div class="grid gap-x-14 gap-y-12 xl:grid-cols-2">
+			<section id="rates" class="sec scroll-mt-20">
+				<div class="sec-head"><h2 class="sec-title">Treasury yields</h2><span class="sec-note">Change in basis points</span></div>
 				<div id="t-rates"></div>
 			</section>
-			<section id="currencies" class="panel scroll-mt-32">
-				<header class="panel-head"><h2 class="panel-title">Currencies and crypto</h2></header>
-				<div id="t-currencies"></div>
+			<section id="commodities" class="sec scroll-mt-20">
+				<div class="sec-head"><h2 class="sec-title">Commodities</h2></div>
+				<div id="t-commodities"></div>
 			</section>
 		</div>
 
-		<section id="commodities" class="panel scroll-mt-32">
-			<header class="panel-head"><h2 class="panel-title">Commodities</h2></header>
-			<div id="t-commodities"></div>
+		<section id="currencies" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">Currencies and crypto</h2></div>
+			<div id="t-currencies"></div>
+		</section>
+
+		<section id="movers" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">Movers</h2><span class="sec-note">US-listed stocks and funds above $5, as the data provider lists them</span></div>
+			<div class="grid gap-x-14 gap-y-8 lg:grid-cols-3">
+				<div><h3 class="mb-1 text-sm text-muted">Largest rises</h3><div id="t-gainers"></div></div>
+				<div><h3 class="mb-1 text-sm text-muted">Largest falls</h3><div id="t-losers"></div></div>
+				<div><h3 class="mb-1 text-sm text-muted">Most traded</h3><div id="t-active"></div></div>
+			</div>
 		</section>
 	</div>
 </Site>
 
 <script>
 	import { overview } from "../lib/market";
-	import { failed, flagSample, heatmap, moversTable, quoteTable } from "../lib/widgets";
+	import { failed, flagSample, moversTable, quoteTable, sectorRuler } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
 	overview(true)
 		.then((o) => {
-			const title = (id: string) => document.querySelector(`#${id} .panel-title`);
+			const title = (id: string) => document.querySelector(`#${id} .sec-title`);
 			flagSample(o, ["indices"], title("indices"));
 			flagSample(o, ["sectors"], title("sectors"));
 			flagSample(o, ["movers"], title("movers"));
 			flagSample(o, ["rates"], title("rates"));
 			flagSample(o, ["currencies", "crypto"], title("currencies"));
 			flagSample(o, ["commodities"], title("commodities"));
-			$("as-of").textContent = `As of ${new Date(o.as_of).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`;
+			$("as-of").textContent = `Figures read ${new Date(o.as_of).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}. They can be delayed.`;
 			$("t-indices").replaceChildren(quoteTable(o.indices));
-			$("t-sectors").replaceChildren(heatmap(o.sectors));
+			$("t-sectors").replaceChildren(sectorRuler(o.sectors));
 			$("t-gainers").replaceChildren(moversTable(o.movers.gainers));
 			$("t-losers").replaceChildren(moversTable(o.movers.losers));
 			$("t-active").replaceChildren(moversTable(o.movers.active));

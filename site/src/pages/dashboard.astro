@@ -32,7 +32,7 @@ import App from "../components/App.astro";
 		const el = h("div", "flex justify-end gap-1");
 		const a = (href: string | null, label: string, title: string) => {
 			if (!href) return null;
-			const x = h("a", "rounded border border-line-strong px-2 py-0.5 text-[11px] font-semibold text-muted hover:border-accent hover:text-[#5b8cff]", label) as HTMLAnchorElement;
+			const x = h("a", "rounded border border-line-strong px-2 py-0.5 text-[11px] font-semibold text-muted hover:border-muted hover:text-ink-strong", label) as HTMLAnchorElement;
 			x.href = href;
 			x.title = title;
 			x.target = "_blank";
@@ -43,7 +43,7 @@ import App from "../components/App.astro";
 	}
 
 	function nameCell(t: string, name: string): HTMLElement {
-		return add(h("td"), linkTo(link(`/quote/?t=${encodeURIComponent(t)}`), "font-semibold text-ink-strong hover:text-[#5b8cff]", t), h("div", "max-w-[11rem] truncate text-[11px] text-muted", tidyName(name)));
+		return add(h("td"), linkTo(link(`/quote/?t=${encodeURIComponent(t)}`), "font-semibold text-ink-strong hover:underline", t), h("div", "max-w-[11rem] truncate text-[11px] text-muted", tidyName(name)));
 	}
 
 	function holdings(d: Dashboard, cfg: Config): HTMLElement {
@@ -96,7 +96,7 @@ import App from "../components/App.astro";
 		const bars = (items: { label: string; weight: number }[]) => add(h("div", "space-y-2"), ...items.map((it) => {
 			const bar = h("div", "h-2 rounded-full");
 			bar.style.width = `${Math.max(1, it.weight * 100)}%`;
-			bar.style.background = "#2962ff";
+			bar.style.background = "var(--color-ink)";
 			return add(h("div"), add(h("div", "mb-1 flex justify-between gap-3 text-[13px]"), h("span", "truncate text-ink", it.label), h("span", "num font-semibold text-ink-strong", pct(it.weight))),
 				add(h("div", "h-2 rounded-full bg-raised"), bar));
 		}));
@@ -114,8 +114,8 @@ import App from "../components/App.astro";
 		if (!hst.dates.length) return (c.body.append(h("p", "text-sm text-muted", "No common price history yet.")), c.el);
 		// Drawn once the panel is in the page, so the chart knows its width.
 		requestAnimationFrame(() => compareChart(c.body, hst.dates, [
-			{ name: "Your holdings", values: hst.portfolio_rebased, color: "#2962ff" },
-			{ name: "S&P 500", values: hst.benchmark_rebased, color: "#868993" },
+			{ name: "Your holdings", values: hst.portfolio_rebased, color: "#f2f0ea" },
+			{ name: "S&P 500", values: hst.benchmark_rebased, color: "#6f6e6a" },
 		]));
 		return c.el;
 	}
@@ -126,10 +126,10 @@ import App from "../components/App.astro";
 			["Earnings Radar", "What a company's latest results release says: guidance, demand, margins and themes, read by a model.", cfg.tools.earnings_radar],
 		] as const;
 		return add(h("div", "grid gap-4 sm:grid-cols-2"), ...items.map(([name, text, url]) => {
-			const el = h(url ? "a" : "div", `panel block p-4 ${url ? "transition-colors hover:border-line-strong hover:bg-[#222632]" : "opacity-70"}`);
+			const el = h(url ? "a" : "div", `panel block p-4 ${url ? "transition-colors hover:border-line-strong hover:bg-raised" : "opacity-70"}`);
 			if (url) (el as HTMLAnchorElement).href = url;
 			return add(el, add(h("div", "flex items-center justify-between"), h("h3", "text-[15px] font-bold text-ink-strong", name),
-				h("span", url ? "text-xs font-semibold text-[#5b8cff]" : "text-xs text-muted", url ? "Open ↗" : "Coming soon")), h("p", "mt-1.5 text-[13px] text-muted", text));
+				h("span", url ? "text-xs text-ink-strong" : "text-xs text-muted", url ? "Open ↗" : "Coming soon")), h("p", "mt-1.5 text-[13px] text-muted", text));
 		}));
 	}
 
@@ -138,7 +138,7 @@ import App from "../components/App.astro";
 		const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 		const edit = linkTo(link("/portfolio/"), "btn btn-ghost", "Edit portfolio");
 		const header = add(h("div", "flex flex-wrap items-end justify-between gap-3"),
-			add(h("div"), h("p", "label text-[#5b8cff]", "My Hub"), h("h1", "mt-1 text-2xl font-bold text-ink-strong", greeting(name)), h("p", "mt-0.5 text-[13px] text-muted", today)), edit);
+			add(h("div"), h("p", "label", "My Hub"), h("h1", "mt-1 text-2xl font-bold text-ink-strong", greeting(name)), h("p", "mt-0.5 text-[13px] text-muted", today)), edit);
 
 		const tiles = add(h("div", "panel grid grid-cols-2 gap-x-6 gap-y-5 p-4 sm:grid-cols-4 sm:p-5"),
 			stat("Portfolio value", money(t.value), t.positions ? `${t.positions} position${t.positions > 1 ? "s" : ""}` : "No positions"),

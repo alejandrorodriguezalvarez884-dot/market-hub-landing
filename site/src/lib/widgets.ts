@@ -1,7 +1,7 @@
-// Pieces shared by the public pages: quote rows, change pills, headlines, sectors and movers.
+// Pieces shared by the public pages: the ruler (every move on one scale) and the tables.
 import { add, h, linkTo } from "./dom";
-import { change, compact, level, signedPct, timeAgo, toneClass } from "./format";
-import type { Mover, NewsItem, Overview, Sector, Snapshot } from "./market";
+import { change, level, signedPct, toneClass } from "./format";
+import type { Mover, Overview, Sector, Snapshot } from "./market";
 import { link } from "./site";
 import { sparkline } from "./spark";
 
@@ -11,41 +11,112 @@ export function pill(v: number | null | undefined, digits = 2): HTMLElement {
   return h("span", typeof v === "number" && v < 0 ? "pill-down" : "pill-up", signedPct(v, digits));
 }
 
-// A compact row for side lists: name and symbol, last price, change.
-export function quoteRow(s: Snapshot, onPick?: (s: Snapshot) => void): HTMLElement {
-  const el = onPick ? h("button", "w-full text-left") : linkTo(quoteHref(s.symbol), "block");
-  if (onPick) {
+// --- The ruler ---------------------------------------------------------------------------------
+
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+// The half-width of a ruler, as a fraction: the largest move, rounded up to half a percent,
+// between ±1% and ±4%. A move beyond it is drawn at the edge, so one outlier does not flatten
+// every other mark.
+export function rulerScale(moves: (number | null | undefined)[]): number {
+  const max = Math.max(0, ...moves.filter(isNum).map(Math.abs));
+  return Math.min(0.04, Math.max(0.01, Math.ceil(max / 0.005 - 1e-9) * 0.005));
+}
+
+// One mark on the ruler: a stem from zero and a dot at the move.
+export function track(move: number | null | undefined, scale: number): HTMLElement {
+  const el = h("div", "track");
+  el.setAttribute("aria-hidden", "true");
+  if (!isNum(move)) return el;
+  const off = Math.abs(move) > scale;
+  const reach = Math.min(1, Math.abs(move) / scale) * 50; // % of the track, from the middle
+  const tone = move > 0 ? "up" : move < 0 ? "down" : "";
+  const fill = tone === "up" ? "bg-up" : tone === "down" ? "bg-down" : "bg-muted";
+  const stem = h("span", `track-stem ${fill}`);
+  stem.style.width = `${reach}%`;
+  stem.style[move < 0 ? "right" : "left"] = "50%";
+  const dot = h("span", `track-dot ${fill} ${tone} ${off ? "off" : ""}`);
+  dot.style.left = `${50 + (move < 0 ? -reach : reach)}%`;
+  return add(el, stem, dot);
+}
+
+// The scale's ends and its zero, to sit above a column of tracks.
+export function rulerAxis(scale: number): HTMLElement {
+  const end = `${(scale * 100).toFixed(scale * 100 % 1 ? 1 : 0)}%`;
+  return add(h("div", "ruler-axis"), h("span", "", `−${end}`), h("span", "", "0"), h("span", "", `+${end}`));
+}
+
+export type RulerItem = {
+  name: string;
+  value?: string; // the level, in its own unit
+  move: number | null | undefined; // the day's move as a fraction: its place on the ruler
+  text?: string; // what to print instead of the percentage (basis points for a yield)
+  onPick?: () => void;
+  href?: string;
+  key?: string;
+};
+
+export function rulerRow(item: RulerItem, scale: number): HTMLElement {
+  const el = item.onPick ? h("button", "ruler-row") : item.href ? linkTo(item.href, "ruler-row") : h("div", "ruler-row");
+  if (item.onPick) {
     (el as HTMLButtonElement).type = "button";
-    el.addEventListener("click", () => onPick(s));
+    el.setAttribute("aria-pressed", "false");
+    el.addEventListener("click", item.onPick);
   }
-  el.className += " grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded px-2 py-1.5 hover:bg-raised";
-  el.dataset.symbol = s.symbol;
+  if (item.key) el.dataset.key = item.key;
   return add(el,
-    add(h("span", "min-w-0"), h("span", "block truncate text-[13px] font-semibold text-ink-strong", s.name), h("span", "block text-[11px] text-muted", s.symbol)),
-    h("span", "num text-right text-[13px] text-ink", level(s.price, s.kind)),
-    pill(s.change_pct));
+    add(h("span", "min-w-0"),
+      h("span", "block truncate text-ink-strong", item.name),
+      item.value ? h("span", "num block text-[12.5px] text-muted sm:hidden", item.value) : null),
+    h("span", "num hidden text-right text-[13px] text-ink sm:block", item.value ?? ""),
+    item.text ? h("span", "track") : track(item.move, scale),
+    h("span", `num text-right text-[13px] ${toneClass(item.move)}`, item.text ?? signedPct(item.move, 2)));
 }
 
-export function quoteGroup(title: string, items: Snapshot[], onPick?: (s: Snapshot) => void): HTMLElement {
-  return add(h("div", "py-2"), h("div", "label px-2 pb-1", title), ...items.map((s) => quoteRow(s, onPick)));
+// A titled group of rows inside a ruler.
+export const rulerGroup = (title: string, rows: HTMLElement[]) => (rows.length ? [h("div", "ruler-group", title), ...rows] : []);
+
+export const snapshotItem = (s: Snapshot, onPick?: (s: Snapshot) => void): RulerItem =>
+  ({ key: s.symbol, name: s.name, value: level(s.price, s.kind), move: s.change_pct, onPick: onPick ? () => onPick(s) : undefined, href: onPick ? undefined : quoteHref(s.symbol) });
+
+// A yield moves in basis points, not in percent of itself: it gets its figure and no mark.
+export function rateItem(s: Snapshot): RulerItem {
+  const bp = Math.round(s.change * 100);
+  return { key: s.symbol, name: s.name, value: level(s.price, s.kind), move: s.change, text: `${bp > 0 ? "+" : bp < 0 ? "−" : ""}${Math.abs(bp)} bp` };
 }
 
-// A table of instruments with returns over several periods.
+// Sectors on the ruler, from the strongest to the weakest.
+export function sectorRuler(sectors: Sector[]): HTMLElement {
+  const sorted = [...sectors].sort((a, b) => b.change_pct - a.change_pct);
+  const scale = rulerScale(sorted.map((s) => s.change_pct));
+  return add(h("div", "ruler"),
+    add(h("div", "ruler-row !py-0 pb-1"), h("span"), h("span", "hidden sm:block"), rulerAxis(scale), h("span")),
+    ...sorted.map((s) => rulerRow({ name: s.name, move: s.change_pct }, scale)));
+}
+
+// --- Tables ------------------------------------------------------------------------------------
+
+// A table of instruments: level, the day's move on the ruler, and returns over several periods.
 export function quoteTable(items: Snapshot[]): HTMLElement {
   const t = h("table", "data-table");
-  const head = ["Name", "Last", "Change", "Chg %", "1 month", "YTD", "1 year", "30 days"];
+  const rates = items.every((s) => s.kind === "rate");
+  const scale = rulerScale(items.map((s) => s.change_pct));
+  const head = ["Name", "Last", "Change", rates ? "" : "Today", "", "1 month", "YTD", "1 year", "30 days"];
   add(t, add(h("thead"), add(h("tr"), ...head.map((x) => h("th", "", x)))),
     add(h("tbody"), ...items.map((s) => {
-      const tr = add(h("tr", "row-link"),
-        add(h("td"), linkTo(quoteHref(s.symbol), "font-semibold text-ink-strong hover:text-[#5b8cff]", s.name), h("div", "text-[11px] text-muted", s.symbol)),
+      const linked = s.kind !== "rate";
+      const name = linked ? linkTo(quoteHref(s.symbol), "text-ink-strong hover:underline", s.name) : h("span", "text-ink-strong", s.name);
+      const tr = add(h("tr", linked ? "row-link" : ""),
+        add(h("td"), name),
         h("td", "text-ink-strong", level(s.price, s.kind)),
-        h("td", toneClass(s.change), change(s.change, s.kind)),
-        add(h("td"), pill(s.change_pct)),
+        h("td", toneClass(s.change), rates ? rateItem(s).text : change(s.change, s.kind)),
+        rates ? h("td") : add(h("td"), add(h("div", "ml-auto"), track(s.change_pct, scale))),
+        rates ? h("td") : h("td", toneClass(s.change_pct), signedPct(s.change_pct, 2)),
         h("td", toneClass(s.return_1m), signedPct(s.return_1m)),
         h("td", toneClass(s.return_ytd), signedPct(s.return_ytd)),
         h("td", toneClass(s.return_1y), signedPct(s.return_1y)),
-        add(h("td"), sparkline(s.spark, 88, 26)));
-      tr.addEventListener("click", (e) => !(e.target as Element).closest("a") && (location.href = quoteHref(s.symbol)));
+        add(h("td"), sparkline(s.spark, 88, 24)));
+      if (linked) tr.addEventListener("click", (e) => !(e.target as Element).closest("a") && (location.href = quoteHref(s.symbol)));
       return tr;
     })));
   return add(h("div", "overflow-x-auto"), t);
@@ -53,21 +124,20 @@ export function quoteTable(items: Snapshot[]): HTMLElement {
 
 export function moversTable(items: Mover[]): HTMLElement {
   const t = h("table", "data-table");
-  add(t, add(h("thead"), add(h("tr"), ...["Stock", "Price", "Chg %", "Volume"].map((x) => h("th", "", x)))),
+  add(t, add(h("thead"), add(h("tr"), ...["Stock", "Price", "Today"].map((x) => h("th", "", x)))),
     add(h("tbody"), ...items.map((m) => {
       const tr = add(h("tr", "row-link"),
-        add(h("td"), linkTo(quoteHref(m.symbol), "font-semibold text-ink-strong hover:text-[#5b8cff]", m.symbol),
-          h("div", "max-w-[10rem] truncate text-[11px] text-muted", m.name)),
+        add(h("td"), linkTo(quoteHref(m.symbol), "num text-ink-strong hover:underline", m.symbol),
+          h("div", "max-w-[11rem] truncate text-[12.5px] text-muted", m.name)),
         h("td", "text-ink", level(m.price, m.kind)),
-        add(h("td"), pill(m.change_pct)),
-        h("td", "text-muted", compact(m.volume)));
+        add(h("td"), pill(m.change_pct)));
       tr.addEventListener("click", (e) => !(e.target as Element).closest("a") && (location.href = quoteHref(m.symbol)));
       return tr;
     })));
   return add(h("div", "overflow-x-auto"), t);
 }
 
-// Tabs over a few views of the same panel (gainers, losers, most active...).
+// Tabs over a few views of the same block.
 export function tabbed(views: { label: string; render: () => HTMLElement }[], initial = 0): { tabs: HTMLElement; body: HTMLElement } {
   const tabs = h("div", "tabs");
   tabs.setAttribute("role", "tablist");
@@ -87,65 +157,16 @@ export function tabbed(views: { label: string; render: () => HTMLElement }[], in
   return { tabs, body };
 }
 
-// Sectors as diverging bars around zero, sorted by the day's move.
-export function sectorBars(sectors: Sector[]): HTMLElement {
-  const sorted = [...sectors].sort((a, b) => b.change_pct - a.change_pct);
-  const max = Math.max(...sorted.map((s) => Math.abs(s.change_pct)), 0.001);
-  return add(h("div", "space-y-1.5"), ...sorted.map((s) => {
-    const bar = h("div", `absolute top-0 h-full rounded-sm ${s.change_pct >= 0 ? "bg-up/70 left-1/2" : "bg-down/70 right-1/2"}`);
-    bar.style.width = `${(Math.abs(s.change_pct) / max) * 50}%`;
-    return add(h("div", "grid grid-cols-[9.5rem_minmax(0,1fr)_3.75rem] items-center gap-2 text-xs"),
-      h("span", "truncate text-ink", s.name),
-      add(h("div", "relative h-3.5 rounded-sm bg-raised/60"), h("div", "absolute left-1/2 top-0 h-full w-px bg-line-strong"), bar),
-      h("span", `num text-right font-semibold ${toneClass(s.change_pct)}`, signedPct(s.change_pct, 2)));
-  }));
-}
+// --- States ------------------------------------------------------------------------------------
 
-// Sectors as a heatmap of tiles, coloured by the day's move.
-export function heatmap(sectors: Sector[]): HTMLElement {
-  const shade = (v: number) => {
-    const a = Math.min(1, Math.abs(v) / 0.02);
-    return v >= 0 ? `rgba(8,153,129,${0.18 + a * 0.7})` : `rgba(242,54,69,${0.18 + a * 0.7})`;
-  };
-  return add(h("div", "grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-4"), ...[...sectors].sort((a, b) => b.change_pct - a.change_pct).map((s) => {
-    const tile = add(h("div", "flex min-h-[84px] flex-col justify-between rounded p-3"),
-      h("span", "text-[13px] font-semibold text-white", s.name),
-      add(h("div", "flex items-end justify-between gap-2"),
-        h("span", "num text-lg font-bold text-white", signedPct(s.change_pct, 2)),
-        s.return_ytd == null ? null : h("span", "num text-[11px] text-white/75", `YTD ${signedPct(s.return_ytd)}`)));
-    tile.style.background = shade(s.change_pct);
-    return tile;
-  }));
-}
-
-export function newsRow(n: NewsItem, opts: { summary?: boolean } = {}): HTMLElement {
-  return add(h("article", "group border-b border-line py-3 last:border-0"),
-    add(h("div", "mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted"),
-      h("span", "font-semibold uppercase tracking-wide text-[#5b8cff]", n.category), h("span", "", "·"), h("span", "", n.source), h("span", "", "·"),
-      h("time", "", timeAgo(n.published_utc))),
-    h("h3", "text-[14px] font-semibold leading-snug text-ink-strong", n.title),
-    opts.summary ? h("p", "mt-1 text-[13px] leading-relaxed text-muted", n.summary) : null,
-    n.tickers.length ? add(h("div", "mt-2 flex flex-wrap gap-1"), ...n.tickers.map((t) => linkTo(quoteHref(t), "chip", t))) : null);
-}
-
-export function newsFeature(n: NewsItem): HTMLElement {
-  return add(h("article", "relative self-start overflow-hidden rounded-md border border-line bg-gradient-to-br from-[#1b2a52] via-panel to-panel p-5"),
-    add(h("div", "mb-2 flex items-center gap-2 text-[11px] text-muted"),
-      h("span", "rounded bg-accent px-1.5 py-0.5 font-semibold uppercase tracking-wide text-white", n.category),
-      h("span", "", n.source), h("span", "", "·"), h("time", "", timeAgo(n.published_utc))),
-    h("h2", "text-xl font-bold leading-snug text-ink-strong sm:text-2xl", n.title),
-    h("p", "mt-2 max-w-2xl text-[14px] leading-relaxed text-ink", n.summary),
-    n.tickers.length ? add(h("div", "mt-3 flex flex-wrap gap-1"), ...n.tickers.map((t) => linkTo(quoteHref(t), "chip", t))) : null);
-}
-
-// A part of the overview the provider did not answer is sample data: mark its panel title.
+// A part of the overview the provider did not answer is sample data: say so next to its title.
 export function flagSample(o: Overview, sections: string[], title: Element | null) {
   if (!title || !sections.some((s) => o.sample_sections?.includes(s))) return;
-  const badge = h("span", "ml-2 rounded bg-warn-soft px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-warn", "Sample");
-  badge.title = "The data provider did not answer this part: these figures are sample placeholders.";
+  const badge = h("span", "ml-2 align-middle text-[12.5px] font-normal text-warn", "sample figures");
+  badge.title = "The data provider did not answer this part: these figures are placeholders, not the market.";
   title.append(badge);
 }
 
 export function failed(el: HTMLElement, text = "Not available right now.") {
-  el.replaceChildren(h("p", "p-4 text-sm text-muted", text));
+  el.replaceChildren(h("p", "py-4 text-sm text-muted", text));
 }

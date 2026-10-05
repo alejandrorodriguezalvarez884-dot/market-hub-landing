@@ -1,43 +1,38 @@
 ---
-// One instrument: price, chart, key figures, past returns, the analysis tools and its headlines.
+// One instrument: price, chart, key figures, past returns and the analysis tools.
 import Search from "../components/Search.astro";
 import Site from "../components/Site.astro";
 ---
 
-<Site title="Quote" description="Price, chart, key figures and headlines for any US-listed stock, index or market." notice="Headlines are sample placeholders while the news feed is being connected; they are not real news. Prices come from the data provider and may be delayed.">
-	<section id="empty" class="mx-auto max-w-xl py-16 text-center" hidden>
-		<h1 class="text-2xl font-bold text-ink-strong">Look up a stock</h1>
-		<p class="mt-2 text-[13px] text-muted">Any US-listed company or fund, by ticker or name.</p>
-		<div class="mt-6 text-left"><Search large autofocus id="quote-search" /></div>
+<Site title="Quote" description="Price, chart, key figures and past returns for any US-listed stock, index or market.">
+	<section id="empty" class="mx-auto max-w-xl py-16" hidden>
+		<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Look up a stock</h1>
+		<p class="mt-2 text-ink">Any US-listed company or fund, by name or ticker.</p>
+		<div class="mt-6"><Search large autofocus id="quote-search" /></div>
 	</section>
 
 	<div id="quote" hidden>
-		<div class="mb-4 flex flex-wrap items-start justify-between gap-4">
-			<div id="q-head" class="min-w-0"><span class="skeleton block h-16 w-80"></span></div>
+		<div class="mb-10 flex flex-wrap items-end justify-between gap-4">
+			<div id="q-head" class="min-w-0"><span class="skeleton block h-20 w-80"></span></div>
 			<div id="q-actions" class="flex flex-wrap gap-2"></div>
 		</div>
 
-		<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-			<div class="min-w-0 space-y-4">
-				<section class="panel overflow-hidden"><div id="q-chart"></div></section>
-				<section class="panel">
-					<header class="panel-head"><h2 class="panel-title">Performance</h2><span class="text-xs text-muted">Price return</span></header>
-					<div id="q-perf" class="grid grid-cols-3 gap-px bg-line sm:grid-cols-6"></div>
-				</section>
-				<section class="panel">
-					<header class="panel-head"><h2 class="panel-title">Headlines</h2></header>
-					<div id="q-news" class="px-4"></div>
+		<div class="grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
+			<div class="min-w-0 space-y-12">
+				<section class="sec"><div class="sec-head"><h2 class="sec-title">Price</h2></div><div id="q-chart" class="min-h-[460px]"></div></section>
+				<section class="sec">
+					<div class="sec-head"><h2 class="sec-title">Past returns</h2><span class="sec-note">Price only, without dividends</span></div>
+					<div id="q-perf" class="grid grid-cols-3 gap-y-5 sm:grid-cols-6"></div>
 				</section>
 			</div>
-			<aside class="min-w-0 space-y-4">
-				<section class="panel">
-					<header class="panel-head"><h2 class="panel-title">Key figures</h2></header>
-					<div id="q-stats" class="px-4 py-2"></div>
+			<aside class="min-w-0 space-y-12">
+				<section class="sec">
+					<div class="sec-head"><h2 class="sec-title">Key figures</h2></div>
+					<div id="q-stats"></div>
 				</section>
-				<section id="q-tools-box" class="panel p-4" hidden>
-					<h2 class="panel-title">Analyse this company</h2>
-					<p class="mt-1 text-xs text-muted">Open it in the Market Hub tools.</p>
-					<div id="q-tools" class="mt-3 space-y-2"></div>
+				<section id="q-tools-box" class="sec" hidden>
+					<div class="sec-head"><h2 class="sec-title">Read this company in depth</h2></div>
+					<ul id="q-tools" class="divide-y divide-line"></ul>
 				</section>
 			</aside>
 		</div>
@@ -51,7 +46,7 @@ import Site from "../components/Site.astro";
 	import { priceChart } from "../lib/lwc";
 	import { isEquity, quote, type Quote } from "../lib/market";
 	import { link, tidyName } from "../lib/site";
-	import { failed, newsRow } from "../lib/widgets";
+	import { failed } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
 	const ticker = (new URLSearchParams(location.search).get("t") ?? "").trim().toUpperCase();
@@ -60,29 +55,28 @@ import Site from "../components/Site.astro";
 		const kindLabel: Record<string, string> = { index: "Index", rate: "Yield", commodity: "Commodity", fx: "Currency", crypto: "Crypto", etf: "ETF" };
 		document.title = `${q.symbol} ${level(q.price, q.kind)} — ${tidyName(q.name)} — Market Hub`;
 		$("q-head").replaceChildren(
-			add(h("div", "flex flex-wrap items-center gap-2"),
-				h("h1", "text-2xl font-bold text-ink-strong", tidyName(q.name)),
-				h("span", "chip text-xs", q.symbol),
-				h("span", "text-xs text-muted", [isEquity(q.kind) ? q.exchange : kindLabel[q.kind], isEquity(q.kind) && q.sector !== "—" ? q.sector : null].filter(Boolean).join(" · "))),
-			add(h("div", "mt-2 flex flex-wrap items-baseline gap-x-3"),
-				h("span", "num text-4xl font-bold text-ink-strong", level(q.price, q.kind)),
-				h("span", `num text-lg font-semibold ${toneClass(q.change_pct)}`, `${change(q.change, q.kind)} (${signedPct(q.change_pct, 2)})`),
-				h("span", "text-xs text-muted", "today")));
+			h("p", "text-[13px] text-muted", [q.symbol, isEquity(q.kind) ? q.exchange : kindLabel[q.kind], isEquity(q.kind) && q.sector !== "—" ? q.sector : null].filter(Boolean).join(" · ")),
+			h("h1", "mt-1 text-[2rem] font-medium leading-tight tracking-tight text-ink-strong", tidyName(q.name)),
+			add(h("div", "mt-4 flex flex-wrap items-baseline gap-x-4"),
+				h("span", "num text-[2.75rem] leading-none text-ink-strong", level(q.price, q.kind)),
+				h("span", `num text-lg ${toneClass(q.change_pct)}`, `${change(q.change, q.kind)} (${signedPct(q.change_pct, 2)})`),
+				h("span", "text-[13px] text-muted", "today")));
 	}
 
 	function row(label: string, value: string | HTMLElement) {
-		return add(h("div", "flex items-center justify-between gap-3 border-b border-line py-2 text-[13px] last:border-0"),
-			h("span", "text-muted", label), typeof value === "string" ? h("span", "num font-medium text-ink-strong", value) : value);
+		return add(h("div", "flex items-baseline justify-between gap-3 border-b border-line py-2 text-sm last:border-0"),
+			h("span", "text-muted", label), typeof value === "string" ? h("span", "num text-[13px] text-ink-strong", value) : value);
 	}
 
 	function range52(q: Quote): HTMLElement {
 		const pos = q.year_high > q.year_low ? (q.price - q.year_low) / (q.year_high - q.year_low) : 0.5;
-		const dot = h("span", "absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-panel bg-ink-strong");
+		// Where the price sits between the year's low and high.
+		const dot = h("span", "absolute top-1/2 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-strong");
 		dot.style.left = `${Math.min(100, Math.max(0, pos * 100))}%`;
-		return add(h("div", "py-2"),
-			add(h("div", "mb-1.5 flex justify-between text-[13px]"), h("span", "text-muted", "52-week range")),
-			add(h("div", "relative h-1.5 rounded-full bg-gradient-to-r from-down/70 via-raised to-up/70"), dot),
-			add(h("div", "mt-1.5 flex justify-between text-xs"), h("span", "num text-ink", level(q.year_low, q.kind)), h("span", "num text-ink", level(q.year_high, q.kind))));
+		return add(h("div", "border-b border-line py-2.5"),
+			h("div", "text-sm text-muted", "52-week range"),
+			add(h("div", "relative mt-3 h-px bg-line-strong"), dot),
+			add(h("div", "mt-2.5 flex justify-between text-[13px]"), h("span", "num text-ink", level(q.year_low, q.kind)), h("span", "num text-ink", level(q.year_high, q.kind))));
 	}
 
 	function stats(q: Quote) {
@@ -107,7 +101,7 @@ import Site from "../components/Site.astro";
 		const periods: [string, number | null][] = [["Today", q.change_pct], ["1 month", q.return_1m], ["6 months", q.return_6m],
 			["YTD", q.return_ytd], ["1 year", q.return_1y], ["5 years", q.return_5y]];
 		$("q-perf").replaceChildren(...periods.map(([label, v]) =>
-			add(h("div", "bg-panel px-4 py-3"), h("div", "label", label), h("div", `num mt-1 text-lg font-semibold ${toneClass(v)}`, signedPct(v)))));
+			add(h("div"), h("div", "text-[13px] text-muted", label), h("div", `num mt-1 text-lg ${toneClass(v)}`, signedPct(v)))));
 	}
 
 	async function follow(q: Quote) {
@@ -150,11 +144,11 @@ import Site from "../components/Site.astro";
 			["Earnings Radar", "What the latest results release says.", links.earnings],
 		] as const;
 		$("q-tools").replaceChildren(...items.map(([name, text, url]) => {
-			const el = url ? linkTo(url, "block rounded border border-line p-3 hover:border-line-strong hover:bg-raised") : h("div", "rounded border border-line p-3 opacity-60");
+			const el = url ? linkTo(url, "group block py-3") : h("div", "py-3 opacity-60");
 			if (url) Object.assign(el, { target: "_blank", rel: "noopener" });
-			return add(el, add(h("div", "flex items-center justify-between"), h("span", "text-[13px] font-semibold text-ink-strong", name),
-				h("span", "text-[11px] text-muted", url ? "Open ↗" : q.kind === "etf" && name === "Earnings Radar" ? "Not for funds" : "Coming soon")),
-				h("p", "mt-0.5 text-xs text-muted", text));
+			return add(h("li"), add(el, add(h("div", "flex items-baseline justify-between gap-3"), h("span", "text-ink-strong group-hover:underline", name),
+				h("span", "text-[13px] text-muted", url ? "Open ↗" : q.kind === "etf" && name === "Earnings Radar" ? "Not for funds" : "Not open yet")),
+				h("p", "text-sm text-muted", text)));
 		}));
 		$("q-tools-box").hidden = false;
 	}
@@ -168,9 +162,6 @@ import Site from "../components/Site.astro";
 			head(q);
 			stats(q);
 			performance(q);
-			const n = $("q-news");
-			if (q.news.length) n.replaceChildren(...q.news.map((x) => newsRow(x, { summary: true })));
-			else failed(n, "No headlines for it yet.");
 			follow(q).catch(() => {});
 			tools(q).catch(() => {});
 		} catch (e) {

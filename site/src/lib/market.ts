@@ -11,6 +11,7 @@ export type Mover = Snapshot & { volume: number | null; sector: string };
 export type Sector = { name: string; change_pct: number; return_ytd: number | null; members: string[] };
 export type Overview = {
   sample: boolean; sample_sections: string[]; source: string; as_of: string;
+  intraday?: boolean; // false once the data plan has refused intraday bars: no 1D and 5D charts
   tape: Snapshot[]; indices: Snapshot[]; rates: Snapshot[]; commodities: Snapshot[]; currencies: Snapshot[]; crypto: Snapshot[];
   sectors: Sector[]; movers: { gainers: Mover[]; losers: Mover[]; active: Mover[] };
 };

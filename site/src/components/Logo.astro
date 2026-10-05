@@ -1,4 +1,5 @@
 ---
+// The mark is the site's own figure: a zero line and a move to its right.
 import { SITE_NAME, link } from "../lib/site";
 interface Props {
 	href?: string;
@@ -7,8 +8,10 @@ interface Props {
 const { href = "/", tag } = Astro.props;
 ---
 
-<a href={link(href)} class="flex flex-none items-center gap-2 whitespace-nowrap text-[15px] font-bold tracking-tight text-ink-strong">
-	<img src={link("/favicon.svg")} alt="" class="h-7 w-7" />
+<a href={link(href)} class="flex flex-none items-center gap-2.5 whitespace-nowrap text-[15px] font-semibold tracking-tight text-ink-strong">
+	<svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+		<path d="M4 2v16M4 10h8"></path><circle cx="14.5" cy="10" r="2.75" fill="currentColor" stroke="none"></circle>
+	</svg>
 	<span>{SITE_NAME}</span>
-	{tag && <span class="rounded bg-raised px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">{tag}</span>}
+	{tag && <span class="text-[12.5px] font-normal text-muted">{tag}</span>}
 </a>

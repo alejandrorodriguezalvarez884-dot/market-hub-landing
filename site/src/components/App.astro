@@ -17,7 +17,6 @@ const icons: Record<string, string> = {
 	tools: "M4 19V9m6 10V5m6 14v-7m4 7H2",
 	account: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0",
 	markets: "M3 17l6-6 4 4 8-8M15 7h6v6",
-	news: "M5 5h14v14H5zM8 9h8M8 13h8M8 17h5",
 };
 const mine = [
 	{ href: link("/dashboard/"), label: "Overview", icon: "overview" },
@@ -26,7 +25,6 @@ const mine = [
 ].map((l) => ({ ...l, active: path.startsWith(l.href) }));
 const explore = [
 	{ href: link("/markets/"), label: "Markets", icon: "markets" },
-	{ href: link("/news/"), label: "News", icon: "news" },
 	{ href: link("/tools/"), label: "Analysis tools", icon: "tools" },
 ];
 ---
@@ -45,7 +43,7 @@ const explore = [
 					{mine.map((l) => (
 						<li>
 							<a href={l.href} aria-current={l.active ? "page" : undefined}
-								class:list={["flex items-center gap-2.5 rounded px-2 py-2 text-[13px] font-semibold transition-colors", l.active ? "bg-accent-soft text-[#5b8cff]" : "text-ink hover:bg-raised"]}>
+								class:list={["flex items-center gap-2.5 rounded px-2 py-2 text-[13px] font-semibold transition-colors", l.active ? "bg-raised text-ink-strong" : "text-ink hover:bg-raised"]}>
 								<svg class="h-4 w-4 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons[l.icon]}></path></svg>
 								{l.label}
 							</a>
