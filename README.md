@@ -31,8 +31,8 @@ Web Astro en `site/`, API FastAPI en `src/markethub/`, un contenedor en Cloud Ru
 ## Puesta en marcha
 
 ```bash
-uv sync && (cd site && npm ci)
-cp .env.example .env     # GOOGLE_CLIENT_ID, SESSION_SECRET, FMP_API_KEY, SEC_USER_AGENT
+make install             # dependencias, y crea .env con GOOGLE_CLIENT_ID y un SESSION_SECRET nuevo
+                         # (a mano solo quedan FMP_API_KEY y SEC_USER_AGENT)
 make test
 make api                 # API en :8000
 make dev                 # web en :4321 (en otra terminal)

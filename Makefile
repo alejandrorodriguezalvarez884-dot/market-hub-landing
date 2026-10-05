@@ -6,14 +6,17 @@
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: help install test check site api dev serve deploy
+.PHONY: help install env test check site api dev serve deploy
 
 help: ## List the targets
 	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  make %-9s %s\n", $$1, $$2}'
 
-install: ## Install the Python and site dependencies
+install: env ## Install the Python and site dependencies
 	uv sync
 	cd site && npm ci
+
+env: ## Create .env if missing, with the client id and a new SESSION_SECRET (keeps existing values)
+	@./scripts/init-env.sh
 
 test: ## Run the tests
 	uv run pytest
@@ -24,14 +27,14 @@ check: test ## Tests plus the site's type check and build
 site: ## Build the site into site/dist
 	cd site && npm run build
 
-api: ## Run the API alone at http://localhost:8000, with reload (pair it with `make dev`)
+api: env ## Run the API alone at http://localhost:8000, with reload (pair it with `make dev`)
 	MARKETHUB_ALLOWED_ORIGINS=http://localhost:4321 uv run uvicorn markethub.api:create_app --factory --reload --port 8000
 
 dev: ## Run the site at http://localhost:4321 with reload (it calls the API on port 8000)
 	cd site && PUBLIC_API_URL=http://localhost:8000 npm run dev
 
-serve: site ## Run site and API together at http://localhost:8080, as in production
+serve: env site ## Run site and API together at http://localhost:8080, as in production
 	MARKETHUB_STATIC_DIR=site/dist uv run uvicorn markethub.api:create_app --factory --port 8080
 
-deploy: ## Build and deploy the portal to Cloud Run (see scripts/deploy-cloudrun.sh)
+deploy: env ## Build and deploy the portal to Cloud Run (see scripts/deploy-cloudrun.sh)
 	./scripts/deploy-cloudrun.sh
