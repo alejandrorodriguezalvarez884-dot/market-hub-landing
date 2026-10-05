@@ -192,3 +192,27 @@ def test_the_provider_key_never_reaches_the_logs():
     create_app(users=MemoryUsers(), market=FakeFmp(), directory=Directory(loader=lambda: []), verifier=fake_verifier,
                client_id=CLIENT_ID, session_secret="s", markets=SampleMarkets())
     assert logging.getLogger("httpx").getEffectiveLevel() >= logging.WARNING
+
+
+def test_without_quotes_prices_come_from_the_last_two_closes():
+    m, _ = live(fail=("quote",))
+    o = m.overview()
+    assert "indices" not in o["sample_sections"] and "tape" not in o["sample_sections"]
+    spx = next(s for s in o["indices"] if s["symbol"] == "SPX")
+    closes = [r["close"] for r in reversed(daily(300))]
+    assert spx["price"] == pytest.approx(closes[-1]) and spx["change_pct"] == pytest.approx(closes[-1] / closes[-2] - 1)
+
+
+def test_movers_leave_out_penny_stocks():
+    m, fmp = live()
+    original = fmp.cached
+
+    def cheap_first(path, ttl, **params):
+        rows = original(path, ttl, **params)
+        if path == "biggest-gainers":
+            return [{"symbol": "PENNY", "name": "Penny", "price": 0.8, "changesPercentage": 400.0}] + rows
+        return rows
+
+    fmp.cached = cheap_first
+    gainers = m.overview()["movers"]["gainers"]
+    assert "PENNY" not in [g["symbol"] for g in gainers] and len(gainers) == 6

@@ -27,6 +27,11 @@ OVERVIEW_TTL = float(os.environ.get("PUBLIC_MARKETS_TTL_SECONDS", "900"))
 DAILY_TTL = 6 * 3600
 INTRADAY_TTL = 300
 QUOTE_TTL = 300
+# Index and commodity quotes are not in every data plan; their daily closes are. Without a
+# quote, the price and the day's move come from the last two closes, refreshed this often.
+CLOSE_TTL = float(os.environ.get("PUBLIC_CLOSES_TTL_SECONDS", "3600"))
+# Movers below this price are left out: the provider's lists fill up with penny stocks.
+MOVERS_MIN_PRICE = 5.0
 
 # Display symbol -> (provider symbol, name, kind).
 INSTRUMENTS = [
@@ -132,7 +137,10 @@ class LiveMarkets:
 
     def _instruments(self, kind: str, detail: bool) -> list[dict]:
         symbols = [s for s, _, _, k in INSTRUMENTS if k == kind]
-        quotes = self.fmp.quotes([BY_SYMBOL[s][0] for s in symbols])
+        try:
+            quotes = self.fmp.quotes([BY_SYMBOL[s][0] for s in symbols])
+        except MarketUnavailable:
+            quotes = {}  # quotes for this kind are not in the plan: daily closes below
         out = []
         histories: dict[str, tuple[list[str], list[float]]] = {}
         if detail:
@@ -142,9 +150,27 @@ class LiveMarkets:
         for s in symbols:
             q = quotes.get(BY_SYMBOL[s][0].upper())
             if not q or q.get("price") is None:
+                q = self._from_closes(BY_SYMBOL[s][0])
+            if not q:
                 continue
             out.append(self._snapshot(s, q, *histories.get(s, ([], []))))
+        if not out:
+            raise MarketUnavailable(f"no {kind} prices")
         return out
+
+    def _from_closes(self, provider: str) -> dict | None:
+        """Price and day move from the last two daily closes, for symbols without a quote."""
+        start = (self.today() - timedelta(days=12)).isoformat()
+        try:
+            rows = sorted(_rows(self.fmp.cached("historical-price-eod/light", CLOSE_TTL, symbol=provider, **{"from": start})),
+                          key=lambda r: r.get("date", ""))
+        except MarketUnavailable:
+            return None
+        closes = [c for c in (_num(r.get("price", r.get("close"))) for r in rows) if c]
+        if len(closes) < 2:
+            return None
+        last, prev = closes[-1], closes[-2]
+        return {"price": last, "change": last - prev, "change_pct": (last / prev - 1) * 100}
 
     def _safe_closes(self, provider: str) -> tuple[list[str], list[float]]:
         try:
@@ -185,10 +211,12 @@ class LiveMarkets:
     def _movers(self) -> dict:
         def listing(path: str) -> list[dict]:
             out = []
-            for r in _rows(self.fmp.cached(path, self.ttl))[:6]:
+            for r in _rows(self.fmp.cached(path, self.ttl)):
                 sym = str(r.get("symbol", "")).upper()
-                if not sym:
+                if not sym or (_num(r.get("price")) or 0) < MOVERS_MIN_PRICE:
                     continue
+                if len(out) == 6:
+                    break
                 out.append({"symbol": sym, "name": r.get("name") or sym, "kind": "stock", "price": _num(r.get("price")),
                             "change": _num(r.get("change")),
                             "change_pct": _pct(_num(r.get("changesPercentage", r.get("changePercentage")))),

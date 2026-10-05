@@ -4,6 +4,7 @@ not spend the provider's quota."""
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import threading
@@ -16,6 +17,9 @@ import httpx
 
 from .config import (FMP_BASE, HISTORY_DAYS, HISTORY_TTL_SECONDS, PROFILE_TTL_SECONDS,
                      QUOTE_TTL_SECONDS, SEC_TICKERS_URL)
+
+
+log = logging.getLogger("markethub.market")
 
 
 class MarketUnavailable(Exception):
@@ -59,6 +63,8 @@ class Fmp:
             resp = self.client.get(f"{FMP_BASE}/{path}", params={**params, "apikey": self.api_key})
         except httpx.HTTPError:
             raise MarketUnavailable("The market data provider did not answer.") from None
+        # The path and the answer only: the key travels in the query string and stays out of logs.
+        log.info("fmp %s -> %s", path, resp.status_code)
         if resp.status_code >= 400:
             # Never pass the provider's body on: it could echo request details.
             raise MarketUnavailable(f"The market data provider answered {resp.status_code}.")
