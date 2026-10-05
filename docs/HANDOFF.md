@@ -56,6 +56,38 @@ Decisiones del usuario:
   o redistribuir sus datos exige un acuerdo aparte ("Data Display and Licensing Agreement").
   Pendiente de que el usuario lo aclare con FMP antes de dar a conocer el portal.
 
+### Rediseño y ahorro de llamadas (2026-10-05, noche; desplegado)
+
+El usuario pidió seguir en el plan gratuito de FMP y un rediseño "con menos AI slop, más intuitivo
+e innovador". En `main` y **desplegado como `market-hub-00006-tvq`** con su visto bueno; `make check`
+en verde (44 tests). Comprobado en producción: páginas, resumen con datos reales, ficha del
+S&P 500 y `/news/` ya en 404.
+
+- **Identidad nueva** (`site/src/styles/global.css`): ya no es el tema de TradingView. Página casi
+  negra, texto blanco cálido, IBM Plex Sans y Plex Mono para las cifras. **Sin color de marca: el
+  verde y el rojo solo significan subida y bajada**; lo seleccionado y los botones van en el color
+  del texto. Sin cajas: cada sección es una regla fina y un título (`.sec`). Logo nuevo (una línea
+  de cero y una marca a su derecha).
+- **Portada** (`pages/index.astro`): abre con una frase escrita a partir de las cifras
+  (`lib/lede.ts`: "US stocks are higher. The S&P 500 is up 0.87% at…"), solo descriptiva. Debajo,
+  un gráfico y **"Today, on one scale"**: todos los instrumentos en una misma regla (cero en el
+  centro, a la izquierda baja, a la derecha sube; `track`, `rulerRow` en `lib/widgets.ts`). Elegir
+  una fila la lleva al gráfico. Los sectores usan la misma regla. Los tipos van en puntos básicos.
+- **Fuera**: la cinta de cotizaciones, las noticias de ejemplo (página `/news/`, bloque de la
+  portada, titulares de la ficha y la franja naranja) y los movers de la portada (siguen en
+  `/markets/`). `/api/public/news` sigue existiendo. Vuelven cuando haya un proveedor real.
+- **Resto**: `/markets/`, `/quote/`, `/tools/` y `/signin/` rehechos con el mismo sistema; "/"
+  enfoca el buscador. El área privada (`App.astro`, dashboard, portfolio, account) hereda colores
+  y tipografía pero **no se ha revisado en el navegador** (hace falta login).
+- **Ahorro de llamadas a FMP** (`market.py`, `live.py`): una llamada que el plan rechaza (402) no
+  se repite en 6 h (`NotInPlan`, `REFUSED_TTL_SECONDS`); el resumen pasa a 1 h y los cierres a 6 h
+  por defecto; el resumen dice `intraday: false` cuando el plan no da intradía y la web deja de
+  pedir 1D; `as_of` es la hora en que se leyeron los datos, no la de la respuesta; la ficha de un
+  índice o materia prima sale de los cierres diarios cuando no hay cotización (antes fallaba).
+  Con cierres a 6 h, el precio de índices y materias primas puede ir hasta 6 h por detrás.
+- Pendiente del rediseño: llevar `global.css`, el logo y los colores de `lwc.ts` a
+  `fundamentals-lab` y `decision-signal-lab`, que siguen con el tema anterior.
+
 ## Cómo está hecho
 
 - **Login:** la web carga Google Identity Services, que devuelve un ID token. `POST /api/auth/google`
