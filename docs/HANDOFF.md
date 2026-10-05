@@ -14,7 +14,8 @@ Lab (`fundamentals-lab`, sin desplegar). Este repo es **el portal global** (2026
 - desde ahí accede a las dos herramientas.
 
 Decisiones del usuario:
-- Nombre: **market-hub**.
+- Nombre del producto: **Market Hub**. El código vive en el repo `market-hub-landing`; el repo
+  `market-hub` es desde el 2026-10-05 el workspace que junta todos los repos como submódulos.
 - Login: **Sign in with Google verificado en la API + Firestore** en el mismo proyecto de GCP, con el
   mismo stack que las herramientas.
 - Cada posición guarda **acciones y precio medio**; los favoritos son solo tickers.
@@ -27,7 +28,7 @@ Decisiones del usuario:
 | 17 tests en verde, sin red: tokens buenos y malos, aislamiento entre usuarios, CSRF, cookie `HttpOnly`/`Lax`, validación del portfolio, cálculos del dashboard | |
 | Web (`site/`): portada con login, bienvenida "¿tienes cartera?", editor de posiciones y favoritos, dashboard, herramientas, cuenta (ver, descargar y borrar datos) y privacidad. Revisada en Chromium a 1280 y 390 px con Google y FMP simulados | Revisarla con el botón real de Google |
 | `Makefile`, `Dockerfile`, `scripts/deploy-cloudrun.sh` (crea Firestore en europe-west1, secretos, despliegue) | Crear el cliente OAuth y desplegar |
-| Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub`, creado por el usuario el 2026-10-05; código en `main` | |
+| Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | | La herramienta Fundamentals Lab no tiene URL todavía: el dashboard la muestra como "Coming soon" hasta que se ponga `FUNDAMENTALS_LAB_URL` |
 
 ## Cómo está hecho

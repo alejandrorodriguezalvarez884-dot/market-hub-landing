@@ -1,6 +1,6 @@
 // Site-wide constants and links.
 export const SITE_NAME = "Market Hub";
-export const REPO_URL = "https://github.com/alejandrorodriguezalvarez884-dot/market-hub";
+export const REPO_URL = "https://github.com/alejandrorodriguezalvarez884-dot/market-hub-landing";
 export const AUTHOR_URL = "https://alejandrorodriguez.dev/";
 
 export function link(path: string): string {
