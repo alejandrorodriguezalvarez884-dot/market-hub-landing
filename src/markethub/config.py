@@ -45,6 +45,8 @@ QUOTE_TTL_SECONDS = 120
 HISTORY_TTL_SECONDS = 6 * 3600
 PROFILE_TTL_SECONDS = 7 * 86400
 HISTORY_DAYS = 400
+# A call the data plan refuses (HTTP 402) is not asked again for this long.
+REFUSED_TTL_SECONDS = 6 * 3600
 
 # Requests per address per hour on the endpoints that call the data provider.
 PER_IP_PER_HOUR = 240

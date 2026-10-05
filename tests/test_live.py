@@ -4,13 +4,14 @@ on its own when the provider or the data plan does not answer it."""
 import logging
 from datetime import date, timedelta
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from conftest import CLIENT_ID, fake_verifier
 from markethub.api import create_app
 from markethub.live import LiveMarkets, SampleMarkets, default_markets
-from markethub.market import Company, Directory, MarketUnavailable
+from markethub.market import Company, Directory, Fmp, MarketUnavailable, NotInPlan
 from markethub.users import MemoryUsers
 
 TODAY = date(2026, 10, 5)  # a Monday
@@ -49,7 +50,7 @@ class FakeFmp:
     def cached(self, path, ttl, **params):
         self.calls.append(path)
         if any(path.startswith(f) for f in self.fail):
-            raise MarketUnavailable("The market data provider answered 402.")
+            raise NotInPlan("The data plan does not include this.")
         if path == "treasury-rates":
             return [{"date": "2026-10-05", "year2": 3.90, "year10": 4.20}, {"date": "2026-10-02", "year2": 3.85, "year10": 4.10}]
         if path == "sector-performance-snapshot":
@@ -216,3 +217,45 @@ def test_movers_leave_out_penny_stocks():
     fmp.cached = cheap_first
     gainers = m.overview()["movers"]["gainers"]
     assert "PENNY" not in [g["symbol"] for g in gainers] and len(gainers) == 6
+
+
+def test_a_refused_intraday_chart_is_told_to_the_site():
+    m, _ = live(fail=("historical-chart/",))
+    assert m.overview()["intraday"] is True  # not known yet
+    with pytest.raises(MarketUnavailable):
+        m.chart("SPX", "1D")
+    assert m.overview()["intraday"] is False
+
+
+def test_without_a_quote_the_page_comes_from_daily_bars():
+    m, _ = live(fail=("quote",))
+    q = m.quote("SPX")
+    closes = [r["close"] for r in reversed(daily(300))]  # the closes the overview uses
+    assert q["price"] == pytest.approx(closes[-1]) and q["change_pct"] == pytest.approx(closes[-1] / closes[-2] - 1)
+    assert q["price"] == next(s for s in m.overview()["indices"] if s["symbol"] == "SPX")["price"]
+    bars = list(reversed(daily()))
+    assert q["prev_close"] == pytest.approx(bars[-2]["close"]) and q["year_low"] < q["year_high"]
+
+
+def test_the_overview_is_dated_when_it_was_read_not_when_it_is_served():
+    m, _ = live()
+    assert m.overview()["as_of"] == m.overview()["as_of"] <= m.overview(detail=True)["as_of"]
+
+
+def test_a_call_the_plan_refuses_is_not_sent_again():
+    sent = []
+
+    def handler(request):
+        sent.append(request.url.path.rsplit("/", 1)[-1])
+        if request.url.path.endswith("batch-quote") or request.url.params.get("symbol") == "^GSPC":
+            return httpx.Response(402)
+        return httpx.Response(200, json=[{"symbol": request.url.params["symbol"], "price": 1.0}])
+
+    fmp = Fmp(api_key="k", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert set(fmp.quotes(["EURUSD", "BTCUSD"])) == {"EURUSD", "BTCUSD"}
+    for _ in range(2):
+        with pytest.raises(NotInPlan):
+            fmp.quotes(["^GSPC"])
+        with pytest.raises(NotInPlan):
+            fmp.cached("historical-chart/5min", 300, symbol="^GSPC")
+    assert sent == ["batch-quote", "quote", "quote", "quote", "5min"]

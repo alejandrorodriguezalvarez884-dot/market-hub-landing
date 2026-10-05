@@ -5,7 +5,7 @@ bars, say), that part falls back: the overview serves the last good answer, or s
 named in ``sample_sections``; a chart range without data answers MarketUnavailable and the site
 switches to a daily range. Nothing here is sent anywhere but the provider, and only symbols.
 
-Answers are kept in memory: the overview for PUBLIC_MARKETS_TTL_SECONDS (15 minutes by
+Answers are kept in memory: the overview for PUBLIC_MARKETS_TTL_SECONDS (an hour by
 default), so the number of provider calls does not grow with the number of visitors.
 """
 
@@ -19,17 +19,17 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 
 from . import sample
-from .market import Fmp, MarketUnavailable
+from .market import Fmp, MarketUnavailable, NotInPlan
 
 log = logging.getLogger("markethub.live")
 
-OVERVIEW_TTL = float(os.environ.get("PUBLIC_MARKETS_TTL_SECONDS", "900"))
+OVERVIEW_TTL = float(os.environ.get("PUBLIC_MARKETS_TTL_SECONDS", "3600"))
 DAILY_TTL = 6 * 3600
 INTRADAY_TTL = 300
 QUOTE_TTL = 300
 # Index and commodity quotes are not in every data plan; their daily closes are. Without a
 # quote, the price and the day's move come from the last two closes, refreshed this often.
-CLOSE_TTL = float(os.environ.get("PUBLIC_CLOSES_TTL_SECONDS", "3600"))
+CLOSE_TTL = float(os.environ.get("PUBLIC_CLOSES_TTL_SECONDS", "21600"))
 # Movers below this price are left out: the provider's lists fill up with penny stocks.
 MOVERS_MIN_PRICE = 5.0
 
@@ -95,6 +95,8 @@ class LiveMarkets:
         self.fmp, self.ttl = fmp, ttl
         self.today = today or (lambda: datetime.now(timezone.utc).date())
         self._good: dict[str, tuple[float, object]] = {}  # last good answer per section
+        self._built: dict[str, datetime] = {}  # when each section was last read from the provider
+        self._has_intraday = True  # until the data plan refuses intraday bars
         self._lock = threading.Lock()
 
     # --- overview -------------------------------------------------------------------------
@@ -116,6 +118,7 @@ class LiveMarkets:
             return hit[1] if hit else None
         with self._lock:
             self._good[key] = (time.monotonic(), value)
+            self._built[name] = datetime.now(timezone.utc)
         return value
 
     def _snapshot(self, symbol: str, q: dict, dates: list[str], closes: list[float]) -> dict:
@@ -241,8 +244,11 @@ class LiveMarkets:
         out["tape"] = [every[s] for s in TAPE if s in every]
         if any(s in samples for s in ("indices", "rates", "commodities", "currencies", "crypto")):
             samples.append("tape")
+        # The oldest live part dates the page: a cached answer keeps the time it was read.
+        built = [t for k, t in self._built.items() if k not in samples]
+        as_of = min(built) if built else datetime.now(timezone.utc)
         return {"sample": len(samples) == len(SECTIONS), "sample_sections": sorted(samples), "source": "FMP",
-                "as_of": datetime.now(timezone.utc).replace(microsecond=0).isoformat(), **out}
+                "as_of": as_of.replace(microsecond=0).isoformat(), "intraday": self._has_intraday, **out}
 
     # --- charts ---------------------------------------------------------------------------
 
@@ -262,8 +268,12 @@ class LiveMarkets:
 
     def _intraday(self, provider: str, interval: str, days: int) -> list[dict]:
         today = self.today()
-        rows = _rows(self.fmp.cached(f"historical-chart/{interval}", INTRADAY_TTL, symbol=provider,
-                                     **{"from": (today - timedelta(days=days)).isoformat(), "to": today.isoformat()}))
+        try:
+            rows = _rows(self.fmp.cached(f"historical-chart/{interval}", INTRADAY_TTL, symbol=provider,
+                                         **{"from": (today - timedelta(days=days)).isoformat(), "to": today.isoformat()}))
+        except NotInPlan:
+            self._has_intraday = False  # the overview says so, and the site stops asking for 1D and 5D
+            raise
         bars = []
         for r in sorted(rows, key=lambda r: r.get("date", "")):
             o, h, lo, c = (_num(r.get(k)) for k in ("open", "high", "low", "close"))
@@ -313,14 +323,26 @@ class LiveMarkets:
 
     def quote(self, ticker: str, name: str | None = None) -> dict:
         provider, kind, known = provider_symbol(ticker)
-        q = self.fmp.quotes([provider]).get(provider.upper())
-        if not q or q.get("price") is None:
-            raise MarketUnavailable("no quote")
+        try:
+            q = self.fmp.quotes([provider]).get(provider.upper())
+        except MarketUnavailable:
+            q = None
         try:
             daily = self._daily(provider)
         except MarketUnavailable:
             daily = []
         closes = [b["close"] for b in daily]
+        if not q or q.get("price") is None:
+            # No quote in the data plan (indices, commodities): the last daily bar stands in.
+            if len(daily) < 2:
+                raise MarketUnavailable("no quote")
+            last, prev, year = daily[-1], daily[-2]["close"], daily[-252:]
+            q = {"price": last["close"], "change": last["close"] - prev, "change_pct": (last["close"] / prev - 1) * 100,
+                 "previous_close": prev, "open": last["open"], "day_low": last["low"], "day_high": last["high"],
+                 "year_low": min(b["low"] for b in year), "year_high": max(b["high"] for b in year),
+                 "volume": last["volume"] or None}
+            # The same closes as the overview, so a figure reads the same on both pages.
+            q |= self._from_closes(provider) or {}
         profile: dict = {}
         if kind == "stock":
             try:

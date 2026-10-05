@@ -251,6 +251,7 @@ def overview(today: date | None = None) -> dict:
     return {
         "sample": True,
         "as_of": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "intraday": True,
         "tape": [snap[t] for t in tape],
         "indices": group("index"),
         "rates": group("rate"),

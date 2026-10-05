@@ -16,7 +16,7 @@ from typing import Any, Callable
 import httpx
 
 from .config import (FMP_BASE, HISTORY_DAYS, HISTORY_TTL_SECONDS, PROFILE_TTL_SECONDS,
-                     QUOTE_TTL_SECONDS, SEC_TICKERS_URL)
+                     QUOTE_TTL_SECONDS, REFUSED_TTL_SECONDS, SEC_TICKERS_URL)
 
 
 log = logging.getLogger("markethub.market")
@@ -24,6 +24,10 @@ log = logging.getLogger("markethub.market")
 
 class MarketUnavailable(Exception):
     """No key, a plan that does not include the call, or a provider that did not answer."""
+
+
+class NotInPlan(MarketUnavailable):
+    """The provider refused the call (HTTP 402): the data plan does not include it."""
 
 
 class TTLCache:
@@ -55,6 +59,7 @@ class Fmp:
         self.api_key = api_key if api_key is not None else os.environ.get("FMP_API_KEY", "").strip()
         self.client = client or httpx.Client(timeout=20)
         self.cache = TTLCache()
+        self._refused = TTLCache()
 
     def _get(self, path: str, **params: Any) -> Any:
         if not self.api_key:
@@ -65,10 +70,23 @@ class Fmp:
             raise MarketUnavailable("The market data provider did not answer.") from None
         # The path and the answer only: the key travels in the query string and stays out of logs.
         log.info("fmp %s -> %s", path, resp.status_code)
+        if resp.status_code == 402:
+            raise NotInPlan("The data plan does not include this.")
         if resp.status_code >= 400:
             # Never pass the provider's body on: it could echo request details.
             raise MarketUnavailable(f"The market data provider answered {resp.status_code}.")
         return resp.json()
+
+    def _ask(self, key: str, path: str, **params: Any) -> Any:
+        """A provider call that remembers a refusal by the data plan: the same call is not sent
+        again for REFUSED_TTL_SECONDS, so what the plan lacks does not eat the daily quota."""
+        if self._refused.get(key, REFUSED_TTL_SECONDS):
+            raise NotInPlan("The data plan does not include this.")
+        try:
+            return self._get(path, **params)
+        except NotInPlan:
+            self._refused.put(key, True)
+            raise
 
     def cached(self, path: str, ttl: float, **params: Any) -> Any:
         """Any provider path, answered from memory for ``ttl`` seconds."""
@@ -76,7 +94,7 @@ class Fmp:
         hit = self.cache.get(key, ttl)
         if hit is not None:
             return hit
-        data = self._get(path, **params)
+        data = self._ask(key, path, **params)
         self.cache.put(key, data)
         return data
 
@@ -92,11 +110,11 @@ class Fmp:
         if missing:
             rows: list[dict] = []
             try:
-                rows = self._get("batch-quote", symbols=",".join(missing)) or []
+                rows = self._ask("batch-quote", "batch-quote", symbols=",".join(missing)) or []
             except MarketUnavailable:
                 # Batch quotes are not in every plan: one call per ticker instead.
                 for t in missing:
-                    rows.extend(self._get("quote", symbol=t) or [])
+                    rows.extend(self._ask(f"quote:{t}", "quote", symbol=t) or [])
             for row in rows:
                 t = str(row.get("symbol", "")).upper()
                 if not t:
