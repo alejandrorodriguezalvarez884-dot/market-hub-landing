@@ -35,6 +35,27 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
+### Medido desde local (2026-10-05, tarde)
+
+- **Portada y `/markets/` revisadas en el navegador** a 1366 y 375 px: valores reales, ninguna
+  marca "Sample" (solo la franja de las noticias), sin desbordes. La leyenda del gráfico da el
+  cambio del rango (desde la apertura de la primera barra), no el del día.
+- **El plan de FMP es el gratuito** (250 llamadas/día, dicho por el usuario). Una portada en frío
+  cuesta unas 29 llamadas y `/markets/` añade 18 históricos. Unas 10 de cada refresco son 402 que
+  se repiten: `batch-quote` (4, el plan no lo da), `quote` de índices y materias primas (2) y los
+  cierres de `^NDX`, `CLUSD`, `NGUSD` y `HGUSD` (4; los fallos no se guardan en caché). La caché
+  es de memoria y el servicio escala a cero: cada arranque en frío paga la portada entera. Con
+  visitas continuas son unas 90 llamadas/hora.
+- **Símbolos alternativos que sí da el plan** (cierres diarios): `^IXIC` (Nasdaq Composite) y
+  `BZUSD` (Brent). `PLUSD` y `^NYA` dan 402. El usuario decidió no tocar `INSTRUMENTS` por ahora.
+- **Movers con `batch-quote`: descartado**, da 402.
+- **Noticias en FMP con este plan:** `news/general-latest`, `news/stock-latest` y `news/stock` dan
+  402; solo responde `fmp-articles` (artículos propios de FMP sobre ratings de analistas, que
+  chocan con "describir, no recomendar"). Starter incluye "Financial Market News".
+- **Licencia:** la página de precios de FMP dice que los planes son de uso personal y que mostrar
+  o redistribuir sus datos exige un acuerdo aparte ("Data Display and Licensing Agreement").
+  Pendiente de que el usuario lo aclare con FMP antes de dar a conocer el portal.
+
 ## Cómo está hecho
 
 - **Login:** la web carga Google Identity Services, que devuelve un ID token. `POST /api/auth/google`
