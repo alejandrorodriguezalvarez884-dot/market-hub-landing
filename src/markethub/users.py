@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
-from .config import DATA_DIR, FIRESTORE_COLLECTION, MAX_POSITIONS, MAX_WATCHLIST
+from .config import DATA_DIR, FIRESTORE_COLLECTION, FIRESTORE_DATABASE, MAX_POSITIONS, MAX_WATCHLIST
 
 TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 
@@ -133,10 +133,10 @@ class FileUsers:
 
 
 class FirestoreUsers:
-    def __init__(self, collection: str = FIRESTORE_COLLECTION):
+    def __init__(self, collection: str = FIRESTORE_COLLECTION, database: str = FIRESTORE_DATABASE):
         from google.cloud import firestore
 
-        self.collection = firestore.Client().collection(collection)
+        self.collection = firestore.Client(database=database).collection(collection)
 
     def get(self, user_id: str) -> dict | None:
         snap = self.collection.document(user_id).get()

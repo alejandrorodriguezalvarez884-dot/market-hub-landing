@@ -6,7 +6,8 @@
 # Requirements: the gcloud CLI logged in on a project with billing enabled, and .env with
 # GOOGLE_CLIENT_ID, SESSION_SECRET, FMP_API_KEY and SEC_USER_AGENT.
 #
-# Optional overrides: GCP_PROJECT, GCP_REGION, SERVICE_NAME, MAX_INSTANCES, FIRESTORE_LOCATION.
+# Optional overrides: GCP_PROJECT, GCP_REGION, SERVICE_NAME, MAX_INSTANCES, FIRESTORE_LOCATION,
+# FIRESTORE_DATABASE.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -22,6 +23,8 @@ GCP_PROJECT="${GCP_PROJECT:-$(gcloud config get-value project 2>/dev/null || tru
 GCP_REGION="${GCP_REGION:-europe-west1}"
 # The database stays in the EU (Belgium), as the privacy page says.
 FIRESTORE_LOCATION="${FIRESTORE_LOCATION:-europe-west1}"
+# A database of its own: the project's "(default)" one belongs to other apps and is in the US.
+FIRESTORE_DATABASE="${FIRESTORE_DATABASE:-market-hub}"
 SERVICE_NAME="${SERVICE_NAME:-market-hub}"
 MAX_INSTANCES="${MAX_INSTANCES:-2}"
 ENV_FILE=".env"
@@ -55,9 +58,12 @@ gcp projects add-iam-policy-binding "$GCP_PROJECT" \
 gcp projects add-iam-policy-binding "$GCP_PROJECT" \
   --member "serviceAccount:$SERVICE_ACCOUNT" --role roles/datastore.user --condition=None >/dev/null
 
-echo "→ Firestore (default database, $FIRESTORE_LOCATION)"
-if ! gcp firestore databases describe --database="(default)" >/dev/null 2>&1; then
-  gcp firestore databases create --database="(default)" --location="$FIRESTORE_LOCATION" --type=firestore-native >/dev/null
+echo "→ Firestore (database '$FIRESTORE_DATABASE', $FIRESTORE_LOCATION)"
+DB_LOCATION="$(gcp firestore databases describe --database="$FIRESTORE_DATABASE" --format='value(locationId)' 2>/dev/null || true)"
+if [[ -z "$DB_LOCATION" ]]; then
+  gcp firestore databases create --database="$FIRESTORE_DATABASE" --location="$FIRESTORE_LOCATION" --type=firestore-native >/dev/null
+elif [[ "$DB_LOCATION" != "$FIRESTORE_LOCATION" ]]; then
+  fail "Firestore database '$FIRESTORE_DATABASE' is in $DB_LOCATION, not $FIRESTORE_LOCATION (the privacy page says the EU)."
 fi
 
 put_secret() {
@@ -87,7 +93,7 @@ gcp run deploy "$SERVICE_NAME" \
   --max-instances "$MAX_INSTANCES" \
   --timeout 60 \
   --set-secrets "SESSION_SECRET=market-hub-session-secret:latest,FMP_API_KEY=market-hub-fmp-api-key:latest" \
-  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL"
+  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL"
 
 URL="$(gcp run services describe "$SERVICE_NAME" --region "$GCP_REGION" --format 'value(status.url)')"
 if curl -fsS "$URL/api/health" >/dev/null; then

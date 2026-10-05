@@ -29,6 +29,8 @@ SECURE_COOKIES = os.environ.get("MARKETHUB_INSECURE_COOKIES", "") != "1"
 MAX_POSITIONS = 50
 MAX_WATCHLIST = 50
 FIRESTORE_COLLECTION = "users"
+# A database of its own (europe-west1), not the project's "(default)" one, which other apps use.
+FIRESTORE_DATABASE = os.environ.get("MARKETHUB_FIRESTORE_DATABASE", "market-hub").strip()
 
 # --- Market data ---------------------------------------------------------------------------
 

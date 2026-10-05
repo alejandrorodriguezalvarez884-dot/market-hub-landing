@@ -40,8 +40,9 @@ Decisiones del usuario:
   nombre, el email y la foto; el token no se guarda.
 - **CSRF:** la cookie es `SameSite=Lax` y además toda escritura en `/api/` exige un `Origin` del
   propio sitio (o de `MARKETHUB_ALLOWED_ORIGINS` en desarrollo).
-- **Datos:** `users/{sub}` en Firestore con `positions` (`ticker`, `shares`, `avg_cost` opcional),
-  `watchlist`, `email`, `name`, `picture` y fechas. Tickers validados contra la lista de la SEC más
+- **Datos:** `users/{sub}` en una base de Firestore propia, `market-hub` (europe-west1), no en la
+  `(default)` del proyecto, que es de otras apps y está en us-central1. Cada documento lleva
+  `positions` (`ticker`, `shares`, `avg_cost` opcional), `watchlist`, `email`, `name`, `picture` y fechas. Tickers validados contra la lista de la SEC más
   unos ETF; tickers repetidos se funden con su coste medio ponderado. Máximo 50 + 50.
 - **Dashboard:** valor a precio actual, ganancia frente al coste (solo de las posiciones con coste),
   cambio del día, pesos, sectores (ETF como "ETF / fund"), rentabilidades de 1 mes a 1 año y la
