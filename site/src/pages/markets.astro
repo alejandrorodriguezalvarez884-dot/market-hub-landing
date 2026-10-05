@@ -1,0 +1,75 @@
+---
+// Markets: every instrument of the overview in tables, the sector heatmap and the movers.
+import Site from "../components/Site.astro";
+---
+
+<Site title="Markets" description="US and world indices, rates, commodities, currencies, crypto, sectors and the day's movers." sample>
+	<div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+		<div>
+			<h1 class="text-2xl font-bold text-ink-strong">Markets</h1>
+			<p id="as-of" class="mt-1 text-xs text-muted">&nbsp;</p>
+		</div>
+		<nav class="tabs" aria-label="Sections">
+			<a class="tab-btn" href="#indices">Indices</a>
+			<a class="tab-btn" href="#sectors">Sectors</a>
+			<a class="tab-btn" href="#movers">Movers</a>
+			<a class="tab-btn" href="#rates">Rates</a>
+			<a class="tab-btn" href="#commodities">Commodities</a>
+			<a class="tab-btn" href="#currencies">Currencies</a>
+		</nav>
+	</div>
+
+	<div class="grid gap-4">
+		<section id="indices" class="panel scroll-mt-32">
+			<header class="panel-head"><h2 class="panel-title">Indices</h2></header>
+			<div id="t-indices"><div class="skeleton m-4 h-72"></div></div>
+		</section>
+
+		<section id="sectors" class="panel scroll-mt-32">
+			<header class="panel-head"><h2 class="panel-title">Sectors</h2><span class="text-xs text-muted">Today's move, year to date below</span></header>
+			<div id="t-sectors" class="p-4"><div class="skeleton h-48"></div></div>
+		</section>
+
+		<section id="movers" class="grid scroll-mt-32 gap-4 lg:grid-cols-3">
+			<div class="panel"><header class="panel-head"><h2 class="panel-title">Top gainers</h2></header><div id="t-gainers"></div></div>
+			<div class="panel"><header class="panel-head"><h2 class="panel-title">Top losers</h2></header><div id="t-losers"></div></div>
+			<div class="panel"><header class="panel-head"><h2 class="panel-title">Most active</h2></header><div id="t-active"></div></div>
+		</section>
+
+		<div class="grid gap-4 xl:grid-cols-2">
+			<section id="rates" class="panel scroll-mt-32">
+				<header class="panel-head"><h2 class="panel-title">Rates</h2><span class="text-xs text-muted">Government bond yields</span></header>
+				<div id="t-rates"></div>
+			</section>
+			<section id="currencies" class="panel scroll-mt-32">
+				<header class="panel-head"><h2 class="panel-title">Currencies and crypto</h2></header>
+				<div id="t-currencies"></div>
+			</section>
+		</div>
+
+		<section id="commodities" class="panel scroll-mt-32">
+			<header class="panel-head"><h2 class="panel-title">Commodities</h2></header>
+			<div id="t-commodities"></div>
+		</section>
+	</div>
+</Site>
+
+<script>
+	import { overview } from "../lib/market";
+	import { failed, heatmap, moversTable, quoteTable } from "../lib/widgets";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	overview()
+		.then((o) => {
+			$("as-of").textContent = `As of ${new Date(o.as_of).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`;
+			$("t-indices").replaceChildren(quoteTable(o.indices));
+			$("t-sectors").replaceChildren(heatmap(o.sectors));
+			$("t-gainers").replaceChildren(moversTable(o.movers.gainers));
+			$("t-losers").replaceChildren(moversTable(o.movers.losers));
+			$("t-active").replaceChildren(moversTable(o.movers.active));
+			$("t-rates").replaceChildren(quoteTable(o.rates));
+			$("t-currencies").replaceChildren(quoteTable([...o.currencies, ...o.crypto]));
+			$("t-commodities").replaceChildren(quoteTable(o.commodities));
+		})
+		.catch(() => ["t-indices", "t-sectors", "t-gainers", "t-losers", "t-active", "t-rates", "t-currencies", "t-commodities"].forEach((id) => failed($(id))));
+</script>

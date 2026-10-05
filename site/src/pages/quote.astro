@@ -1,0 +1,181 @@
+---
+// One instrument: price, chart, key figures, past returns, the analysis tools and its headlines.
+import Search from "../components/Search.astro";
+import Site from "../components/Site.astro";
+---
+
+<Site title="Quote" description="Price, chart, key figures and headlines for any US-listed stock, index or market." sample>
+	<section id="empty" class="mx-auto max-w-xl py-16 text-center" hidden>
+		<h1 class="text-2xl font-bold text-ink-strong">Look up a stock</h1>
+		<p class="mt-2 text-[13px] text-muted">Any US-listed company or fund, by ticker or name.</p>
+		<div class="mt-6 text-left"><Search large autofocus id="quote-search" /></div>
+	</section>
+
+	<div id="quote" hidden>
+		<div class="mb-4 flex flex-wrap items-start justify-between gap-4">
+			<div id="q-head" class="min-w-0"><span class="skeleton block h-16 w-80"></span></div>
+			<div id="q-actions" class="flex flex-wrap gap-2"></div>
+		</div>
+
+		<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+			<div class="min-w-0 space-y-4">
+				<section class="panel overflow-hidden"><div id="q-chart"></div></section>
+				<section class="panel">
+					<header class="panel-head"><h2 class="panel-title">Performance</h2><span class="text-xs text-muted">Price return</span></header>
+					<div id="q-perf" class="grid grid-cols-3 gap-px bg-line sm:grid-cols-6"></div>
+				</section>
+				<section class="panel">
+					<header class="panel-head"><h2 class="panel-title">Headlines</h2></header>
+					<div id="q-news" class="px-4"></div>
+				</section>
+			</div>
+			<aside class="min-w-0 space-y-4">
+				<section class="panel">
+					<header class="panel-head"><h2 class="panel-title">Key figures</h2></header>
+					<div id="q-stats" class="px-4 py-2"></div>
+				</section>
+				<section id="q-tools-box" class="panel p-4" hidden>
+					<h2 class="panel-title">Analyse this company</h2>
+					<p class="mt-1 text-xs text-muted">Open it in the Market Hub tools.</p>
+					<div id="q-tools" class="mt-3 space-y-2"></div>
+				</section>
+			</aside>
+		</div>
+	</div>
+</Site>
+
+<script>
+	import { api, ApiError, config, signedIn, toolLinks, type Portfolio } from "../lib/api";
+	import { add, h, linkTo } from "../lib/dom";
+	import { change, compact, level, money, signedPct, toneClass } from "../lib/format";
+	import { priceChart } from "../lib/lwc";
+	import { isEquity, quote, type Quote } from "../lib/market";
+	import { link, tidyName } from "../lib/site";
+	import { failed, newsRow } from "../lib/widgets";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const ticker = (new URLSearchParams(location.search).get("t") ?? "").trim().toUpperCase();
+
+	function head(q: Quote) {
+		const kindLabel: Record<string, string> = { index: "Index", rate: "Yield", commodity: "Commodity", fx: "Currency", crypto: "Crypto", etf: "ETF" };
+		document.title = `${q.symbol} ${level(q.price, q.kind)} — ${tidyName(q.name)} — Market Hub`;
+		$("q-head").replaceChildren(
+			add(h("div", "flex flex-wrap items-center gap-2"),
+				h("h1", "text-2xl font-bold text-ink-strong", tidyName(q.name)),
+				h("span", "chip text-xs", q.symbol),
+				h("span", "text-xs text-muted", [isEquity(q.kind) ? q.exchange : kindLabel[q.kind], isEquity(q.kind) && q.sector !== "—" ? q.sector : null].filter(Boolean).join(" · "))),
+			add(h("div", "mt-2 flex flex-wrap items-baseline gap-x-3"),
+				h("span", "num text-4xl font-bold text-ink-strong", level(q.price, q.kind)),
+				h("span", `num text-lg font-semibold ${toneClass(q.change_pct)}`, `${change(q.change, q.kind)} (${signedPct(q.change_pct, 2)})`),
+				h("span", "text-xs text-muted", "today")));
+	}
+
+	function row(label: string, value: string | HTMLElement) {
+		return add(h("div", "flex items-center justify-between gap-3 border-b border-line py-2 text-[13px] last:border-0"),
+			h("span", "text-muted", label), typeof value === "string" ? h("span", "num font-medium text-ink-strong", value) : value);
+	}
+
+	function range52(q: Quote): HTMLElement {
+		const pos = q.year_high > q.year_low ? (q.price - q.year_low) / (q.year_high - q.year_low) : 0.5;
+		const dot = h("span", "absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-panel bg-ink-strong");
+		dot.style.left = `${Math.min(100, Math.max(0, pos * 100))}%`;
+		return add(h("div", "py-2"),
+			add(h("div", "mb-1.5 flex justify-between text-[13px]"), h("span", "text-muted", "52-week range")),
+			add(h("div", "relative h-1.5 rounded-full bg-gradient-to-r from-down/70 via-raised to-up/70"), dot),
+			add(h("div", "mt-1.5 flex justify-between text-xs"), h("span", "num text-ink", level(q.year_low, q.kind)), h("span", "num text-ink", level(q.year_high, q.kind))));
+	}
+
+	function stats(q: Quote) {
+		const eq = isEquity(q.kind);
+		const items: (HTMLElement | null)[] = [
+			row("Previous close", level(q.prev_close, q.kind)),
+			row("Open", level(q.open, q.kind)),
+			row("Day range", `${level(q.day_low, q.kind)} – ${level(q.day_high, q.kind)}`),
+			range52(q),
+			q.volume ? row("Volume", compact(q.volume)) : null,
+			q.avg_volume ? row("Avg. volume (3M)", compact(q.avg_volume)) : null,
+			eq && q.market_cap ? row("Market cap", money(q.market_cap)) : null,
+			q.kind === "stock" ? row("P/E (trailing)", q.pe == null ? "—" : q.pe.toFixed(1)) : null,
+			q.kind === "stock" ? row("EPS (trailing)", q.eps == null ? "—" : `$${q.eps.toFixed(2)}`) : null,
+			eq ? row("Dividend yield", q.dividend_yield == null ? "—" : `${(q.dividend_yield * 100).toFixed(2)}%`) : null,
+			q.kind === "stock" ? row("Beta (5Y)", q.beta == null ? "—" : q.beta.toFixed(2)) : null,
+		];
+		$("q-stats").replaceChildren(...items.filter((x): x is HTMLElement => !!x));
+	}
+
+	function performance(q: Quote) {
+		const periods: [string, number | null][] = [["Today", q.change_pct], ["1 month", q.return_1m], ["6 months", q.return_6m],
+			["YTD", q.return_ytd], ["1 year", q.return_1y], ["5 years", q.return_5y]];
+		$("q-perf").replaceChildren(...periods.map(([label, v]) =>
+			add(h("div", "bg-panel px-4 py-3"), h("div", "label", label), h("div", `num mt-1 text-lg font-semibold ${toneClass(v)}`, signedPct(v)))));
+	}
+
+	async function follow(q: Quote) {
+		const box = $("q-actions");
+		if (!isEquity(q.kind)) return;
+		const who = await signedIn().catch(() => null);
+		if (!who) {
+			box.replaceChildren(linkTo(link(`/signin/?next=${encodeURIComponent(location.pathname + location.search)}`), "btn btn-ghost", "+ Add to watchlist"));
+			return;
+		}
+		const p = await api<Portfolio>("/api/portfolio");
+		const held = p.positions.some((x) => x.ticker === q.symbol);
+		const watched = p.watchlist.includes(q.symbol);
+		if (held || watched) {
+			box.replaceChildren(add(linkTo(link("/dashboard/"), "btn btn-ghost"), held ? "✓ In your portfolio" : "✓ In your watchlist"));
+			return;
+		}
+		const b = h("button", "btn btn-primary", "+ Add to watchlist");
+		b.type = "button";
+		b.addEventListener("click", async () => {
+			b.disabled = true;
+			try {
+				await api("/api/portfolio", { method: "PUT", body: JSON.stringify({ positions: p.positions, watchlist: [...p.watchlist, q.symbol] }) });
+				box.replaceChildren(add(linkTo(link("/dashboard/"), "btn btn-ghost"), "✓ In your watchlist"));
+			} catch (e) {
+				b.disabled = false;
+				b.textContent = e instanceof ApiError ? e.message : "Could not add it";
+			}
+		});
+		box.replaceChildren(b);
+	}
+
+	async function tools(q: Quote) {
+		if (!isEquity(q.kind)) return;
+		const cfg = await config();
+		const links = toolLinks(cfg.tools, q.symbol);
+		if (q.kind === "etf") links.earnings = null;
+		const items = [
+			["Fundamentals Lab", "Statements, valuation, forward multiples, technicals.", links.fundamentals],
+			["Earnings Radar", "What the latest results release says.", links.earnings],
+		] as const;
+		$("q-tools").replaceChildren(...items.map(([name, text, url]) => {
+			const el = url ? linkTo(url, "block rounded border border-line p-3 hover:border-line-strong hover:bg-raised") : h("div", "rounded border border-line p-3 opacity-60");
+			if (url) Object.assign(el, { target: "_blank", rel: "noopener" });
+			return add(el, add(h("div", "flex items-center justify-between"), h("span", "text-[13px] font-semibold text-ink-strong", name),
+				h("span", "text-[11px] text-muted", url ? "Open ↗" : q.kind === "etf" && name === "Earnings Radar" ? "Not for funds" : "Coming soon")),
+				h("p", "mt-0.5 text-xs text-muted", text));
+		}));
+		$("q-tools-box").hidden = false;
+	}
+
+	async function start() {
+		if (!ticker) return void ($("empty").hidden = false);
+		$("quote").hidden = false;
+		priceChart($("q-chart"), { symbol: ticker, range: "1Y", height: 420 });
+		try {
+			const q = await quote(ticker);
+			head(q);
+			stats(q);
+			performance(q);
+			const n = $("q-news");
+			if (q.news.length) n.replaceChildren(...q.news.map((x) => newsRow(x, { summary: true })));
+			else failed(n, "No headlines for it yet.");
+			follow(q).catch(() => {});
+			tools(q).catch(() => {});
+		} catch (e) {
+			failed($("q-head"), e instanceof ApiError && e.status === 400 ? "That is not a ticker." : "This quote is not available right now.");
+		}
+	}
+	start();
+</script>

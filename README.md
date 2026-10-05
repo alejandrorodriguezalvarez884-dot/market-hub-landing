@@ -1,8 +1,12 @@
 # Market Hub
 
-**El portal de las herramientas de IA para inversión.** El usuario entra con su cuenta de Google
-(Gmail), añade su cartera (acciones y precio medio) o, si no tiene, sus acciones favoritas, y llega
-a un dashboard que las sigue:
+**El portal de las herramientas de IA para inversión.** Tiene dos partes:
+
+- **Portal público**, sin cuenta: mercados (índices, tipos, materias primas, divisas, cripto,
+  sectores y movers), noticias, y una ficha por valor con gráfico, cifras clave y enlaces a las
+  herramientas. Por ahora con **datos de ejemplo** (`src/markethub/sample.py`), rotulados como tales.
+- **My Hub**, el área privada: el usuario entra con su cuenta de Google (Gmail), añade su cartera
+  (acciones y precio medio) o, si no tiene, las acciones que sigue, y llega a un dashboard que las sigue:
 
 - valor de la cartera, movimiento del día y ganancia o pérdida frente a su propio precio medio;
 - cada posición con su peso, rentabilidad a un año y minigráfico de tres meses;
@@ -22,7 +26,8 @@ Desde cada acción se abre en las herramientas: [Fundamentals Lab](https://githu
 |---|---|
 | Login | Botón "Sign in with Google" (Google Identity Services). La API verifica el ID token (firma, audiencia, emisor, caducidad, email verificado) y guarda solo el id del usuario en una cookie de sesión firmada, `HttpOnly`, `SameSite=Lax`, de 30 días |
 | Datos del usuario | Un documento por usuario en Firestore (región europe-west1): nombre, email, foto, posiciones y favoritos. Se pueden descargar y borrar desde la web |
-| Precios | Financial Modeling Prep: cotización, cierres diarios y sector; en memoria unos minutos |
+| Precios | Financial Modeling Prep: cotización, cierres diarios y sector; en memoria unos minutos. El portal público usa datos de ejemplo (`/api/public/*`) hasta conectar un proveedor |
+| Gráficos | Lightweight Charts de TradingView (Apache-2.0) |
 | Buscador | Lista de empresas de la SEC, más los ETF más comunes |
 | Seguridad | Las escrituras exigen que el `Origin` sea el propio sitio (CSRF); cada usuario solo lee su documento; límite de peticiones por IP |
 

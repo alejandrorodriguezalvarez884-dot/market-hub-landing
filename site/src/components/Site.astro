@@ -1,0 +1,99 @@
+---
+// Shell of the public portal: header with navigation, search and sign-in, the ticker tape, and
+// the footer. Signed-in users get a "My Hub" button to their private area.
+import Layout from "../layouts/Layout.astro";
+import { AUTHOR_URL, REPO_URL, SITE_NAME, link } from "../lib/site";
+import AccountMenu from "./AccountMenu.astro";
+import Logo from "./Logo.astro";
+import Search from "./Search.astro";
+import TickerTape from "./TickerTape.astro";
+
+interface Props {
+	title: string;
+	description: string;
+	sample?: boolean; // the page shows sample market data: say so under the header
+	tape?: boolean;
+}
+const { title, description, sample = false, tape = true } = Astro.props;
+const path = Astro.url.pathname;
+const nav = [
+	{ href: link("/"), label: "Home", exact: true },
+	{ href: link("/markets/"), label: "Markets" },
+	{ href: link("/news/"), label: "News" },
+	{ href: link("/tools/"), label: "Tools" },
+].map((l) => ({ ...l, active: l.exact ? path === l.href : path.startsWith(l.href) }));
+---
+
+<Layout title={title === SITE_NAME ? title : `${title} — ${SITE_NAME}`} description={description}>
+	<header class="sticky top-0 z-50 border-b border-line bg-page/95 backdrop-blur">
+		<div class="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 lg:gap-6">
+			<Logo />
+			<nav class="hidden md:block" aria-label="Main">
+				<ul class="flex items-center gap-1 text-[13px] font-semibold">
+					{nav.map((l) => (
+						<li>
+							<a href={l.href} aria-current={l.active ? "page" : undefined}
+								class:list={["rounded px-3 py-2 transition-colors hover:bg-raised hover:text-ink-strong", l.active ? "text-ink-strong" : "text-muted"]}>{l.label}</a>
+						</li>
+					))}
+				</ul>
+			</nav>
+			<div class="ml-auto hidden w-full max-w-xs md:block"><Search compact id="header-search" /></div>
+			<button id="search-toggle" type="button" class="ml-auto rounded p-2 text-muted hover:bg-raised hover:text-ink-strong md:hidden" aria-label="Search" aria-expanded="false" aria-controls="mobile-search">
+				<svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="9" r="6"></circle><path d="m14 14 4 4" stroke-linecap="round"></path></svg>
+			</button>
+			<AccountMenu />
+		</div>
+		<div id="mobile-search" class="border-t border-line px-4 py-2 md:hidden" hidden><Search compact id="mobile-search-box" /></div>
+		<nav class="border-t border-line md:hidden" aria-label="Main">
+			<ul class="flex gap-1 overflow-x-auto px-2 text-[13px] font-semibold">
+				{nav.map((l) => (
+					<li>
+						<a href={l.href} aria-current={l.active ? "page" : undefined}
+							class:list={["block whitespace-nowrap border-b-2 px-3 py-2", l.active ? "border-accent text-ink-strong" : "border-transparent text-muted"]}>{l.label}</a>
+					</li>
+				))}
+			</ul>
+		</nav>
+	</header>
+	{tape && <TickerTape />}
+	{sample && (
+		<div class="border-b border-warn/20 bg-warn-soft">
+			<p class="mx-auto max-w-[1400px] px-4 py-1.5 text-xs text-warn">
+				<strong class="font-semibold">Sample data.</strong> Prices, charts and headlines on this page are placeholders while the
+				data feed is being connected. They are not real quotes or news.
+			</p>
+		</div>
+	)}
+	<main class="mx-auto max-w-[1400px] px-4 pb-16 pt-6">
+		<slot />
+	</main>
+	<footer class="border-t border-line bg-deep">
+		<div class="mx-auto grid max-w-[1400px] gap-6 px-4 py-8 text-xs text-muted md:grid-cols-[1fr_auto]">
+			<div class="max-w-3xl space-y-2 leading-relaxed">
+				<p>
+					Market data may be delayed. Nothing on this site is investment advice or a recommendation to buy or sell any
+					security. Past returns do not indicate future returns.
+				</p>
+				<p>
+					Charts by <a href="https://www.tradingview.com/" class="underline hover:text-ink" rel="noopener">TradingView</a> Lightweight Charts™.
+				</p>
+			</div>
+			<div class="flex flex-wrap items-start gap-x-4 gap-y-1">
+				<a href={link("/privacy/")} class="hover:text-ink">Privacy</a>
+				<a href={REPO_URL} class="hover:text-ink">Source</a>
+				<a href={AUTHOR_URL} class="hover:text-ink">Built by Alejandro Rodríguez Álvarez</a>
+			</div>
+		</div>
+	</footer>
+</Layout>
+
+<script>
+	const toggle = document.getElementById("search-toggle")!;
+	const box = document.getElementById("mobile-search")!;
+	toggle.addEventListener("click", () => {
+		box.hidden = !box.hidden;
+		toggle.setAttribute("aria-expanded", String(!box.hidden));
+		if (!box.hidden) box.querySelector("input")?.focus();
+	});
+</script>

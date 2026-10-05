@@ -1,90 +1,168 @@
 ---
-// Landing and sign-in. A signed-in visitor goes straight to the dashboard.
-import Page from "../components/Page.astro";
+// The public home: the markets today, a main chart, top stories, sectors and movers, and the
+// way into the private area.
+import Site from "../components/Site.astro";
 import { SITE_NAME, link } from "../lib/site";
-
-const features = [
-	["Your portfolio at a glance", "Value, today's move and your gain or loss against your own average cost, position by position, with weights and sectors."],
-	["Or just your favourites", "No portfolio? Keep a list of the stocks you follow and see how they move: today, this month, this year, against their 52-week range."],
-	["The analysis tools, one click away", "Open any of your stocks in Fundamentals Lab (numbers, valuation, forward multiples, technicals) or the Earnings Radar (what its latest results release says)."],
-];
 ---
 
-<Page title={SITE_NAME} description="Sign in with Google, add your portfolio or your favourite stocks, and monitor them on one dashboard with AI analysis tools a click away.">
-	<section class="mx-auto max-w-3xl pt-6 text-center sm:pt-14">
-		<h1 class="font-serif text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl">Your stocks, and the tools to read them</h1>
-		<p class="mx-auto mt-4 max-w-2xl text-lg text-stone-600">
-			Sign in, add the stocks you own or the ones you follow, and get a dashboard that keeps track of them. From there, open
-			any company in the AI analysis tools.
-		</p>
-		<div class="mt-8 flex flex-col items-center gap-3">
-			<div id="signin" class="min-h-[44px]"></div>
-			<p id="signin-note" class="text-sm text-stone-500" hidden></p>
-			<p class="max-w-md text-xs text-stone-400">
-				We keep your Google name, email and picture, and the stocks you add. Nothing else. You can delete it all at any time.{" "}
-				<a href={link("/privacy/")} class="underline hover:text-stone-700">Privacy</a>
-			</p>
-		</div>
-	</section>
-	<section class="mt-16 grid gap-4 md:grid-cols-3">
-		{features.map(([t, d]) => (
-			<div class="rounded-2xl border border-stone-200 bg-white p-5">
-				<h2 class="font-serif text-lg font-semibold text-stone-900">{t}</h2>
-				<p class="mt-2 text-sm leading-relaxed text-stone-600">{d}</p>
+<Site title={SITE_NAME} description="Markets, charts and news, with the AI analysis tools of Market Hub. Sign in with Google for your private portfolio dashboard." sample>
+	<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+		<div class="min-w-0 space-y-4">
+			<section class="panel overflow-hidden" aria-labelledby="overview-title">
+				<div class="flex flex-wrap items-end justify-between gap-3 px-4 pb-3 pt-4">
+					<div>
+						<h1 id="overview-title" class="label">Markets today</h1>
+						<div id="hero" class="mt-1 min-h-[52px]"><span class="skeleton mt-2 block h-8 w-64"></span></div>
+					</div>
+					<div id="index-tabs" class="tabs" role="tablist"></div>
+				</div>
+				<div id="main-chart"></div>
+			</section>
+
+			<section class="panel" aria-labelledby="stories-title">
+				<header class="panel-head">
+					<h2 id="stories-title" class="panel-title">Top stories</h2>
+					<a href={link("/news/")} class="text-xs font-semibold text-[#5b8cff] hover:underline">All news →</a>
+				</header>
+				<div id="stories" class="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+					<div class="skeleton h-48"></div><div class="skeleton h-48"></div>
+				</div>
+			</section>
+
+			<div class="grid gap-4 lg:grid-cols-2">
+				<section class="panel" aria-labelledby="sectors-title">
+					<header class="panel-head">
+						<h2 id="sectors-title" class="panel-title">Sector performance</h2>
+						<span class="text-xs text-muted">Today</span>
+					</header>
+					<div id="sectors" class="p-4"><div class="skeleton h-64"></div></div>
+				</section>
+				<section class="panel" aria-labelledby="movers-title">
+					<header class="panel-head">
+						<h2 id="movers-title" class="panel-title">Movers</h2>
+						<div id="movers-tabs"></div>
+					</header>
+					<div id="movers"><div class="skeleton m-4 h-64"></div></div>
+				</section>
 			</div>
-		))}
-	</section>
-</Page>
+		</div>
+
+		<aside class="min-w-0 space-y-4">
+			<section id="hub-card" class="panel overflow-hidden">
+				<div class="bg-gradient-to-br from-[#1b2a52] to-panel p-5">
+					<div class="flex items-center gap-2 text-[11px] text-muted">
+						<svg class="h-3.5 w-3.5 text-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+						My Hub · private
+					</div>
+					<h2 id="hub-title" class="mt-2 text-lg font-bold leading-snug text-ink-strong">Your portfolio and watchlist, in one private dashboard</h2>
+					<p id="hub-text" class="mt-1.5 text-[13px] leading-relaxed text-muted">Value, today's move and your gain or loss against your own cost. Sign in with Google; only you see it.</p>
+					<a id="hub-link" href={link("/signin/")} class="btn btn-primary mt-4 w-full">Sign in with Google</a>
+				</div>
+			</section>
+
+			<section class="panel" aria-labelledby="markets-title">
+				<header class="panel-head">
+					<h2 id="markets-title" class="panel-title">Markets</h2>
+					<a href={link("/markets/")} class="text-xs font-semibold text-[#5b8cff] hover:underline">More →</a>
+				</header>
+				<div id="markets" class="divide-y divide-line px-2"><div class="skeleton m-2 h-96"></div></div>
+			</section>
+
+			<section class="panel p-4" aria-labelledby="tools-title">
+				<h2 id="tools-title" class="panel-title">Analysis tools</h2>
+				<p class="mt-1 text-[13px] text-muted">Read any US company in depth.</p>
+				<div class="mt-3 space-y-2">
+					<a href={link("/tools/")} class="block rounded border border-line p-3 hover:border-line-strong hover:bg-raised">
+						<p class="text-[13px] font-semibold text-ink-strong">Fundamentals Lab</p>
+						<p class="mt-0.5 text-xs text-muted">Statements, valuation, forward multiples and technicals.</p>
+					</a>
+					<a href={link("/tools/")} class="block rounded border border-line p-3 hover:border-line-strong hover:bg-raised">
+						<p class="text-[13px] font-semibold text-ink-strong">Earnings Radar</p>
+						<p class="mt-0.5 text-xs text-muted">What a company's latest results release says.</p>
+					</a>
+				</div>
+			</section>
+		</aside>
+	</div>
+</Site>
 
 <script>
-	import { api, config, signedIn } from "../lib/api";
+	import { signedIn } from "../lib/api";
+	import { add, h } from "../lib/dom";
+	import { change, level, signedPct, toneClass } from "../lib/format";
+	import { priceChart } from "../lib/lwc";
+	import { news, overview, type Snapshot } from "../lib/market";
 	import { link } from "../lib/site";
+	import { failed, moversTable, newsFeature, newsRow, quoteGroup, sectorBars, tabbed } from "../lib/widgets";
 
-	const box = document.getElementById("signin")!;
-	const note = document.getElementById("signin-note")!;
-	const say = (text: string) => ((note.textContent = text), (note.hidden = !text));
-	// Only paths of this site, so a crafted ?next= cannot send the visitor elsewhere.
-	const next = (() => {
-		const n = new URLSearchParams(location.search).get("next") ?? "";
-		return n.startsWith("/") && !n.startsWith("//") ? n : link("/dashboard/");
-	})();
+	const MAIN = ["SPX", "NDX", "DJI", "RUT"];
+	const hero = document.getElementById("hero")!;
+	const indexTabs = document.getElementById("index-tabs")!;
+	let current = "SPX";
+	const chart = priceChart(document.getElementById("main-chart")!, { symbol: current, range: "1D", height: 360 });
 
-	function loadGoogle(): Promise<void> {
-		return new Promise((resolve, reject) => {
-			const s = document.createElement("script");
-			s.src = "https://accounts.google.com/gsi/client";
-			s.async = true;
-			s.onload = () => resolve();
-			s.onerror = () => reject(new Error("Google sign-in could not load."));
-			document.head.append(s);
+	function showHero(s: Snapshot) {
+		const tone = toneClass(s.change_pct);
+		hero.replaceChildren(
+			h("div", "text-[15px] font-semibold text-ink-strong", s.name),
+			add(h("div", "flex flex-wrap items-baseline gap-x-3"),
+				h("span", "num text-3xl font-bold text-ink-strong", level(s.price, s.kind)),
+				h("span", `num text-base font-semibold ${tone}`, `${change(s.change, s.kind)} (${signedPct(s.change_pct, 2)})`),
+				h("span", "text-xs text-muted", "today")));
+	}
+
+	function pick(s: Snapshot) {
+		current = s.symbol;
+		showHero(s);
+		chart.setSymbol(s.symbol);
+		indexTabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.symbol === current)));
+		document.querySelectorAll<HTMLElement>("#markets [data-symbol]").forEach((r) => r.classList.toggle("bg-raised", r.dataset.symbol === current));
+	}
+
+	overview()
+		.then((o) => {
+			const main = o.indices.filter((s) => MAIN.includes(s.symbol));
+			indexTabs.replaceChildren(...main.map((s) => {
+				const b = h("button", "tab-btn", s.name.replace("Dow Jones Industrial Average", "Dow Jones"));
+				b.type = "button";
+				b.dataset.symbol = s.symbol;
+				b.setAttribute("role", "tab");
+				b.addEventListener("click", () => pick(s));
+				return b;
+			}));
+			const onPick = (s: Snapshot) => (MAIN.includes(s.symbol) ? pick(s) : (location.href = link(`/quote/?t=${s.symbol}`)));
+			document.getElementById("markets")!.replaceChildren(
+				quoteGroup("Indices", o.indices, onPick), quoteGroup("Rates", o.rates), quoteGroup("Commodities", o.commodities.slice(0, 4)),
+				quoteGroup("Currencies", o.currencies.slice(0, 3)), quoteGroup("Crypto", o.crypto));
+			pick(main[0]);
+			document.getElementById("sectors")!.replaceChildren(sectorBars(o.sectors));
+			const t = tabbed([
+				{ label: "Gainers", render: () => moversTable(o.movers.gainers) },
+				{ label: "Losers", render: () => moversTable(o.movers.losers) },
+				{ label: "Active", render: () => moversTable(o.movers.active) },
+			]);
+			document.getElementById("movers-tabs")!.replaceChildren(t.tabs);
+			document.getElementById("movers")!.replaceChildren(t.body);
+		})
+		.catch(() => {
+			for (const id of ["hero", "markets", "sectors", "movers"]) failed(document.getElementById(id)!);
 		});
-	}
 
-	async function start() {
-		try {
-			const who = await signedIn();
-			if (who) return location.replace(who.has_data ? next : link("/portfolio/?welcome=1"));
-			const cfg = await config();
-			if (!cfg.google_client_id) return say("Sign-in is not configured yet.");
-			await loadGoogle();
-			const g = (window as any).google.accounts.id;
-			g.initialize({
-				client_id: cfg.google_client_id,
-				ux_mode: "popup",
-				callback: async (resp: { credential: string }) => {
-					say("Signing in…");
-					try {
-						const r = await api<{ has_data: boolean }>("/api/auth/google", { method: "POST", body: JSON.stringify({ credential: resp.credential }) });
-						location.replace(r.has_data ? next : link("/portfolio/?welcome=1"));
-					} catch (e) {
-						say(e instanceof Error ? e.message : "Sign-in failed.");
-					}
-				},
-			});
-			g.renderButton(box, { theme: "filled_black", size: "large", shape: "pill", text: "continue_with", width: 280 });
-		} catch (e) {
-			say(e instanceof Error ? e.message : "Sign-in is not available right now.");
-		}
-	}
-	start();
+	news({ limit: 7 })
+		.then((n) => {
+			const [first, ...rest] = n.items;
+			document.getElementById("stories")!.replaceChildren(newsFeature(first), add(h("div", "min-w-0"), ...rest.map((x) => newsRow(x))));
+		})
+		.catch(() => failed(document.getElementById("stories")!));
+
+	signedIn()
+		.then((who) => {
+			if (!who) return;
+			document.getElementById("hub-title")!.textContent = `Welcome back, ${who.user.name.split(" ")[0]}`;
+			document.getElementById("hub-text")!.textContent = "Your portfolio and watchlist are waiting in your private hub.";
+			const a = document.getElementById("hub-link") as HTMLAnchorElement;
+			a.textContent = "Open My Hub";
+			a.href = link("/dashboard/");
+		})
+		.catch(() => {});
 </script>

@@ -1,51 +1,53 @@
 ---
 // Where the user says what they own, or what they follow. First visit: a short welcome that
 // asks which of the two it is.
-import Page from "../components/Page.astro";
+import App from "../components/App.astro";
 import Search from "../components/Search.astro";
 ---
 
-<Page title="Portfolio" description="Your positions and your favourite stocks." app>
-	<section id="welcome" class="mb-8 rounded-2xl border border-stone-200 bg-white p-6" hidden>
-		<h1 class="font-serif text-2xl font-semibold text-stone-900">Welcome. Do you have a portfolio?</h1>
-		<p class="mt-2 text-stone-600">Add what you own to see its value and your gains, or just the stocks you follow. You can have both and change them any time.</p>
+<App title="Portfolio" description="Your positions and your watchlist.">
+	<section id="welcome" class="panel mb-6 bg-gradient-to-br from-[#1b2a52] to-panel p-6" hidden>
+		<p class="label text-[#5b8cff]">Welcome to My Hub</p>
+		<h1 class="mt-1 text-2xl font-bold text-ink-strong">Do you have a portfolio?</h1>
+		<p class="mt-2 text-[13px] text-muted">Add what you own to see its value and your gains, or just the stocks you follow. You can have both and change them any time.</p>
 		<div class="mt-5 flex flex-wrap gap-3">
-			<button type="button" data-go="positions" class="rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-700">Yes, add my positions</button>
-			<button type="button" data-go="watchlist" class="rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-800 hover:border-stone-500">No, pick favourite stocks</button>
+			<button type="button" data-go="positions" class="btn btn-primary">Yes, add my positions</button>
+			<button type="button" data-go="watchlist" class="btn btn-ghost">No, pick stocks to follow</button>
 		</div>
 	</section>
 
 	<div id="heading">
-		<h1 class="font-serif text-3xl font-semibold tracking-tight text-stone-900">Your portfolio</h1>
-		<p class="mt-2 text-stone-600">Positions you hold and stocks you follow. Saved to your account.</p>
+		<p class="label text-[#5b8cff]">My Hub</p>
+		<h1 class="mt-1 text-2xl font-bold text-ink-strong">Your portfolio</h1>
+		<p class="mt-1 text-[13px] text-muted">Positions you hold and stocks you follow. Saved to your private account.</p>
 	</div>
 
-	<section id="positions" class="mt-8 rounded-2xl border border-stone-200 bg-white p-5 sm:p-6">
-		<h2 class="font-serif text-xl font-semibold text-stone-900">Positions</h2>
-		<p class="mt-1 text-sm text-stone-500">Shares you hold and the average price you paid, to see your gain or loss. The average cost is optional.</p>
+	<section id="positions" class="panel mt-6 p-4 sm:p-5">
+		<h2 class="panel-title">Positions</h2>
+		<p class="mt-1 text-[13px] text-muted">Shares you hold and the average price you paid, to see your gain or loss. The average cost is optional.</p>
 		<div class="mt-4 max-w-md"><Search mode="pick" button="Add" id="add-position" /></div>
 		<div class="mt-4 overflow-x-auto">
 			<table class="data-table">
 				<thead><tr><th>Stock</th><th>Shares</th><th>Avg cost ($)</th><th></th></tr></thead>
 				<tbody id="rows"></tbody>
 			</table>
-			<p id="no-rows" class="py-4 text-sm text-stone-500">No positions yet. Search a ticker or a company name to add one.</p>
+			<p id="no-rows" class="py-4 text-[13px] text-muted">No positions yet. Search a ticker or a company name to add one.</p>
 		</div>
 	</section>
 
-	<section id="watchlist" class="mt-6 rounded-2xl border border-stone-200 bg-white p-5 sm:p-6">
-		<h2 class="font-serif text-xl font-semibold text-stone-900">Favourites</h2>
-		<p class="mt-1 text-sm text-stone-500">Stocks you follow without owning them. Positions you hold are tracked already.</p>
+	<section id="watchlist" class="panel mt-4 p-4 sm:p-5">
+		<h2 class="panel-title">Watchlist</h2>
+		<p class="mt-1 text-[13px] text-muted">Stocks you follow without owning them. Positions you hold are tracked already.</p>
 		<div class="mt-4 max-w-md"><Search mode="pick" button="Add" id="add-favourite" /></div>
 		<div id="chips" class="mt-4 flex flex-wrap gap-2"></div>
-		<p id="no-chips" class="mt-2 text-sm text-stone-500">No favourites yet.</p>
+		<p id="no-chips" class="mt-2 text-[13px] text-muted">Nothing in your watchlist yet.</p>
 	</section>
 
-	<div class="sticky bottom-4 mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-stone-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-		<button id="save" type="button" class="rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50">Save and open the dashboard</button>
-		<span id="status" class="text-sm text-stone-500"></span>
+	<div class="sticky bottom-4 mt-4 flex flex-wrap items-center gap-3 rounded-md border border-line-strong bg-panel/95 p-3 shadow-2xl shadow-black/40 backdrop-blur">
+		<button id="save" type="button" class="btn btn-primary">Save and open the dashboard</button>
+		<span id="status" class="text-[13px] text-muted"></span>
 	</div>
-</Page>
+</App>
 
 <script>
 	import { api, requireUser, type Portfolio, type Position } from "../lib/api";
@@ -65,7 +67,7 @@ import Search from "../components/Search.astro";
 
 	const say = (text: string, error = false) => {
 		status.textContent = text;
-		status.className = `text-sm ${error ? "text-rose-700" : "text-stone-500"}`;
+		status.className = `text-[13px] ${error ? "text-down" : "text-muted"}`;
 	};
 	const changed = () => ((dirty = true), say("Unsaved changes."));
 
@@ -84,12 +86,12 @@ import Search from "../components/Search.astro";
 
 	function drawRows() {
 		rows.replaceChildren(...positions.map((p, i) => {
-			const remove = h("button", "rounded-lg px-2 py-1 text-lg leading-none text-stone-400 hover:bg-stone-100 hover:text-stone-800", "×");
+			const remove = h("button", "rounded px-2 py-1 text-lg leading-none text-muted hover:bg-raised hover:text-ink-strong", "×");
 			remove.type = "button";
 			remove.setAttribute("aria-label", `Remove ${p.ticker}`);
 			remove.addEventListener("click", () => (positions.splice(i, 1), drawRows(), changed()));
 			return add(h("tr"),
-				add(h("td"), h("div", "font-semibold text-stone-900", p.ticker), p.name ? h("div", "max-w-[12rem] truncate text-xs text-stone-500", p.name) : null),
+				add(h("td"), h("div", "font-semibold text-ink-strong", p.ticker), p.name ? h("div", "max-w-[12rem] truncate text-[11px] text-muted", p.name) : null),
 				add(h("td"), numberField(p.shares || null, "0", (v) => (p.shares = v ?? 0))),
 				add(h("td"), numberField(p.avg_cost, "optional", (v) => (p.avg_cost = v))),
 				add(h("td"), remove));
@@ -99,11 +101,11 @@ import Search from "../components/Search.astro";
 
 	function drawChips() {
 		chips.replaceChildren(...watchlist.map((t) => {
-			const x = h("button", "rounded-full px-2 text-stone-400 hover:bg-stone-100 hover:text-stone-800", "×");
+			const x = h("button", "rounded px-1.5 text-muted hover:bg-line-strong hover:text-ink-strong", "×");
 			x.type = "button";
 			x.setAttribute("aria-label", `Remove ${t}`);
 			x.addEventListener("click", () => ((watchlist = watchlist.filter((u) => u !== t)), drawChips(), changed()));
-			return add(h("span", "inline-flex items-center gap-1 rounded-full border border-stone-300 bg-white py-1 pl-3 pr-1 text-sm font-semibold text-stone-800"), t, x);
+			return add(h("span", "inline-flex items-center gap-1 rounded border border-line-strong bg-raised py-1 pl-2.5 pr-1 text-[13px] font-semibold text-ink-strong"), t, x);
 		}));
 		noChips.hidden = watchlist.length > 0;
 	}
@@ -123,7 +125,7 @@ import Search from "../components/Search.astro";
 		const { ticker } = (e as CustomEvent<{ ticker: string }>).detail;
 		if (positions.some((p) => p.ticker === ticker)) return say(`${ticker} is in your positions, so it is tracked already.`);
 		if (watchlist.includes(ticker)) return;
-		if (watchlist.length >= MAX) return say(`Up to ${MAX} favourites.`, true);
+		if (watchlist.length >= MAX) return say(`Up to ${MAX} stocks in the watchlist.`, true);
 		watchlist.push(ticker);
 		drawChips();
 		changed();
@@ -132,7 +134,7 @@ import Search from "../components/Search.astro";
 	save.addEventListener("click", async () => {
 		const missing = positions.find((p) => !(p.shares > 0));
 		if (missing) return say(`Enter the number of shares of ${missing.ticker}.`, true);
-		if (!positions.length && !watchlist.length) return say("Add at least one position or one favourite.", true);
+		if (!positions.length && !watchlist.length) return say("Add at least one position or one stock to follow.", true);
 		save.disabled = true;
 		say("Saving…");
 		try {

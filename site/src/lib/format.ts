@@ -64,3 +64,41 @@ export function fmt(kind: Kind, v: N): string {
       return num(v);
   }
 }
+
+// A quote in its own unit: dollars for stocks and commodities, points for indices, a yield for
+// rates, four decimals for currency pairs.
+export function level(v: N, kind: string): string {
+  if (!ok(v)) return DASH;
+  if (kind === "rate") return `${v.toFixed(3)}%`;
+  if (kind === "fx") return v.toFixed(v < 10 ? 4 : 2);
+  const s = v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return kind === "stock" || kind === "etf" ? `$${s}` : s;
+}
+
+export function change(v: N, kind: string): string {
+  if (!ok(v)) return DASH;
+  const sign = v > 0 ? "+" : v < 0 ? "−" : "";
+  const a = Math.abs(v);
+  return `${sign}${kind === "fx" && a < 1 ? a.toFixed(4) : a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function compact(v: N): string {
+  if (!ok(v)) return DASH;
+  const a = Math.abs(v);
+  if (a >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
+  if (a >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+  return String(Math.round(v));
+}
+
+export function timeAgo(iso: string, now = Date.now()): string {
+  const m = Math.max(0, Math.round((now - Date.parse(iso)) / 60000));
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const hrs = Math.round(m / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const d = Math.round(hrs / 24);
+  return `${d}d ago`;
+}
+
+export const toneClass = (v: N) => (ok(v) ? (v > 0 ? "up" : v < 0 ? "down" : "text-muted") : "text-muted");

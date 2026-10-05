@@ -25,8 +25,9 @@ Decisiones del usuario:
 | Hecho | Pendiente |
 |---|---|
 | API (`src/markethub/`): login con Google (`auth.py`), sesión firmada, documento por usuario en Firestore/archivo/memoria (`users.py`), precios de FMP y buscador de la SEC (`market.py`), dashboard (`dashboard.py`), API (`api.py`) con control de `Origin` en las escrituras, borrado de cuenta y límite por IP | Probarla con Google, FMP y Firestore reales (la red del entorno bloquea FMP y la SEC) |
-| 17 tests en verde, sin red: tokens buenos y malos, aislamiento entre usuarios, CSRF, cookie `HttpOnly`/`Lax`, validación del portfolio, cálculos del dashboard | |
-| Web (`site/`): portada con login, bienvenida "¿tienes cartera?", editor de posiciones y favoritos, dashboard, herramientas, cuenta (ver, descargar y borrar datos) y privacidad. Revisada en Chromium a 1280 y 390 px con Google y FMP simulados | Revisarla con el botón real de Google |
+| 25 tests en verde, sin red: tokens buenos y malos, aislamiento entre usuarios, CSRF, cookie `HttpOnly`/`Lax`, validación del portfolio, cálculos del dashboard | |
+| **Rediseño 2026-10-05: portal público + área privada.** Estética inspirada en TradingView (tema oscuro, tokens de color en `site/src/styles/global.css`: `page`, `panel`, `line`, `ink`, `muted`, `accent`, `up`, `down`), gráficos con Lightweight Charts de TradingView (Apache-2.0, logo de atribución activo y crédito en el pie). **Público** (`components/Site.astro`, con cinta de cotizaciones y buscador): portada estilo Morningstar (gráfico de índices, noticias, sectores, movers, panel de mercados), `/markets/`, `/news/`, `/quote/?t=` (gráfico de velas o línea, cifras clave, rentabilidades, herramientas, "Add to watchlist"), `/tools/`, `/privacy/`. **Privado** (`components/App.astro`, barra lateral, "Private area"): `/dashboard/`, `/portfolio/`, `/account/`. El login pasa a `/signin/`. Revisada en Chromium a 1366 y 390 px con Google y FMP simulados, sin desbordes | Revisarla con el botón real de Google |
+| **Datos de ejemplo** en la parte pública: `src/markethub/sample.py` y `/api/public/{overview,chart,quote,news}`. Paseo aleatorio por símbolo con semilla fija (el histórico no cambia de un día a otro y crece una barra por sesión), titulares genéricos con fuentes inventadas ("Sample Wire"). Toda respuesta lleva `"sample": true` y cada página pública lo avisa con una franja | **Conectar datos reales**: sustituir `sample.py` por un proveedor (FMP para precios, un proveedor de noticias) manteniendo la forma de las respuestas; la web no cambia. Quitar entonces la franja `sample` de las páginas |
 | `Makefile`, `Dockerfile`, `scripts/deploy-cloudrun.sh` (crea la base de Firestore `market-hub` en europe-west1, secretos, despliegue) | |
 | **Desplegado en Cloud Run** (2026-10-05): servicio `market-hub`, europe-west1, revisión `market-hub-00001-f65`, https://market-hub-818229650855.europe-west1.run.app (también https://market-hub-3qwezbjyfq-ew.a.run.app). Arranca bien según los logs; secretos `market-hub-session-secret` y `market-hub-fmp-api-key` | Añadir las dos URL a los orígenes del cliente OAuth y probar el login y el dashboard en la URL pública (desde el entorno en la nube el proxy bloquea `*.run.app` y FMP). Rotar la clave de FMP, que pasó por el chat, y subirla como versión nueva del secreto |
 | Cliente OAuth creado (2026-10-05): `818229650855-3dq57ote5eq25hhdmru29k3mg852jpnb.apps.googleusercontent.com`, público, en `.env.example`. `make env` (lo lanzan `install`, `api`, `serve` y `deploy`) crea `.env` con él y un `SESSION_SECRET` nuevo | Probar el login real en `localhost` (desde el entorno en la nube Google devuelve 403 en el botón y no se pudo distinguir si es el proxy o los orígenes) |
@@ -49,6 +50,13 @@ Decisiones del usuario:
   cambio del día, pesos, sectores (ETF como "ETF / fund"), rentabilidades de 1 mes a 1 año y la
   serie de "posiciones actuales mantenidas un año" frente a SPY, rotulada como tal: no es la
   rentabilidad real del usuario, porque no se registran operaciones.
+- **Portal público:** las páginas piden a `/api/public/*` (sin login). La forma de cada respuesta
+  está en `site/src/lib/market.ts`; un proveedor real solo tiene que devolver lo mismo. Las
+  noticias de ejemplo no recomiendan nada (hay un test que lo comprueba) y los valores que no
+  están en la tabla de `sample.py` se generan de forma estable a partir del ticker.
+- **Estilo:** este repo estrena el tema oscuro; `fundamentals-lab` y `decision-signal-lab` siguen
+  con el claro anterior. Para unificar la marca, el siguiente paso es llevar `global.css`, `Logo`,
+  `lwc.ts` y los componentes de tabla a esos dos repos.
 - **Llamadas a FMP por carga del dashboard:** una de cotizaciones en bloque (o una por ticker si el
   plan no la incluye), una de histórico por ticker (en caché 6 horas) y una de perfil por posición
   (en caché 7 días). Con 10 tickers, unas 20 llamadas la primera vez y 1 después. El plan

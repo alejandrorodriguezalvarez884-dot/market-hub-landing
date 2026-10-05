@@ -1,0 +1,42 @@
+---
+// Top-right of the public header: "Sign in" for visitors, the user's picture and a menu for
+// signed-in users.
+import { link } from "../lib/site";
+---
+
+<div id="account" class="relative flex flex-none items-center gap-2">
+	<a href={link("/signin/")} id="signin-link" class="btn btn-primary" hidden>Sign in</a>
+</div>
+
+<script>
+	import { signedIn } from "../lib/api";
+	import { avatar, signOut } from "../lib/avatar";
+	import { add, h, linkTo } from "../lib/dom";
+	import { link } from "../lib/site";
+
+	const box = document.getElementById("account")!;
+	const signin = document.getElementById("signin-link")!;
+	signedIn()
+		.then((who) => {
+			if (!who) return void (signin.hidden = false);
+			signin.remove();
+			const hub = linkTo(link("/dashboard/"), "btn btn-ghost hidden sm:inline-flex", "My Hub");
+			const button = h("button", "rounded-full ring-2 ring-transparent hover:ring-line-strong");
+			button.type = "button";
+			button.setAttribute("aria-label", "Account");
+			button.append(avatar(who.user));
+			const menu = h("div", "absolute right-0 top-full z-50 mt-2 w-64 rounded-md border border-line-strong bg-panel p-1.5 text-sm shadow-2xl shadow-black/50");
+			menu.hidden = true;
+			const item = (href: string, text: string) => linkTo(href, "block rounded px-3 py-2 text-ink hover:bg-raised", text);
+			const out = h("button", "w-full rounded px-3 py-2 text-left text-ink hover:bg-raised", "Sign out");
+			out.type = "button";
+			out.addEventListener("click", () => signOut(link("/")));
+			add(menu,
+				add(h("div", "border-b border-line px-3 pb-2.5 pt-1.5"), h("div", "font-semibold text-ink-strong", who.user.name), h("div", "truncate text-xs text-muted", who.user.email)),
+				add(h("div", "pt-1.5"), item(link("/dashboard/"), "My Hub"), item(link("/portfolio/"), "Portfolio"), item(link("/account/"), "Account and data"), out));
+			button.addEventListener("click", () => (menu.hidden = !menu.hidden));
+			document.addEventListener("click", (e) => !box.contains(e.target as Node) && (menu.hidden = true));
+			add(box, hub, button, menu);
+		})
+		.catch(() => (signin.hidden = false));
+</script>

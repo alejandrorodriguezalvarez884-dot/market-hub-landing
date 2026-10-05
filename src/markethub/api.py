@@ -10,6 +10,12 @@
     PUT    /api/portfolio           replace them
     GET    /api/dashboard           positions valued at today's prices, favourites, history
     GET    /api/search?q=           companies by ticker or name
+    GET    /api/public/overview     markets: indices, rates, commodities, currencies, sectors, movers
+    GET    /api/public/chart        ?symbol=&range=  price bars for the charts
+    GET    /api/public/quote        ?t=  a stock's figures and headlines
+    GET    /api/public/news         ?category=&ticker=  headlines
+
+The /api/public/ answers are sample data for now (see sample.py) and say so with "sample": true.
 
 Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build.
 """
@@ -18,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -30,7 +37,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import dashboard
+from . import dashboard, sample
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
@@ -40,6 +47,7 @@ from .users import InvalidPortfolio, UserStore, clean, default_users, empty, tou
 log = logging.getLogger("markethub.api")
 
 UNSAFE = {"POST", "PUT", "PATCH", "DELETE"}
+SYMBOL = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 
 
 class RateLimiter:
@@ -213,6 +221,41 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         except MarketUnavailable as exc:
             raise HTTPException(503, str(exc)) from None
         return {"companies": [{"ticker": c.ticker, "name": c.name} for c in found]}
+
+    def symbol(value: str) -> str:
+        value = value.strip().upper()
+        if not SYMBOL.match(value):
+            raise HTTPException(400, "Not a ticker.")
+        return value
+
+    def company_name(ticker: str) -> str | None:
+        try:
+            found = directory.get(ticker)
+        except MarketUnavailable:
+            return None
+        if not found:
+            return None
+        # The SEC writes names in capitals ("COCA COLA CO"); headlines read better without.
+        return found.name.title() if found.name.isupper() else found.name
+
+    @app.get("/api/public/overview")
+    def public_overview() -> dict:
+        return sample.overview()
+
+    @app.get("/api/public/chart")
+    def public_chart(symbol_: str = Query(alias="symbol", max_length=12), range_: str = Query("1Y", alias="range", max_length=4)) -> dict:
+        t = symbol(symbol_)
+        return sample.chart(t, range_, name=company_name(t))
+
+    @app.get("/api/public/quote")
+    def public_quote(t: str = Query(max_length=12)) -> dict:
+        t = symbol(t)
+        return sample.quote(t, name=company_name(t))
+
+    @app.get("/api/public/news")
+    def public_news(category: str | None = Query(None, max_length=30), ticker: str | None = Query(None, max_length=12),
+                    limit: int = Query(20, ge=1, le=50)) -> dict:
+        return sample.news(category=category, ticker=symbol(ticker) if ticker else None, limit=limit)
 
     static_dir = static_dir or os.environ.get("MARKETHUB_STATIC_DIR", "")
     if static_dir and Path(static_dir).is_dir():

@@ -40,7 +40,7 @@ export async function signedIn(): Promise<{ user: User; has_data: boolean } | nu
 export async function requireUser(): Promise<{ user: User; has_data: boolean }> {
   const who = await signedIn();
   if (!who) {
-    location.replace(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/?next=${encodeURIComponent(location.pathname + location.search)}`);
+    location.replace(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/signin/?next=${encodeURIComponent(location.pathname + location.search)}`);
     throw new Error("not signed in");
   }
   return who;

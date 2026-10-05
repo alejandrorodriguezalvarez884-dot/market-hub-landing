@@ -1,0 +1,80 @@
+---
+// News: the latest headlines, by category.
+import Site from "../components/Site.astro";
+---
+
+<Site title="News" description="The latest market, economy and company headlines." sample>
+	<div class="mb-5">
+		<h1 class="text-2xl font-bold text-ink-strong">News</h1>
+		<p class="mt-1 text-[13px] text-muted">Markets, the economy and the companies behind the tickers.</p>
+	</div>
+	<div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+		<section class="panel min-w-0">
+			<header class="panel-head flex-wrap">
+				<div id="categories" class="tabs" role="tablist"></div>
+			</header>
+			<div id="feed" class="px-4 pb-2 pt-4"><div class="skeleton h-96"></div></div>
+		</section>
+		<aside class="space-y-4">
+			<section class="panel">
+				<header class="panel-head"><h2 class="panel-title">Most mentioned</h2></header>
+				<div id="mentioned" class="flex flex-wrap gap-1.5 p-4"></div>
+			</section>
+			<section class="panel">
+				<header class="panel-head"><h2 class="panel-title">Major indices</h2></header>
+				<div id="side-indices" class="px-2 py-1"></div>
+			</section>
+		</aside>
+	</div>
+</Site>
+
+<script>
+	import { add, h, linkTo } from "../lib/dom";
+	import { news, overview } from "../lib/market";
+	import { failed, newsFeature, newsRow, quoteHref, quoteRow } from "../lib/widgets";
+
+	const feed = document.getElementById("feed")!;
+	const tabs = document.getElementById("categories")!;
+	const initial = new URLSearchParams(location.search).get("category") ?? "";
+	let seq = 0;
+
+	async function show(category: string) {
+		const mine = ++seq;
+		tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.category === category)));
+		const url = new URL(location.href);
+		if (category) url.searchParams.set("category", category);
+		else url.searchParams.delete("category");
+		history.replaceState(null, "", url);
+		try {
+			const n = await news({ category: category || undefined, limit: 30 });
+			if (mine !== seq) return;
+			if (!n.items.length) return failed(feed, "No headlines in this category yet.");
+			const [first, ...rest] = n.items;
+			feed.replaceChildren(newsFeature(first), add(h("div", "mt-2"), ...rest.map((x) => newsRow(x, { summary: true }))));
+		} catch {
+			if (mine === seq) failed(feed);
+		}
+	}
+
+	news({ limit: 50 })
+		.then((n) => {
+			tabs.replaceChildren(...["", ...n.categories].map((c) => {
+				const b = h("button", "tab-btn", c || "All");
+				b.type = "button";
+				b.dataset.category = c;
+				b.setAttribute("role", "tab");
+				b.addEventListener("click", () => show(c));
+				return b;
+			}));
+			const counts = new Map<string, number>();
+			for (const item of n.items) for (const t of item.tickers) counts.set(t, (counts.get(t) ?? 0) + 1);
+			document.getElementById("mentioned")!.replaceChildren(
+				...[...counts].sort((a, b) => b[1] - a[1]).slice(0, 16).map(([t, c]) => add(linkTo(quoteHref(t), "chip py-1"), t, ` ${c}`)));
+			show(n.categories.includes(initial) ? initial : "");
+		})
+		.catch(() => failed(feed));
+
+	overview()
+		.then((o) => document.getElementById("side-indices")!.replaceChildren(...o.indices.map((s) => quoteRow(s))))
+		.catch(() => {});
+</script>
