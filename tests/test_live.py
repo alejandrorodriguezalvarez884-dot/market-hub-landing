@@ -259,3 +259,17 @@ def test_a_call_the_plan_refuses_is_not_sent_again():
         with pytest.raises(NotInPlan):
             fmp.cached("historical-chart/5min", 300, symbol="^GSPC")
     assert sent == ["batch-quote", "quote", "quote", "quote", "5min"]
+
+
+def test_a_used_up_quota_pauses_the_calls():
+    sent = []
+
+    def handler(request):
+        sent.append(request.url.path.rsplit("/", 1)[-1])
+        return httpx.Response(429)
+
+    fmp = Fmp(api_key="k", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    for _ in range(3):
+        with pytest.raises(MarketUnavailable):
+            fmp.cached("treasury-rates", 60)
+    assert sent == ["treasury-rates"]

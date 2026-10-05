@@ -47,6 +47,8 @@ PROFILE_TTL_SECONDS = 7 * 86400
 HISTORY_DAYS = 400
 # A call the data plan refuses (HTTP 402) is not asked again for this long.
 REFUSED_TTL_SECONDS = 6 * 3600
+# After the provider says the quota is used up (HTTP 429), nothing is asked for this long.
+QUOTA_PAUSE_SECONDS = 15 * 60
 
 # Requests per address per hour on the endpoints that call the data provider.
 PER_IP_PER_HOUR = 240

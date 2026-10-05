@@ -16,7 +16,7 @@ from typing import Any, Callable
 import httpx
 
 from .config import (FMP_BASE, HISTORY_DAYS, HISTORY_TTL_SECONDS, PROFILE_TTL_SECONDS,
-                     QUOTE_TTL_SECONDS, REFUSED_TTL_SECONDS, SEC_TICKERS_URL)
+                     QUOTA_PAUSE_SECONDS, QUOTE_TTL_SECONDS, REFUSED_TTL_SECONDS, SEC_TICKERS_URL)
 
 
 log = logging.getLogger("markethub.market")
@@ -60,10 +60,14 @@ class Fmp:
         self.client = client or httpx.Client(timeout=20)
         self.cache = TTLCache()
         self._refused = TTLCache()
+        self._quota_hit = 0.0  # when the provider last said the quota is used up
 
     def _get(self, path: str, **params: Any) -> Any:
         if not self.api_key:
             raise MarketUnavailable("FMP_API_KEY is not set.")
+        # With the quota used up every call fails: asking again on each visit only digs deeper.
+        if self._quota_hit and time.monotonic() - self._quota_hit < QUOTA_PAUSE_SECONDS:
+            raise MarketUnavailable("The market data quota is used up for now.")
         try:
             resp = self.client.get(f"{FMP_BASE}/{path}", params={**params, "apikey": self.api_key})
         except httpx.HTTPError:
@@ -72,6 +76,9 @@ class Fmp:
         log.info("fmp %s -> %s", path, resp.status_code)
         if resp.status_code == 402:
             raise NotInPlan("The data plan does not include this.")
+        if resp.status_code == 429:
+            self._quota_hit = time.monotonic()
+            raise MarketUnavailable("The market data quota is used up for now.")
         if resp.status_code >= 400:
             # Never pass the provider's body on: it could echo request details.
             raise MarketUnavailable(f"The market data provider answered {resp.status_code}.")
