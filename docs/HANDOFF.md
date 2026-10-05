@@ -88,6 +88,46 @@ S&P 500 y `/news/` ya en 404.
 - Pendiente del rediseño: llevar `global.css`, el logo y los colores de `lwc.ts` a
   `fundamentals-lab` y `decision-signal-lab`, que siguen con el tema anterior.
 
+### Las herramientas, como secciones del portal (2026-10-05, noche; desplegado)
+
+El usuario pidió que las herramientas no parezcan páginas aparte. Hecho en los tres repos:
+
+- **Una sola cabecera en los tres sitios**: logo de Market Hub y las mismas tres secciones,
+  `Markets · Fundamentals · Earnings` (`components/Site.astro` aquí; `Page.astro` en las
+  herramientas, con sus páginas propias en una segunda línea). El buscador de la cabecera abre la
+  empresa en la sección donde estás. Las direcciones son constantes en `lib/site.ts`
+  (`FUNDAMENTALS_URL`, `RADAR_URL`; se cambian con `PUBLIC_FUNDAMENTALS_URL` y `PUBLIC_RADAR_URL`).
+- **Pestañas de empresa** en la ficha (`pages/quote.astro`): `Price · Fundamentals · Results
+  release`, las mismas en Fundamentals Lab y en el análisis del radar, para pasar de una vista a
+  otra de la misma empresa. Sustituyen al bloque "Read this company in depth". En fondos no sale
+  la de resultados. Ojo: abrir "Results release" de una empresa nueva lanza una lectura del modelo
+  (≈ $0.0015, dentro de los topes del radar), igual que hacía el enlace anterior.
+- `/tools/` sigue existiendo, enlazada desde el pie y la portada.
+- Desplegado en los tres con el visto bueno del usuario (hub, `fundamentals-lab` y `make deploy-hub`
+  del radar); `earningsradar.app` no se ha tocado.
+
+### Landing, pestaña Today y vídeo (2026-10-05, noche; desplegado como `market-hub-00007-6xh`)
+
+- **La portada (`pages/index.astro`) es ahora una landing**: el logo, qué es Market Hub, un vídeo
+  de un minuto, cada parte con su descripción, su captura y su enlace, My Hub y tres compromisos
+  (describe y no recomienda; los números salen del código; tus datos son tuyos). **No pide datos
+  de mercado**: visitarla no gasta llamadas a FMP.
+- **Lo que era la portada vive en `/today/`** (`pages/today.astro`). La cabecera de los tres sitios
+  pasa a `Today · Markets · Fundamentals · Earnings`; el área privada sigue arriba a la derecha
+  ("Sign in", y con sesión "My Hub" y el avatar).
+- **Gráficos de precio en velas por defecto**, con el selector `Candles · Line` (`lib/lwc.ts`).
+- **Vídeo** `site/public/film.webm` (65 s, 1280×720, 5,8 MB, sin sonido, WebM/VP8) con su póster
+  `film-poster.jpg`, y capturas en `site/public/shots/`. Se grabó con un script de Playwright sobre
+  el Chrome del equipo (no está en el repo): el hub con las cifras públicas de producción, la
+  ficha de AAPL de Fundamentals Lab y el análisis de AAPL del radar servido desde
+  `radar/releases.json`. Para rehacerlo hay que volver a grabar; no hay ffmpeg completo en el
+  equipo, así que no hay versión MP4 (Safari antiguo en iOS puede no reproducir WebM y verá el
+  póster).
+- **Cuota de FMP agotada (429)**: tras ese error no se llama al proveedor durante 15 minutos
+  (`QUOTA_PAUSE_SECONDS`). El 2026-10-05 a las 18 h UTC se repitieron 209 llamadas con 429.
+- 45 tests en verde. Comprobado en producción: las páginas responden, el vídeo se sirve con
+  peticiones por rangos y las capturas cargan.
+
 ## Cómo está hecho
 
 - **Login:** la web carga Google Identity Services, que devuelve un ID token. `POST /api/auth/google`
