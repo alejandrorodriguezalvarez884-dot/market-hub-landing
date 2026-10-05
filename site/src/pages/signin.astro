@@ -7,6 +7,7 @@ import { SITE_NAME, link } from "../lib/site";
 const points = [
 	["Your portfolio, valued every day", "Positions with your average cost: value, today's move, gain or loss, weights and sectors."],
 	["Or just the stocks you follow", "A watchlist with day moves, returns and the 52-week range."],
+	["The analysis tools, included", "Fundamentals Lab and the Earnings Radar open with this same sign-in."],
 	["Private by design", "Only you see your hub. We keep your Google name, email and picture, and the stocks you add. Delete it all at any time."],
 ];
 ---
@@ -58,11 +59,23 @@ const points = [
 	const box = document.getElementById("signin")!;
 	const note = document.getElementById("signin-note")!;
 	const say = (text: string) => ((note.textContent = text), (note.hidden = !text));
-	// Only paths of this site, so a crafted ?next= cannot send the visitor elsewhere.
-	const next = (() => {
+	// Where to go after signing in: a path of this site, or an analysis tool on a subdomain of
+	// the hub's domain (https only). Anything else falls back to the hub, so a crafted ?next=
+	// cannot send the visitor elsewhere.
+	function nextFrom(domain: string | null): string {
 		const n = new URLSearchParams(location.search).get("next") ?? "";
-		return n.startsWith("/") && !n.startsWith("//") ? n : link("/dashboard/");
-	})();
+		if (n.startsWith("/") && !n.startsWith("//")) return n;
+		if (domain) {
+			try {
+				const u = new URL(n);
+				if (u.protocol === "https:" && u.hostname.endsWith(`.${domain}`) && !u.username && !u.password) return u.href;
+			} catch {
+				/* not a URL */
+			}
+		}
+		return link("/dashboard/");
+	}
+	let next = nextFrom(null);
 
 	function loadGoogle(): Promise<void> {
 		return new Promise((resolve, reject) => {
@@ -77,9 +90,11 @@ const points = [
 
 	async function start() {
 		try {
-			const who = await signedIn();
-			if (who) return location.replace(who.has_data ? next : link("/portfolio/?welcome=1"));
 			const cfg = await config();
+			next = nextFrom(cfg.domain);
+			const tool = !next.startsWith("/");
+			const who = await signedIn();
+			if (who) return location.replace(who.has_data || tool ? next : link("/portfolio/?welcome=1"));
 			if (!cfg.google_client_id) return say("Sign-in is not configured yet.");
 			await loadGoogle();
 			const g = (window as any).google.accounts.id;
@@ -90,7 +105,7 @@ const points = [
 					say("Signing in…");
 					try {
 						const r = await api<{ has_data: boolean }>("/api/auth/google", { method: "POST", body: JSON.stringify({ credential: resp.credential }) });
-						location.replace(r.has_data ? next : link("/portfolio/?welcome=1"));
+						location.replace(r.has_data || tool ? next : link("/portfolio/?welcome=1"));
 					} catch (e) {
 						say(e instanceof Error ? e.message : "Sign-in failed.");
 					}

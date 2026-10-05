@@ -5,7 +5,7 @@ export const API = (import.meta.env.PUBLIC_API_URL ?? "").replace(/\/$/, "");
 export type User = { id: string; email: string; name: string; picture: string };
 export type Position = { ticker: string; shares: number; avg_cost: number | null };
 export type Portfolio = { positions: Position[]; watchlist: string[]; updated_utc?: string };
-export type Config = { google_client_id: string; tools: { earnings_radar: string | null; fundamentals_lab: string | null } };
+export type Config = { google_client_id: string; domain: string | null; tools: { earnings_radar: string | null; fundamentals_lab: string | null } };
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

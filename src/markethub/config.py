@@ -21,6 +21,10 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
 # value, which logs everybody out on each restart.
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "").strip()
 SESSION_DAYS = 30
+# The parent domain the session cookie is shared on, so the analysis tools on its subdomains
+# (radar.<domain>, fundamentals.<domain>) see the same sign-in. Empty: the cookie stays on the
+# host that set it. It is only applied to requests that arrive through that domain.
+COOKIE_DOMAIN = os.environ.get("MARKETHUB_COOKIE_DOMAIN", "").strip().lstrip(".") or None
 # Cookies marked Secure (HTTPS only). Off only for http://localhost.
 SECURE_COOKIES = os.environ.get("MARKETHUB_INSECURE_COOKIES", "") != "1"
 

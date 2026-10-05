@@ -89,3 +89,32 @@ def test_clean_limits():
         clean([{"ticker": "AAPL", "shares": 1}] * 51, [])
     with pytest.raises(InvalidPortfolio):
         clean([], ["not a ticker!"])
+
+
+def _domain_client(users, market, directory, base_url):
+    from fastapi.testclient import TestClient
+
+    from conftest import CLIENT_ID, fake_verifier
+    from markethub.api import create_app
+
+    app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier, client_id=CLIENT_ID,
+                     session_secret="test-secret", secure_cookies=False, cookie_domain="themarkethub.app")
+    c = TestClient(app, base_url=base_url)
+    c.headers.update({"origin": base_url})
+    return c
+
+
+def test_session_cookie_is_shared_with_the_tools_on_the_parent_domain(users, market, directory):
+    c = _domain_client(users, market, directory, "http://themarkethub.app")
+    r = c.post("/api/auth/google", json={"credential": "ok:7"})
+    cookie = r.headers["set-cookie"].lower()
+    assert "domain=themarkethub.app" in cookie and "httponly" in cookie
+    assert c.get("/api/config").json()["domain"] == "themarkethub.app"
+
+
+def test_other_hosts_keep_a_host_only_cookie(users, market, directory):
+    # The *.run.app address: a cookie for a foreign domain would be dropped by the browser.
+    c = _domain_client(users, market, directory, "http://market-hub-abc.a.run.app")
+    r = c.post("/api/auth/google", json={"credential": "ok:7"})
+    assert "domain=" not in r.headers["set-cookie"].lower()
+    assert c.get("/api/me").status_code == 200

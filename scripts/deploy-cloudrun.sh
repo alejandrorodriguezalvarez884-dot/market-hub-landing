@@ -39,6 +39,7 @@ FMP_KEY="$(env_value FMP_API_KEY)"
 SEC_USER_AGENT="$(env_value SEC_USER_AGENT)"
 EARNINGS_RADAR_URL="$(env_value EARNINGS_RADAR_URL)"
 FUNDAMENTALS_LAB_URL="$(env_value FUNDAMENTALS_LAB_URL)"
+COOKIE_DOMAIN="$(env_value MARKETHUB_COOKIE_DOMAIN)"
 [[ "$GOOGLE_CLIENT_ID" == *.apps.googleusercontent.com ]] || fail "GOOGLE_CLIENT_ID in $ENV_FILE is not an OAuth client id."
 [[ ${#SESSION_SECRET} -ge 32 ]] || fail "SESSION_SECRET in $ENV_FILE must be at least 32 characters."
 [[ -n "$FMP_KEY" ]] || fail "FMP_API_KEY is empty in $ENV_FILE."
@@ -93,7 +94,7 @@ gcp run deploy "$SERVICE_NAME" \
   --max-instances "$MAX_INSTANCES" \
   --timeout 60 \
   --set-secrets "SESSION_SECRET=market-hub-session-secret:latest,FMP_API_KEY=market-hub-fmp-api-key:latest" \
-  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL"
+  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL|MARKETHUB_COOKIE_DOMAIN=$COOKIE_DOMAIN"
 
 URL="$(gcp run services describe "$SERVICE_NAME" --region "$GCP_REGION" --format 'value(status.url)')"
 if curl -fsS "$URL/api/health" >/dev/null; then

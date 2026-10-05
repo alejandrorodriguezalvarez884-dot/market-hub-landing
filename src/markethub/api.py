@@ -39,7 +39,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import dashboard, sample
 from .auth import InvalidToken, Verifier, google_verifier, verify
-from .config import (EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
+from .config import (COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
 from .market import Directory, Fmp, MarketUnavailable
 from .users import InvalidPortfolio, UserStore, clean, default_users, empty, touch
@@ -73,10 +73,35 @@ def _client_address(request: Request) -> str:
     return forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 
 
+class HostScopedCookieDomain:
+    """Keeps the session cookie's Domain attribute only for requests that arrive through that
+    domain. On any other host (the *.run.app address, localhost) a browser would drop a cookie
+    for a foreign domain, and sign-in would silently fail there."""
+
+    def __init__(self, app, domain: str):
+        self.app, self.domain = app, domain
+        self.attr = f"; domain={domain}".encode()
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        host = dict(scope["headers"]).get(b"host", b"").decode().split(":")[0].lower()
+        if host == self.domain or host.endswith("." + self.domain):
+            return await self.app(scope, receive, send)
+
+        async def strip(message):
+            if message["type"] == "http.response.start":
+                message["headers"] = [(k, v.replace(self.attr, b"") if k.lower() == b"set-cookie" else v)
+                                      for k, v in message["headers"]]
+            await send(message)
+
+        return await self.app(scope, receive, strip)
+
+
 def create_app(users: UserStore | None = None, market: Fmp | None = None, directory: Directory | None = None,
                verifier: Verifier = google_verifier, client_id: str | None = None,
                session_secret: str | None = None, secure_cookies: bool | None = None,
-               static_dir: str | None = None) -> FastAPI:
+               static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     app = FastAPI(title="Market Hub", docs_url=None, redoc_url=None, openapi_url=None)
@@ -112,7 +137,9 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     # Added after the middleware above, so it runs first and the session is ready for it.
     app.add_middleware(SessionMiddleware, secret_key=secret, session_cookie="mh_session",
-                       max_age=SESSION_DAYS * 86400, same_site="lax", https_only=secure)
+                       max_age=SESSION_DAYS * 86400, same_site="lax", https_only=secure, domain=cookie_domain)
+    if cookie_domain:
+        app.add_middleware(HostScopedCookieDomain, domain=cookie_domain)
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True,
                            allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["content-type"])
@@ -141,6 +168,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def config() -> dict:
         return {
             "google_client_id": client_id,
+            "domain": cookie_domain,
             "tools": {
                 "earnings_radar": EARNINGS_RADAR_URL or None,
                 "fundamentals_lab": FUNDAMENTALS_LAB_URL or None,
