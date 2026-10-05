@@ -27,7 +27,8 @@ Decisiones del usuario:
 | API (`src/markethub/`): login con Google (`auth.py`), sesión firmada, documento por usuario en Firestore/archivo/memoria (`users.py`), precios de FMP y buscador de la SEC (`market.py`), dashboard (`dashboard.py`), API (`api.py`) con control de `Origin` en las escrituras, borrado de cuenta y límite por IP | Probarla con Google, FMP y Firestore reales (la red del entorno bloquea FMP y la SEC) |
 | 17 tests en verde, sin red: tokens buenos y malos, aislamiento entre usuarios, CSRF, cookie `HttpOnly`/`Lax`, validación del portfolio, cálculos del dashboard | |
 | Web (`site/`): portada con login, bienvenida "¿tienes cartera?", editor de posiciones y favoritos, dashboard, herramientas, cuenta (ver, descargar y borrar datos) y privacidad. Revisada en Chromium a 1280 y 390 px con Google y FMP simulados | Revisarla con el botón real de Google |
-| `Makefile`, `Dockerfile`, `scripts/deploy-cloudrun.sh` (crea Firestore en europe-west1, secretos, despliegue) | Desplegar |
+| `Makefile`, `Dockerfile`, `scripts/deploy-cloudrun.sh` (crea la base de Firestore `market-hub` en europe-west1, secretos, despliegue) | |
+| **Desplegado en Cloud Run** (2026-10-05): servicio `market-hub`, europe-west1, revisión `market-hub-00001-f65`, https://market-hub-818229650855.europe-west1.run.app (también https://market-hub-3qwezbjyfq-ew.a.run.app). Arranca bien según los logs; secretos `market-hub-session-secret` y `market-hub-fmp-api-key` | Añadir las dos URL a los orígenes del cliente OAuth y probar el login y el dashboard en la URL pública (desde el entorno en la nube el proxy bloquea `*.run.app` y FMP). Rotar la clave de FMP, que pasó por el chat, y subirla como versión nueva del secreto |
 | Cliente OAuth creado (2026-10-05): `818229650855-3dq57ote5eq25hhdmru29k3mg852jpnb.apps.googleusercontent.com`, público, en `.env.example`. `make env` (lo lanzan `install`, `api`, `serve` y `deploy`) crea `.env` con él y un `SESSION_SECRET` nuevo | Probar el login real en `localhost` (desde el entorno en la nube Google devuelve 403 en el botón y no se pudo distinguir si es el proxy o los orígenes) |
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | | La herramienta Fundamentals Lab no tiene URL todavía: el dashboard la muestra como "Coming soon" hasta que se ponga `FUNDAMENTALS_LAB_URL` |
@@ -57,7 +58,8 @@ Decisiones del usuario:
 
 1. ~~Crear el cliente OAuth~~ (hecho; `make env` rellena `GOOGLE_CLIENT_ID` y `SESSION_SECRET`).
 2. `FMP_API_KEY` y `SEC_USER_AGENT` en `.env`; `make serve` y probar el flujo completo.
-3. `make deploy`, añadir la URL de Cloud Run a los orígenes del cliente OAuth y, si el usuario
-   quiere, un dominio. La pantalla de consentimiento de OAuth tiene que pasar a "In production"
+3. ~~`make deploy`~~ (hecho); añadir la URL de Cloud Run a los orígenes del cliente OAuth y, si el
+   usuario quiere, un dominio. En el entorno en la nube, `gcloud` necesita
+   `env -u CLOUDSDK_AUTH_ACCESS_TOKEN` para usar la cuenta del usuario. La pantalla de consentimiento de OAuth tiene que pasar a "In production"
    para que entren usuarios fuera de la lista de prueba.
 4. Desplegar Fundamentals Lab y poner su URL en `FUNDAMENTALS_LAB_URL`.
