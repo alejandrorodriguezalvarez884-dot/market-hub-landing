@@ -1,141 +1,138 @@
 ---
-// The public home: the market in a sentence, one chart, every move of the day on one ruler, the
-// sectors, and the way into the private area and the tools.
+// The landing page: what Market Hub is, a film of it, and each of its parts with the way in. It
+// asks the data provider for nothing, so a visit to it costs no market-data calls.
 import Site from "../components/Site.astro";
-import { SITE_NAME, link } from "../lib/site";
+import { FUNDAMENTALS_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
+
+const parts = [
+	{
+		name: "Today",
+		title: "Every move of the day, on one scale",
+		text: "The page opens with a sentence written from the figures. Under it, stock indices, yields, commodities, currencies and crypto share one ruler: left is down, right is up, and the length is the size of the move. Pick a row to chart it.",
+		href: link("/today/"),
+		cta: "Open Today",
+		shot: "today",
+	},
+	{
+		name: "Markets",
+		title: "The tables behind it",
+		text: "Each market with its level, the day's move and its return over a month, the year so far and twelve months. Then the eleven US sectors, and the stocks that moved and traded the most.",
+		href: link("/markets/"),
+		cta: "Open Markets",
+		shot: "markets",
+	},
+	{
+		name: "Fundamentals Lab",
+		title: "Every number of a company, on one page",
+		text: "Statements, margins and returns on capital. Valuation against the company's own history. The multiples the stock would trade at if the analysts' consensus is met. The technical picture, and up to five companies side by side. An AI reading says what the numbers show.",
+		href: `${FUNDAMENTALS_URL}/`,
+		cta: "Open Fundamentals",
+		shot: "fundamentals",
+	},
+	{
+		name: "Earnings Radar",
+		title: "What a company just said in its results",
+		text: "Its latest results release is fetched from the SEC and read on the spot by a decision model. Was guidance raised or cut, how strong does the quarter read, is demand weakening, which themes come up. Every answer carries its probability.",
+		href: `${RADAR_URL}/`,
+		cta: "Open Earnings",
+		shot: "earnings",
+	},
+];
+const promises = [
+	["It describes. It does not advise.", "No buy or sell calls, no price targets, no predictions. The site says what the numbers and the filings show, and stops there."],
+	["The numbers come from code.", "Prices, statements and ratios are computed the same way for every company. The AI comments on them and invents none."],
+	["What you add is yours.", "My Hub keeps your Google name, email and picture and the stocks you add. Nothing else, and you can delete all of it at any time."],
+];
 ---
 
-<Site title={SITE_NAME} description="The market at a glance: indices, rates, commodities, currencies and sectors on one scale, with charts and the analysis tools of Market Hub.">
-	<section aria-labelledby="lede">
-		<p id="dateline" class="text-[13px] text-muted">&nbsp;</p>
-		<h1 id="lede" class="lede mt-3 min-h-[3.5em]"><span class="skeleton block h-[1em] w-4/5"></span><span class="skeleton mt-3 block h-[1em] w-3/5"></span></h1>
+<Site title={SITE_NAME} description="The day's markets on one scale, the numbers of any US company and a reading of its latest results release, with a private page for your own stocks. Market Hub describes; it never tells you what to buy.">
+	<section class="grid gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
+		<div>
+			<svg class="h-14 w-14 text-ink-strong sm:h-16 sm:w-16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" role="img" aria-label="Market Hub">
+				<path d="M4 2v16M4 10h8"></path><circle cx="14.5" cy="10" r="2.75" fill="currentColor" stroke="none"></circle>
+			</svg>
+			<h1 class="lede mt-8 !text-ink-strong">What the market did today, what a company's numbers say, and what it just told its investors.</h1>
+		</div>
+		<div>
+			<p class="max-w-md text-ink">
+				Market Hub puts the day's markets, the fundamentals of any US-listed company and a reading of its latest results
+				release on one site, with a private page for your own stocks. It describes. It never tells you what to buy or sell.
+			</p>
+			<div class="mt-6 flex flex-wrap gap-3">
+				<a href={link("/today/")} class="btn btn-primary">See today's market</a>
+				<a id="hero-hub" href={link("/signin/")} class="btn btn-ghost">Sign in to My Hub</a>
+			</div>
+		</div>
 	</section>
 
-	<!-- Two columns on a wide screen; on a narrow one the blocks follow the order-N classes. -->
-	<div class="mt-12 flex flex-col gap-x-14 gap-y-12 lg:mt-16 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
-		<div class="contents lg:block lg:space-y-12">
-		<section class="sec order-1" aria-labelledby="chart-title">
-			<div class="sec-head">
-				<h2 id="chart-title" class="sec-title">&nbsp;</h2>
-				<a id="chart-link" class="sec-note hover:text-ink-strong" hidden>Full page →</a>
-			</div>
-			<div id="chart-figure" class="mb-4 min-h-[44px]"><span class="skeleton block h-9 w-56"></span></div>
-			<div id="main-chart" class="min-h-[440px]"></div>
-		</section>
-
-		<section class="sec order-3" aria-labelledby="sectors-title">
-			<div class="sec-head">
-				<h2 id="sectors-title" class="sec-title">US sectors</h2>
-				<span class="sec-note">Average move of each sector's stocks</span>
-			</div>
-			<div id="sectors" style="--track: 240px"><div class="skeleton h-72"></div></div>
-		</section>
+	<section class="mt-14 sm:mt-20" aria-labelledby="film-title">
+		<div class="sec-head">
+			<h2 id="film-title" class="sec-title">Market Hub in a minute</h2>
+			<span class="sec-note">No sound</span>
 		</div>
+		<video id="film" class="block aspect-video w-full border border-line bg-deep" controls muted loop playsinline preload="metadata" poster={link("/film-poster.jpg")}>
+			<source src={link("/film.webm")} type="video/webm" />
+			<a href={link("/today/")} class="link">Your browser cannot play this film. Open today's market instead.</a>
+		</video>
+	</section>
 
-		<div class="contents lg:block lg:space-y-12">
-		<section class="sec order-2" aria-labelledby="ruler-title">
-			<div class="sec-head">
-				<h2 id="ruler-title" class="sec-title">Today, on one scale</h2>
-				<span class="sec-note">Pick a row to chart it</span>
-			</div>
-			<div id="ruler" class="ruler"><div class="skeleton h-[420px]"></div></div>
-		</section>
-
-			<section class="sec order-4" aria-labelledby="hub-title">
-				<h2 id="hub-title" class="sec-title">Your own stocks</h2>
-				<p id="hub-text" class="mt-2 max-w-md text-ink">Keep a portfolio or a watchlist and see its value, today's move and your gain against what you paid. It is private: only you see it.</p>
-				<a id="hub-link" href={link("/signin/")} class="btn btn-primary mt-4">Sign in with Google</a>
-			</section>
-
-			<section class="sec order-5" aria-labelledby="tools-title">
-				<div class="sec-head">
-					<h2 id="tools-title" class="sec-title">Read a company in depth</h2>
-					<a href={link("/tools/")} class="sec-note hover:text-ink-strong">About the tools →</a>
+	<div class="mt-20 space-y-20 sm:mt-28 sm:space-y-28">
+		{parts.map((p, i) => (
+			<section class="grid items-center gap-x-14 gap-y-8 lg:grid-cols-2">
+				<div class:list={[i % 2 ? "lg:order-2" : ""]}>
+					<p class="text-[13px] text-muted">{p.name}</p>
+					<h2 class="mt-2 max-w-md text-[1.75rem] font-medium leading-tight tracking-tight text-ink-strong">{p.title}</h2>
+					<p class="mt-4 max-w-md text-ink">{p.text}</p>
+					<a href={p.href} class="link mt-5 inline-block">{p.cta} →</a>
 				</div>
-				<ul class="divide-y divide-line">
-					<li><a href={link("/tools/")} class="group grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3">
-						<span><span class="block text-ink-strong group-hover:underline">Fundamentals Lab</span><span class="block text-sm text-muted">Statements, valuation, forward multiples and technicals.</span></span>
-						<span class="text-muted group-hover:text-ink-strong" aria-hidden="true">→</span></a></li>
-					<li><a href={link("/tools/")} class="group grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4 py-3">
-						<span><span class="block text-ink-strong group-hover:underline">Earnings Radar</span><span class="block text-sm text-muted">What a company's latest results release says.</span></span>
-						<span class="text-muted group-hover:text-ink-strong" aria-hidden="true">→</span></a></li>
-				</ul>
+				<a href={p.href} class="block border border-line transition-colors hover:border-line-strong" tabindex="-1" aria-hidden="true">
+					<img src={link(`/shots/${p.shot}.jpg`)} alt="" width="1280" height="800" loading="lazy" class="block h-auto w-full" />
+				</a>
 			</section>
-		</div>
+		))}
 	</div>
+
+	<section class="sec mt-20 sm:mt-28" aria-labelledby="hub-title">
+		<div class="grid gap-x-14 gap-y-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
+			<div>
+				<p class="text-[13px] text-muted">My Hub</p>
+				<h2 id="hub-title" class="mt-2 max-w-xl text-[1.75rem] font-medium leading-tight tracking-tight text-ink-strong">Your own stocks, on a private page</h2>
+				<p id="hub-text" class="mt-4 max-w-xl text-ink">Keep a portfolio or a watchlist and see its value, today's move and your gain against what you paid. You sign in with Google, there is no password to remember, and only you see it.</p>
+			</div>
+			<div><a id="hub-link" href={link("/signin/")} class="btn btn-primary">Sign in with Google</a></div>
+		</div>
+	</section>
+
+	<section class="sec mt-20 sm:mt-28" aria-labelledby="promises-title">
+		<h2 id="promises-title" class="sec-title">What you can count on</h2>
+		<dl class="mt-4 grid gap-x-14 gap-y-8 md:grid-cols-3">
+			{promises.map(([t, d]) => (
+				<div><dt class="text-lg font-medium leading-snug text-ink-strong">{t}</dt><dd class="mt-2 text-sm text-muted">{d}</dd></div>
+			))}
+		</dl>
+	</section>
 </Site>
 
 <script>
 	import { signedIn } from "../lib/api";
-	import { add, h } from "../lib/dom";
-	import { change, level, signedPct, toneClass } from "../lib/format";
-	import { lede } from "../lib/lede";
-	import { priceChart, type PriceChart } from "../lib/lwc";
-	import { overview, type Overview, type Snapshot } from "../lib/market";
 	import { link } from "../lib/site";
-	import { failed, flagSample, quoteHref, rateItem, rulerAxis, rulerGroup, rulerRow, rulerScale, sectorRuler, snapshotItem } from "../lib/widgets";
 
-	const $ = (id: string) => document.getElementById(id)!;
-	let chart: PriceChart | null = null;
-
-	function dateline(o: Overview) {
-		const at = new Date(o.as_of);
-		const day = at.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-		const time = at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-		$("dateline").textContent = `${day} · figures read at ${time}, and they can be delayed`;
-	}
-
-	// The instrument in the chart: its name, level and move above it, its row marked on the ruler.
-	function pick(s: Snapshot, o: Overview) {
-		$("chart-title").textContent = s.name;
-		$("chart-figure").replaceChildren(add(h("div", "flex flex-wrap items-baseline gap-x-4"),
-			h("span", "num text-[2rem] leading-none text-ink-strong", level(s.price, s.kind)),
-			h("span", `num ${toneClass(s.change_pct)}`, `${change(s.change, s.kind)} (${signedPct(s.change_pct, 2)})`),
-			h("span", "text-[13px] text-muted", "today")));
-		const a = $("chart-link") as HTMLAnchorElement;
-		a.href = quoteHref(s.symbol);
-		a.hidden = false;
-		document.querySelectorAll<HTMLElement>("#ruler [data-key]").forEach((r) => r.setAttribute("aria-pressed", String(r.dataset.key === s.symbol)));
-		if (chart) chart.setSymbol(s.symbol);
-		else chart = priceChart($("main-chart"), { symbol: s.symbol, range: "1D", height: 400, intraday: o.intraday !== false });
-	}
-
-	overview()
-		.then((o) => {
-			const onPick = (s: Snapshot) => pick(s, o);
-			dateline(o);
-			$("lede").replaceChildren(lede(o, onPick));
-
-			const charted = [...o.indices, ...o.commodities, ...o.currencies, ...o.crypto];
-			const scale = rulerScale(charted.map((s) => s.change_pct));
-			const rows = (items: Snapshot[]) => items.map((s) => rulerRow(snapshotItem(s, onPick), scale));
-			$("ruler").replaceChildren(
-				add(h("div", "ruler-row !py-0"), h("span"), h("span", "hidden sm:block"), rulerAxis(scale), h("span")),
-				...rulerGroup("Stock indices", rows(o.indices)),
-				...rulerGroup("Treasury yields", o.rates.map((s) => rulerRow(rateItem(s), scale))),
-				...rulerGroup("Commodities", rows(o.commodities)),
-				...rulerGroup("Currencies", rows(o.currencies)),
-				...rulerGroup("Crypto", rows(o.crypto)));
-			$("sectors").replaceChildren(sectorRuler(o.sectors));
-			pick(o.indices.find((s) => s.symbol === "SPX") ?? charted[0], o);
-
-			flagSample(o, ["indices", "rates", "commodities", "currencies", "crypto"], $("ruler-title"));
-			flagSample(o, ["sectors"], $("sectors-title"));
-		})
-		.catch(() => {
-			failed($("lede"), "The market figures are not available right now.");
-			$("lede").className = "mt-3";
-			for (const id of ["chart-figure", "ruler", "sectors"]) failed($(id));
-		});
+	// The film plays by itself while it is on screen, unless the visitor asked for less motion.
+	const film = document.getElementById("film") as HTMLVideoElement;
+	if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+		new IntersectionObserver(([e]) => (e.isIntersecting ? film.play().catch(() => {}) : film.pause()), { threshold: 0.5 }).observe(film);
 
 	signedIn()
 		.then((who) => {
 			if (!who) return;
-			$("hub-title").textContent = `Welcome back, ${who.user.name.split(" ")[0]}`;
-			$("hub-text").textContent = "Your portfolio and watchlist are in your private hub.";
-			const a = $("hub-link") as HTMLAnchorElement;
-			a.textContent = "Open My Hub";
-			a.href = link("/dashboard/");
+			const first = who.user.name.split(" ")[0];
+			for (const id of ["hero-hub", "hub-link"]) {
+				const a = document.getElementById(id) as HTMLAnchorElement;
+				a.textContent = "Open My Hub";
+				a.href = link("/dashboard/");
+			}
+			document.getElementById("hub-title")!.textContent = `Welcome back, ${first}`;
+			document.getElementById("hub-text")!.textContent = "Your portfolio and watchlist are in your private hub.";
 		})
 		.catch(() => {});
 </script>

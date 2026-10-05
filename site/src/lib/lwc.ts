@@ -44,7 +44,7 @@ function when(time: Bar["time"]): string {
 
 export type PriceChart = { setSymbol(symbol: string): void };
 
-// The main price chart: range tabs, line or candles, volume, and a legend that follows the
+// The main price chart: range tabs, candles (or a line, on request), volume, and a legend that follows the
 // crosshair. `height` in pixels. `intraday: false` when the data plan is known not to have
 // intraday bars: the 1D and 5D ranges are not offered and the chart opens on a month.
 export function priceChart(host: HTMLElement, opts: { symbol: string; range?: string; style?: "area" | "candles";
@@ -54,7 +54,7 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
   let intraday = opts.intraday ?? true;
   let range = opts.range ?? "1Y";
   if (!intraday && (range === "1D" || range === "5D")) range = "1M";
-  let style = opts.style ?? "area";
+  let style = opts.style ?? "candles";
   let data: ChartData | null = null;
   let seq = 0;
 
@@ -85,7 +85,7 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
   }
   const drawTabs = () => {
     tabs(rangeTabs, RANGES.filter((r) => intraday || (r !== "1D" && r !== "5D")), () => range, (v) => ((range = v), load()));
-    tabs(styleTabs, ["area", "candles"], () => style, (v) => ((style = v as typeof style), draw()), { area: "Line", candles: "Candles" });
+    tabs(styleTabs, ["candles", "area"], () => style, (v) => ((style = v as typeof style), draw()), { area: "Line", candles: "Candles" });
   };
 
   function legendFor(b: Bar | null) {

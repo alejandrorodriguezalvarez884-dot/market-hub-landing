@@ -2,7 +2,7 @@
 // Shell of the public portal: one header line with the search at its centre, and the footer.
 // Signed-in users get a "My Hub" button to their private area.
 import Layout from "../layouts/Layout.astro";
-import { AUTHOR_URL, REPO_URL, SITE_NAME, link } from "../lib/site";
+import { AUTHOR_URL, FUNDAMENTALS_URL, RADAR_URL, REPO_URL, SITE_NAME, link } from "../lib/site";
 import AccountMenu from "./AccountMenu.astro";
 import Logo from "./Logo.astro";
 import Search from "./Search.astro";
@@ -13,10 +13,13 @@ interface Props {
 }
 const { title, description } = Astro.props;
 const path = Astro.url.pathname;
+// The same four sections on the portal and on each tool, so moving between them reads as one site.
 const nav = [
-	{ href: link("/markets/"), label: "Markets" },
-	{ href: link("/tools/"), label: "Tools" },
-].map((l) => ({ ...l, active: path.startsWith(l.href) }));
+	{ href: link("/today/"), label: "Today", active: path.startsWith(link("/today/")) },
+	{ href: link("/markets/"), label: "Markets", active: path.startsWith(link("/markets/")) },
+	{ href: `${FUNDAMENTALS_URL}/`, label: "Fundamentals", active: false },
+	{ href: `${RADAR_URL}/`, label: "Earnings", active: false },
+];
 ---
 
 <Layout title={title === SITE_NAME ? title : `${title} — ${SITE_NAME}`} description={description}>
@@ -41,7 +44,7 @@ const nav = [
 		</div>
 		<div id="mobile-search" class="border-t border-line px-5 py-2 md:hidden" hidden><Search compact id="mobile-search-box" /></div>
 		<nav class="border-t border-line sm:hidden" aria-label="Main">
-			<ul class="flex gap-5 px-5 text-sm">
+			<ul class="flex gap-5 overflow-x-auto px-5 text-sm [scrollbar-width:none]">
 				{nav.map((l) => (
 					<li>
 						<a href={l.href} aria-current={l.active ? "page" : undefined}
@@ -66,6 +69,7 @@ const nav = [
 				</p>
 			</div>
 			<div class="flex flex-wrap items-start gap-x-5 gap-y-1">
+				<a href={link("/tools/")} class="hover:text-ink-strong">About the tools</a>
 				<a href={link("/privacy/")} class="hover:text-ink-strong">Privacy</a>
 				<a href={REPO_URL} class="hover:text-ink-strong">Source</a>
 				<a href={AUTHOR_URL} class="hover:text-ink-strong">Built by Alejandro Rodríguez Álvarez</a>

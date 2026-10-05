@@ -1,0 +1,105 @@
+---
+// Today: the market in a sentence, one chart, every move of the day on one ruler, and the sectors.
+import Site from "../components/Site.astro";
+---
+
+<Site title="Today" description="The market at a glance: indices, rates, commodities, currencies and sectors on one scale, with charts and the analysis tools of Market Hub.">
+	<section aria-labelledby="lede">
+		<p id="dateline" class="text-[13px] text-muted">&nbsp;</p>
+		<h1 id="lede" class="lede mt-3 min-h-[3.5em]"><span class="skeleton block h-[1em] w-4/5"></span><span class="skeleton mt-3 block h-[1em] w-3/5"></span></h1>
+	</section>
+
+	<!-- Two columns on a wide screen; on a narrow one the blocks follow the order-N classes. -->
+	<div class="mt-12 flex flex-col gap-x-14 gap-y-12 lg:mt-16 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
+		<div class="contents lg:block lg:space-y-12">
+		<section class="sec order-1" aria-labelledby="chart-title">
+			<div class="sec-head">
+				<h2 id="chart-title" class="sec-title">&nbsp;</h2>
+				<a id="chart-link" class="sec-note hover:text-ink-strong" hidden>Full page →</a>
+			</div>
+			<div id="chart-figure" class="mb-4 min-h-[44px]"><span class="skeleton block h-9 w-56"></span></div>
+			<div id="main-chart" class="min-h-[440px]"></div>
+		</section>
+
+		<section class="sec order-3" aria-labelledby="sectors-title">
+			<div class="sec-head">
+				<h2 id="sectors-title" class="sec-title">US sectors</h2>
+				<span class="sec-note">Average move of each sector's stocks</span>
+			</div>
+			<div id="sectors" style="--track: 240px"><div class="skeleton h-72"></div></div>
+		</section>
+		</div>
+
+		<div class="contents lg:block lg:space-y-12">
+		<section class="sec order-2" aria-labelledby="ruler-title">
+			<div class="sec-head">
+				<h2 id="ruler-title" class="sec-title">Today, on one scale</h2>
+				<span class="sec-note">Pick a row to chart it</span>
+			</div>
+			<div id="ruler" class="ruler"><div class="skeleton h-[420px]"></div></div>
+		</section>
+		</div>
+	</div>
+</Site>
+
+<script>
+	import { add, h } from "../lib/dom";
+	import { change, level, signedPct, toneClass } from "../lib/format";
+	import { lede } from "../lib/lede";
+	import { priceChart, type PriceChart } from "../lib/lwc";
+	import { overview, type Overview, type Snapshot } from "../lib/market";
+	import { failed, flagSample, quoteHref, rateItem, rulerAxis, rulerGroup, rulerRow, rulerScale, sectorRuler, snapshotItem } from "../lib/widgets";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	let chart: PriceChart | null = null;
+
+	function dateline(o: Overview) {
+		const at = new Date(o.as_of);
+		const day = at.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+		const time = at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+		$("dateline").textContent = `${day} · figures read at ${time}, and they can be delayed`;
+	}
+
+	// The instrument in the chart: its name, level and move above it, its row marked on the ruler.
+	function pick(s: Snapshot, o: Overview) {
+		$("chart-title").textContent = s.name;
+		$("chart-figure").replaceChildren(add(h("div", "flex flex-wrap items-baseline gap-x-4"),
+			h("span", "num text-[2rem] leading-none text-ink-strong", level(s.price, s.kind)),
+			h("span", `num ${toneClass(s.change_pct)}`, `${change(s.change, s.kind)} (${signedPct(s.change_pct, 2)})`),
+			h("span", "text-[13px] text-muted", "today")));
+		const a = $("chart-link") as HTMLAnchorElement;
+		a.href = quoteHref(s.symbol);
+		a.hidden = false;
+		document.querySelectorAll<HTMLElement>("#ruler [data-key]").forEach((r) => r.setAttribute("aria-pressed", String(r.dataset.key === s.symbol)));
+		if (chart) chart.setSymbol(s.symbol);
+		else chart = priceChart($("main-chart"), { symbol: s.symbol, range: "1D", height: 400, intraday: o.intraday !== false });
+	}
+
+	overview()
+		.then((o) => {
+			const onPick = (s: Snapshot) => pick(s, o);
+			dateline(o);
+			$("lede").replaceChildren(lede(o, onPick));
+
+			const charted = [...o.indices, ...o.commodities, ...o.currencies, ...o.crypto];
+			const scale = rulerScale(charted.map((s) => s.change_pct));
+			const rows = (items: Snapshot[]) => items.map((s) => rulerRow(snapshotItem(s, onPick), scale));
+			$("ruler").replaceChildren(
+				add(h("div", "ruler-row !py-0"), h("span"), h("span", "hidden sm:block"), rulerAxis(scale), h("span")),
+				...rulerGroup("Stock indices", rows(o.indices)),
+				...rulerGroup("Treasury yields", o.rates.map((s) => rulerRow(rateItem(s), scale))),
+				...rulerGroup("Commodities", rows(o.commodities)),
+				...rulerGroup("Currencies", rows(o.currencies)),
+				...rulerGroup("Crypto", rows(o.crypto)));
+			$("sectors").replaceChildren(sectorRuler(o.sectors));
+			pick(o.indices.find((s) => s.symbol === "SPX") ?? charted[0], o);
+
+			flagSample(o, ["indices", "rates", "commodities", "currencies", "crypto"], $("ruler-title"));
+			flagSample(o, ["sectors"], $("sectors-title"));
+		})
+		.catch(() => {
+			failed($("lede"), "The market figures are not available right now.");
+			$("lede").className = "mt-3";
+			for (const id of ["chart-figure", "ruler", "sectors"]) failed($(id));
+		});
+</script>

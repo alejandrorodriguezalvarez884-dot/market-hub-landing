@@ -1,5 +1,6 @@
 ---
-// One instrument: price, chart, key figures, past returns and the analysis tools.
+// One instrument: price, chart, key figures and past returns, with the way to the same company
+// in the analysis tools.
 import Search from "../components/Search.astro";
 import Site from "../components/Site.astro";
 ---
@@ -13,7 +14,10 @@ import Site from "../components/Site.astro";
 
 	<div id="quote" hidden>
 		<div class="mb-10 flex flex-wrap items-end justify-between gap-4">
-			<div id="q-head" class="min-w-0"><span class="skeleton block h-20 w-80"></span></div>
+			<div class="min-w-0">
+				<div id="q-head"><span class="skeleton block h-20 w-80"></span></div>
+				<nav id="q-tabs" class="tabs mt-5" aria-label="This company in Market Hub" hidden></nav>
+			</div>
 			<div id="q-actions" class="flex flex-wrap gap-2"></div>
 		</div>
 
@@ -30,22 +34,18 @@ import Site from "../components/Site.astro";
 					<div class="sec-head"><h2 class="sec-title">Key figures</h2></div>
 					<div id="q-stats"></div>
 				</section>
-				<section id="q-tools-box" class="sec" hidden>
-					<div class="sec-head"><h2 class="sec-title">Read this company in depth</h2></div>
-					<ul id="q-tools" class="divide-y divide-line"></ul>
-				</section>
 			</aside>
 		</div>
 	</div>
 </Site>
 
 <script>
-	import { api, ApiError, config, signedIn, toolLinks, type Portfolio } from "../lib/api";
+	import { api, ApiError, signedIn, type Portfolio } from "../lib/api";
 	import { add, h, linkTo } from "../lib/dom";
 	import { change, compact, level, money, signedPct, toneClass } from "../lib/format";
 	import { priceChart } from "../lib/lwc";
 	import { isEquity, quote, type Quote } from "../lib/market";
-	import { link, tidyName } from "../lib/site";
+	import { fundamentalsUrl, link, radarUrl, tidyName } from "../lib/site";
 	import { failed } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
@@ -134,23 +134,19 @@ import Site from "../components/Site.astro";
 		box.replaceChildren(b);
 	}
 
-	async function tools(q: Quote) {
+	// The same company in the three parts of Market Hub: its price here, its numbers in
+	// Fundamentals Lab and its latest results release in the Earnings Radar (companies only).
+	function tabs(q: Quote) {
 		if (!isEquity(q.kind)) return;
-		const cfg = await config();
-		const links = toolLinks(cfg.tools, q.symbol);
-		if (q.kind === "etf") links.earnings = null;
-		const items = [
-			["Fundamentals Lab", "Statements, valuation, forward multiples, technicals.", links.fundamentals],
-			["Earnings Radar", "What the latest results release says.", links.earnings],
-		] as const;
-		$("q-tools").replaceChildren(...items.map(([name, text, url]) => {
-			const el = url ? linkTo(url, "group block py-3") : h("div", "py-3 opacity-60");
-			if (url) Object.assign(el, { target: "_blank", rel: "noopener" });
-			return add(h("li"), add(el, add(h("div", "flex items-baseline justify-between gap-3"), h("span", "text-ink-strong group-hover:underline", name),
-				h("span", "text-[13px] text-muted", url ? "Open ↗" : q.kind === "etf" && name === "Earnings Radar" ? "Not for funds" : "Not open yet")),
-				h("p", "text-sm text-muted", text)));
+		const items: [string, string, boolean][] = [["Price", location.href, true], ["Fundamentals", fundamentalsUrl(q.symbol), false]];
+		if (q.kind === "stock") items.push(["Results release", radarUrl(q.symbol), false]);
+		const nav = $("q-tabs");
+		nav.replaceChildren(...items.map(([label, href, current]) => {
+			const a = linkTo(href, "tab-btn", label);
+			if (current) a.setAttribute("aria-selected", "true"), a.setAttribute("aria-current", "page");
+			return a;
 		}));
-		$("q-tools-box").hidden = false;
+		nav.hidden = false;
 	}
 
 	async function start() {
@@ -163,7 +159,7 @@ import Site from "../components/Site.astro";
 			stats(q);
 			performance(q);
 			follow(q).catch(() => {});
-			tools(q).catch(() => {});
+			tabs(q);
 		} catch (e) {
 			failed($("q-head"), e instanceof ApiError && e.status === 400 ? "That is not a ticker." : "This quote is not available right now.");
 		}
