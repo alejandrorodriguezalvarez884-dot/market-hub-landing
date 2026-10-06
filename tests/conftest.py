@@ -110,6 +110,24 @@ def shared():
     return MemoryCommunity()
 
 
+class FakeCaptcha:
+    """Stands for Cloudflare: the token "human" passes, once asked with the address it came from."""
+
+    site_key = "test-site-key"
+
+    def __init__(self):
+        self.asked = []
+
+    def passes(self, token, address=""):
+        self.asked.append((token, address))
+        return token == "human"
+
+
+@pytest.fixture
+def captcha():
+    return FakeCaptcha()
+
+
 class FakeWriter:
     """Stands for the model: it answers with one sentence, and counts how often it was asked."""
 
@@ -127,10 +145,10 @@ def writer():
 
 
 @pytest.fixture
-def client(users, market, directory, opinion, shared, writer, logins):
+def client(users, market, directory, opinion, shared, writer, logins, captcha):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
-                     community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1))
+                     community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha)
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

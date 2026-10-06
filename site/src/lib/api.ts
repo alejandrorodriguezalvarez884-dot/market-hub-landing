@@ -7,7 +7,9 @@ export const API = (import.meta.env.PUBLIC_API_URL ?? "").replace(/\/$/, "");
 export type User = { id: string; email: string; name: string; picture: string; provider?: "google" | "password" };
 export type Position = { ticker: string; shares: number; avg_cost: number | null };
 export type Portfolio = { positions: Position[]; watchlist: string[]; updated_utc?: string };
-export type Config = { google_client_id: string; domain: string | null; password_login?: boolean; tools: { earnings_radar: string | null; fundamentals_lab: string | null } };
+export type Config = { google_client_id: string; domain: string | null; password_login?: boolean;
+  // Whether an account can be made here: with a captcha (and then the key of its widget), without one, or not at all.
+  registration?: "captcha" | "open" | "closed"; turnstile_site_key?: string | null; tools: { earnings_radar: string | null; fundamentals_lab: string | null } };
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

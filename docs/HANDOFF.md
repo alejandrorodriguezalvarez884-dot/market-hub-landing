@@ -360,13 +360,23 @@ El usuario pidió poder entrar sin Google, con un login gestionado por nosotros.
     falta un proveedor de correo (clave y coste nuevos): decisión del usuario.
   - **Cambiar la contraseña no cierra las otras sesiones**: la sesión es una cookie firmada sin
     estado; dura hasta 30 días.
-  - **Sin captcha**: crear cuentas se puede automatizar dentro del límite por IP, y cada cuenta
-    abre las herramientas, que gastan con las claves del dueño (tienen sus propios topes). Si se
-    ve abuso: Cloudflare Turnstile en el registro, o `MARKETHUB_PASSWORD_LOGIN=0`.
+- **Captcha en el registro** (`src/markethub/captcha.py`, Cloudflare Turnstile): crear una cuenta
+  lleva un token que la página saca del widget y el servidor comprueba con Cloudflare **antes** de
+  mirar nada más (sin token válido no se dice nada del email ni de la contraseña). Si Cloudflare
+  no contesta, cuenta como fallo. Entrar no pide captcha (tiene sus propios frenos). Estados que
+  da `/api/config` en `registration`: `captcha` (hay claves), `closed` (no hay: no se crean
+  cuentas; Google sigue igual) y `open` (solo con `MARKETHUB_OPEN_REGISTRATION=1`, para una
+  máquina de desarrollo). `make deploy` sube `TURNSTILE_SECRET_KEY` a Secret Manager
+  (`market-hub-turnstile-secret`) y pasa `TURNSTILE_SITE_KEY` al servicio; sin las dos claves en
+  `.env` despliega con el registro cerrado y lo avisa. Probado en local con las claves de prueba
+  públicas de Cloudflare (las que siempre pasan), nunca con un reto real.
+  **Falta que el dueño cree el widget** (panel de Cloudflare, Turnstile, Add widget, con
+  `themarkethub.app`) y ponga las dos claves en `.env`: hasta entonces nadie puede crear cuenta
+  con contraseña.
 - **Web**: `/signin/` tiene, bajo el botón de Google, un formulario que sirve para entrar y para
   crear la cuenta; `/account/` dice cómo entra la cuenta y deja cambiar la contraseña; `/privacy/`
   dice qué se guarda. Borrar la cuenta borra también su entrada en `logins`.
-- **Tests**: 133 en verde (27 nuevos en `tests/test_accounts.py`). Probado en local en el
+- **Tests**: 136 en verde (30 nuevos en `tests/test_accounts.py`). Probado en local en el
   navegador: crear cuenta, contraseña débil, cambiarla, salir, entrar con la vieja (no) y con la
   nueva (sí), mismo email otra vez (no), borrar.
 

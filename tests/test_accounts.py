@@ -17,8 +17,8 @@ def desk():
     return Accounts(MemoryLogins(), FAST)
 
 
-def register(client, email=EMAIL, password=PASSWORD, name="Ana Test"):
-    return client.post("/api/auth/register", json={"email": email, "password": password, "name": name})
+def register(client, email=EMAIL, password=PASSWORD, name="Ana Test", captcha="human"):
+    return client.post("/api/auth/register", json={"email": email, "password": password, "name": name, "captcha": captcha})
 
 
 def enter(client, email=EMAIL, password=PASSWORD):
@@ -136,7 +136,7 @@ def test_registering_opens_a_session_like_any_other(client, users, logins):
 def test_what_the_api_refuses(client):
     assert register(client, password="short").status_code == 400
     assert register(client, email="not an address").status_code == 400
-    assert client.post("/api/auth/register", json={"email": EMAIL, "password": PASSWORD}).status_code == 422  # no name
+    assert client.post("/api/auth/register", json={"email": EMAIL, "password": PASSWORD, "captcha": "human"}).status_code == 422  # no name
     assert register(client).status_code == 200
     assert register(client).status_code == 400  # the address is taken
     client.post("/api/auth/logout")
@@ -190,6 +190,76 @@ def test_changing_the_password_and_deleting_the_account(client, logins, users):
     assert len(logins.docs) == 1
 
 
+def test_making_an_account_takes_a_captcha_and_it_is_checked_first(client, captcha, logins):
+    cfg = client.get("/api/config").json()
+    assert cfg["registration"] == "captcha" and cfg["turnstile_site_key"] == "test-site-key"
+    # No token, or one Cloudflare does not vouch for: nothing is made, and nothing is said of the rest.
+    for token in ("", "a robot"):
+        refused = register(client, password="short", captcha=token)
+        assert refused.status_code == 400 and "person" in refused.json()["detail"] and "password" not in refused.json()["detail"]
+    assert client.post("/api/auth/register", json={"email": EMAIL, "password": PASSWORD, "name": "Ana"}).status_code == 400
+    assert logins.docs == {} and client.get("/api/me").status_code == 401
+    assert register(client).status_code == 200
+    # It was asked with the token and the address the request came from; signing in asks for none.
+    assert captcha.asked[-1] == ("human", "testclient")
+    asked = len(captcha.asked)
+    client.post("/api/auth/logout")
+    assert enter(client).status_code == 200 and len(captcha.asked) == asked
+
+
+def app_with(users, market, directory, **kw):
+    from fastapi.testclient import TestClient
+
+    from conftest import CLIENT_ID, ORIGIN, fake_verifier
+    from markethub.api import create_app
+    from markethub.community import MemoryCommunity
+
+    app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier, client_id=CLIENT_ID, session_secret="s",
+                     secure_cookies=False, community_store=MemoryCommunity(), insight_writer=None, logins=MemoryLogins(), password_cost=FAST, **kw)
+    c = TestClient(app)
+    c.headers.update({"origin": ORIGIN})
+    return c
+
+
+def test_with_no_captcha_no_accounts_are_made_unless_the_machine_says_so(users, market, directory, monkeypatch):
+    monkeypatch.delenv("MARKETHUB_OPEN_REGISTRATION", raising=False)
+    closed = app_with(users, market, directory, captcha=None)
+    cfg = closed.get("/api/config").json()
+    assert cfg["registration"] == "closed" and cfg["turnstile_site_key"] is None and cfg["password_login"] is True
+    assert register(closed).status_code == 403 and enter(closed).status_code == 401  # signing in is still answered
+    monkeypatch.setenv("MARKETHUB_OPEN_REGISTRATION", "1")
+    opened = app_with(users, market, directory, captcha=None)
+    assert opened.get("/api/config").json()["registration"] == "open" and register(opened, captcha="").status_code == 200
+
+
+def test_what_cloudflare_is_asked_and_what_counts_as_a_pass():
+    import httpx
+
+    from markethub.captcha import Turnstile
+
+    seen = []
+
+    def cloudflare(request: httpx.Request) -> httpx.Response:
+        form = dict(pair.split("=") for pair in request.content.decode().split("&"))
+        seen.append(form)
+        if form["response"] == "down":
+            raise httpx.ConnectError("no route")
+        if form["response"] == "garbled":
+            return httpx.Response(200, text="<html>")
+        if form["response"] == "elsewhere":
+            return httpx.Response(200, json={"success": True, "action": "login"})
+        return httpx.Response(200, json={"success": form["response"] == "good", "action": "register", "error-codes": ["invalid-input-response"]})
+
+    t = Turnstile("site", "the-secret", httpx.Client(transport=httpx.MockTransport(cloudflare)))
+    assert t.passes("good", "203.0.113.7") is True
+    assert seen[-1] == {"secret": "the-secret", "response": "good", "remoteip": "203.0.113.7"}
+    assert t.passes("bad") is False and "remoteip" not in seen[-1]
+    # A check that cannot be made is a check that failed; so is a token made for something else.
+    assert t.passes("down") is False and t.passes("garbled") is False and t.passes("elsewhere") is False
+    asked = len(seen)
+    assert t.passes("") is False and t.passes("x" * 3000) is False and len(seen) == asked  # not worth asking
+
+
 def test_it_can_be_turned_off(users, market, directory, monkeypatch):
     from fastapi.testclient import TestClient
 
@@ -203,4 +273,5 @@ def test_it_can_be_turned_off(users, market, directory, monkeypatch):
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     assert c.get("/api/config").json()["password_login"] is False
-    assert register(c).status_code == 404 and enter(c).status_code == 404
+    assert c.get("/api/config").json()["registration"] == "closed"
+    assert register(c).status_code == 403 and enter(c).status_code == 404

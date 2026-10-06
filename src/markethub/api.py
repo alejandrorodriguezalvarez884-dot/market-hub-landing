@@ -8,7 +8,7 @@
     DELETE /api/me                  delete the account and everything saved
     GET    /api/portfolio           positions and watchlist
     PUT    /api/portfolio           replace them
-    POST   /api/auth/register       {email, password, name}: an account of ours, and its session
+    POST   /api/auth/register       {email, password, name, captcha}: an account of ours, and its session
     POST   /api/auth/password       {email, password}: sign in to one
     PUT    /api/auth/password       {current, new}: change its password
     GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
@@ -59,6 +59,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import accounts as accounts_
 from . import dashboard
 from .accounts import Accounts, LoginStore, default_logins
+from .captcha import default_captcha, open_without
 from .community import PERIODS as BOARD_PERIODS
 from .community import Community, CommunityStore, default_community
 from .community import Refused as SharingRefused
@@ -134,7 +135,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN, markets=None,
                news=None, opinion: Opinion | None = None, community_store: CommunityStore | None = None,
                insight_writer="default", logins: LoginStore | None = None,
-               password_cost: tuple[int, int, int] = accounts_.COST) -> FastAPI:
+               password_cost: tuple[int, int, int] = accounts_.COST, captcha="default") -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -151,6 +152,10 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     # The accounts with a password of ours. MARKETHUB_PASSWORD_LOGIN=0 leaves Google as the only way in.
     accounts = Accounts(logins or default_logins(), password_cost)
     password_login = os.environ.get("MARKETHUB_PASSWORD_LOGIN", "1").strip() != "0"
+    # Making an account takes a captcha. With none configured no accounts are made, unless the
+    # environment says they may be made without one (a developer's machine).
+    human = default_captcha() if captcha == "default" else captcha
+    registration = "closed" if not password_login else "captcha" if human else "open" if open_without() else "closed"
     writer = default_writer() if insight_writer == "default" else insight_writer
     # What answers for the provider when it does not: sample figures, said to be so.
     stand_in = SampleData(lambda ticker: company_name(ticker))
@@ -232,6 +237,9 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             "google_client_id": client_id,
             "domain": cookie_domain,
             "password_login": password_login,
+            # Whether an account can be made here, and the key of the captcha's widget if it takes one.
+            "registration": registration,
+            "turnstile_site_key": human.site_key if registration == "captcha" else None,
             "tools": {
                 "earnings_radar": EARNINGS_RADAR_URL or None,
                 "fundamentals_lab": FUNDAMENTALS_LAB_URL or None,
@@ -274,8 +282,13 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     @app.post("/api/auth/register")
     def register(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000),
-                 name: str = Body(embed=True, max_length=200)) -> dict:
+                 name: str = Body(embed=True, max_length=200), captcha: str = Body("", embed=True, max_length=4096)) -> dict:
+        if registration == "closed":
+            raise HTTPException(403, "New accounts cannot be made here right now.")
         by_password(request, registering, "Too many accounts were made from this address. Try again later.")
+        # Before anything else is looked at: no captcha, no answer about the email or the password.
+        if registration == "captcha" and not human.passes(captcha, _client_address(request)):
+            raise HTTPException(400, "We could not check that you are a person. Try the check again.")
         try:
             user = accounts.register(email, password, name)
         except accounts_.Refused as exc:

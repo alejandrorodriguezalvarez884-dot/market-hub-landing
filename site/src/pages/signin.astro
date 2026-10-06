@@ -40,10 +40,11 @@ const points = [
 							<input id="own-password" class="field mt-1 w-full" type="password" autocomplete="current-password" maxlength="200" required />
 							<p id="own-hint" class="mt-1.5 text-[12.5px] text-muted" hidden>At least 10 characters. We cannot send you a new one if you forget it: keep it somewhere safe.</p>
 						</div>
+						<div id="own-captcha" class="min-h-[65px]" hidden></div>
 						<button id="own-send" class="btn btn-primary w-full" type="submit">Sign in</button>
 						<p id="own-note" class="text-[13px] text-down" role="alert"></p>
 					</form>
-					<p class="mt-3 text-[13px] text-muted"><span id="own-ask">New here?</span> <button id="own-switch" class="link" type="button">Create an account</button></p>
+					<p id="own-other" class="mt-3 text-[13px] text-muted"><span id="own-ask">New here?</span> <button id="own-switch" class="link" type="button">Create an account</button></p>
 				</div>
 				<p class="mt-8 max-w-md text-[13px] text-muted">
 					We keep your name and email (and your picture, with Google) and the stocks you add. Never your password itself, and no tracking cookies. You can delete it all at any time.{" "}
@@ -63,7 +64,7 @@ const points = [
 </Layout>
 
 <script>
-	import { api, config, signedIn } from "../lib/api";
+	import { api, config, signedIn, type Config } from "../lib/api";
 	import { link } from "../lib/site";
 
 	const box = document.getElementById("signin")!;
@@ -100,12 +101,42 @@ const points = [
 
 	// The other way in: an email and a password, to sign in or to make an account. One form, two
 	// uses; what it sends is checked by the server, which answers in words to show as they come.
-	function own(done: (r: { has_data: boolean }) => void, withGoogle: boolean) {
+	function own(done: (r: { has_data: boolean }) => void, cfg: Config) {
 		const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 		const [name, email, password] = [$<HTMLInputElement>("own-name"), $<HTMLInputElement>("own-email"), $<HTMLInputElement>("own-password")];
 		const [send, flip, wrong] = [$<HTMLButtonElement>("own-send"), $<HTMLButtonElement>("own-switch"), $("own-note")];
-		let making = new URLSearchParams(location.search).has("new");
+		const canMake = (cfg.registration ?? "open") !== "closed";
+		let making = canMake && new URLSearchParams(location.search).has("new");
+
+		// Making an account takes a check that a person is asking (Cloudflare Turnstile). Its widget
+		// is loaded the first time the form is turned to making one, and hands over a token that
+		// is good once: after a refusal it is asked for again.
+		const siteKey = cfg.registration === "captcha" ? cfg.turnstile_site_key : null;
+		const check = { token: "", widget: null as string | null, loading: false };
+		const captcha = () => (window as any).turnstile;
+		function askCheck() {
+			if (!siteKey || check.loading || check.widget !== null) return;
+			check.loading = true;
+			const s = document.createElement("script");
+			s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+			s.async = true;
+			// The script is added by hand and has loaded by now: the widget can be drawn straight away.
+			s.onload = () => {
+				check.widget = captcha().render("#own-captcha", {
+					sitekey: siteKey, theme: "dark", action: "register",
+					callback: (token: string) => ((check.token = token), wrong.textContent === WAIT && (wrong.textContent = "")),
+					"expired-callback": () => (check.token = ""),
+					"error-callback": () => ((check.token = ""), (wrong.textContent = "The check that you are a person could not load. Reload the page and try again.")),
+				});
+			};
+			s.onerror = () => ((check.loading = false), (wrong.textContent = "The check that you are a person could not load. Reload the page and try again."));
+			document.head.append(s);
+		}
+		const WAIT = "One moment: checking that you are a person.";
+
 		const show = () => {
+			$("own-captcha").hidden = !(making && siteKey);
+			if (making) askCheck();
 			$("own-name-row").hidden = $("own-hint").hidden = !making;
 			name.required = making;
 			password.autocomplete = making ? "new-password" : "current-password";
@@ -118,17 +149,21 @@ const points = [
 		$<HTMLFormElement>("own-form").addEventListener("submit", async (e) => {
 			e.preventDefault();
 			if (!email.value.trim() || !password.value || (making && !name.value.trim())) return (wrong.textContent = making ? "Your name, your email and a password, please." : "Your email and your password, please.");
+			if (making && siteKey && !check.token) return (wrong.textContent = WAIT);
 			send.disabled = true;
 			wrong.textContent = "";
 			try {
-				const body = making ? { email: email.value, password: password.value, name: name.value } : { email: email.value, password: password.value };
+				const body = making ? { email: email.value, password: password.value, name: name.value, captcha: check.token } : { email: email.value, password: password.value };
 				done(await api<{ has_data: boolean }>(making ? "/api/auth/register" : "/api/auth/password", { method: "POST", body: JSON.stringify(body) }));
 			} catch (err) {
 				send.disabled = false;
 				wrong.textContent = err instanceof Error ? err.message : "That did not work. Try again.";
+				// The token went with the attempt: a new one is needed for the next.
+				if (making && check.widget !== null) (check.token = ""), captcha().reset(check.widget);
 			}
 		});
-		$("own-or").hidden = !withGoogle;
+		$("own-or").hidden = !cfg.google_client_id;
+		$("own-other").hidden = !canMake;
 		show();
 		$("own").hidden = false;
 	}
@@ -141,7 +176,7 @@ const points = [
 			const who = await signedIn();
 			if (who) return location.replace(who.has_data || tool ? next : link("/portfolio/?welcome=1"));
 			const done = (r: { has_data: boolean }) => location.replace(r.has_data || tool ? next : link("/portfolio/?welcome=1"));
-			if (cfg.password_login) own(done, !!cfg.google_client_id);
+			if (cfg.password_login) own(done, cfg);
 			if (!cfg.google_client_id) return cfg.password_login ? void (box.hidden = true) : say("Sign-in is not configured yet.");
 			await loadGoogle();
 			const g = (window as any).google.accounts.id;
