@@ -206,7 +206,7 @@ Pendiente:
   dos lecturas posibles y sin elegir ninguna, marcada como escrita por IA y con enlaces a sus
   noticias. Sin empezar.
 
-### Las herramientas, dentro de My Hub (2026-10-06)
+### Las herramientas, dentro de My Hub (2026-10-06; desplegado)
 
 El usuario pidió que Fundamentals y Earnings queden integradas en el área privada, porque solo se
 consultan desde ahí. En los dos repos la cabecera del portal se sustituyó por la navegación de My
@@ -215,7 +215,7 @@ herramienta marcada, "Explore", el aviso de área privada y el usuario), con la 
 cada herramienta encima de la página. En `earningsradar.app` el radar sigue con su cabecera. Un
 cambio en la barra lateral de `App.astro` hay que llevarlo a los `HubNav.astro` de los otros dos.
 
-### Película nueva de la landing (2026-10-06)
+### Película nueva de la landing (2026-10-06; desplegada como `market-hub-00011-pms`)
 
 El usuario pidió rehacer el vídeo: que no sea una demo grabada de la app, sino una pieza hecha de
 cero que juegue con el logo, con sonido, y que enseñe todo lo que hace el portal. Sustituye a la
