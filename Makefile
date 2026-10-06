@@ -7,7 +7,7 @@
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: help install env test check site api dev serve deploy
+.PHONY: help install env test check site api dev serve deploy film
 
 help: ## List the targets
 	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  make %-9s %s\n", $$1, $$2}'
@@ -36,6 +36,9 @@ dev: ## Run the site at http://localhost:4321 with reload (it calls the API on p
 
 serve: env site ## Run site and API together at http://localhost:8080, as in production
 	MARKETHUB_STATIC_DIR=site/dist uv run uvicorn markethub.api:create_app --factory --port 8080
+
+film: ## Draw, score and encode the landing page's film into site/public (uses this machine's Chrome)
+	cd film && npm ci && node render.mjs && node check.mjs
 
 deploy: env ## Build and deploy the portal to Cloud Run (see scripts/deploy-cloudrun.sh)
 	./scripts/deploy-cloudrun.sh

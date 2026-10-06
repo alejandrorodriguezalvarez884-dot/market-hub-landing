@@ -1,6 +1,7 @@
 ---
-// The landing page: what Market Hub is, a film of it, and each of its parts with the way in. It
-// asks the data provider for nothing, so a visit to it costs no market-data calls.
+// The landing page: what Market Hub is, a film about it, and each of its parts with the way in. It
+// asks the data provider for nothing, so a visit to it costs no market-data calls. The film is
+// drawn and scored by code (film/, `make film`); it is no recording of the site.
 import Site from "../components/Site.astro";
 import { FUNDAMENTALS_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
 
@@ -68,10 +69,11 @@ const promises = [
 	<section class="mt-14 sm:mt-20" aria-labelledby="film-title">
 		<div class="sec-head">
 			<h2 id="film-title" class="sec-title">Market Hub in a minute</h2>
-			<span class="sec-note">No sound</span>
+			<span class="sec-note">With sound</span>
 		</div>
 		<video id="film" class="block aspect-video w-full border border-line bg-deep" controls muted loop playsinline preload="metadata" poster={link("/film-poster.jpg")}>
 			<source src={link("/film.webm")} type="video/webm" />
+			<source src={link("/film.mp4")} type="video/mp4" />
 			<a href={link("/today/")} class="link">Your browser cannot play this film. Open today's market instead.</a>
 		</video>
 	</section>
@@ -117,7 +119,8 @@ const promises = [
 	import { signedIn } from "../lib/api";
 	import { link } from "../lib/site";
 
-	// The film plays by itself while it is on screen, unless the visitor asked for less motion.
+	// The film plays by itself while it is on screen, unless the visitor asked for less motion. It
+	// starts muted, as browsers require; its sound is one click away in the player's controls.
 	const film = document.getElementById("film") as HTMLVideoElement;
 	if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
 		new IntersectionObserver(([e]) => (e.isIntersecting ? film.play().catch(() => {}) : film.pause()), { threshold: 0.5 }).observe(film);

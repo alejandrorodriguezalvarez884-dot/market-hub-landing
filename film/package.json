@@ -1,0 +1,15 @@
+{
+  "name": "markethub-film",
+  "private": true,
+  "type": "module",
+  "description": "The film on the landing page, drawn and scored by code and encoded in Chrome.",
+  "scripts": {
+    "render": "node render.mjs",
+    "stills": "node render.mjs --stills"
+  },
+  "dependencies": {
+    "mp4-muxer": "^5.2.2",
+    "playwright-core": "^1.55.0",
+    "webm-muxer": "^5.1.4"
+  }
+}

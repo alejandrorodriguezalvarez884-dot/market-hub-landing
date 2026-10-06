@@ -201,10 +201,55 @@ Pendiente:
   muestra solo titular y enlace, pero conviene revisarlo antes de dar a conocer el portal, igual
   que la licencia de FMP. `NEWS_PRESS_FEEDS=` vacío los apaga.
 - GDELT se descartó: devolvió 429 en todas las pruebas. El feed de notas del Tesoro no responde.
-- La landing no tiene bloque ni captura de News, y el vídeo no la enseña.
+- La landing no tiene bloque ni captura de News (el vídeo nuevo sí la enseña).
 - **Opinión**: una pieza diaria generada desde el archivo `news/` y las cifras del día, con las
   dos lecturas posibles y sin elegir ninguna, marcada como escrita por IA y con enlaces a sus
   noticias. Sin empezar.
+
+### Las herramientas, dentro de My Hub (2026-10-06)
+
+El usuario pidió que Fundamentals y Earnings queden integradas en el área privada, porque solo se
+consultan desde ahí. En los dos repos la cabecera del portal se sustituyó por la navegación de My
+Hub (`HubNav.astro`, copia de la barra lateral de `App.astro`: "Your space", "Tools" con la
+herramienta marcada, "Explore", el aviso de área privada y el usuario), con la barra propia de
+cada herramienta encima de la página. En `earningsradar.app` el radar sigue con su cabecera. Un
+cambio en la barra lateral de `App.astro` hay que llevarlo a los `HubNav.astro` de los otros dos.
+
+### Película nueva de la landing (2026-10-06)
+
+El usuario pidió rehacer el vídeo: que no sea una demo grabada de la app, sino una pieza hecha de
+cero que juegue con el logo, con sonido, y que enseñe todo lo que hace el portal. Sustituye a la
+grabación con Playwright descrita más arriba.
+
+- **Qué es**: 60 s, 1920×1080, 30 fps. Parte del logo (la línea de cero y el punto: "This is zero.
+  This is a move. Left is down. Right is up.") y esa marca se convierte en cada parte: la regla de
+  Today y su frase, las velas de Markets, News con su filtro, My Hub (diez segundos: el punto es
+  el ojo de un candado; valor de la cartera, posiciones, su año frente al S&P 500 y las noticias
+  de sus empresas) y las herramientas de IA (once segundos, **en general y sin nombrar ninguna,
+  porque irán cambiando**: el punto lee un documento y responde preguntas, y luego es una
+  herramienta entre varias, cada una para un trabajo, con un hueco "More to come"). Cierra en el
+  logo con el nombre y "At last, all the information and all the power in your hands.". Entre
+  partes, lo que hay en pantalla se recoge en el punto, que viaja. Todas las cifras son
+  ilustrativas y fijas.
+- **Segunda versión, a petición del usuario tras ver la primera** (le gustó el resto): cambió la
+  frase final (antes "It describes. It never tells you what to buy."), dio más peso a la cartera
+  propia y sustituyó las dos escenas de Fundamentals y Earnings por la general de herramientas.
+- **Sonido**: sintetizado entero, sin grabaciones ni música de terceros (`film/audio.js`). Un fondo
+  de acordes lento y, encima, lo que "toca" la imagen: una nota por fila de la regla (más aguda si
+  sube), la gráfica sonando a la altura de sus cierres, un deslizamiento cuando el punto se mueve,
+  aire cuando viaja. Imagen y sonido salen de la misma lista (`EVENTS` en `film/film.js`).
+  El agente no puede oírlo: lo comprobó con números (60 s, estéreo, pico 0,89, sin saturar, fondo
+  unos 6 dB por debajo de las notas). El usuario vio y oyó la primera versión y la dio por buena.
+- **Cómo se hace**: `make film`. `film/render.mjs` abre el Chrome del equipo con `playwright-core`,
+  la página dibuja cada fotograma en un canvas y el propio Chrome codifica (WebCodecs), así que
+  sigue sin hacer falta ffmpeg. Salen `site/public/film.webm` (VP9 + Opus, 7,5 MB),
+  `film.mp4` (H.264 + AAC, 6,4 MB, para los Safari que no leen WebM: ya hay versión MP4) y
+  `film-poster.jpg`. `film/check.mjs` reabre los dos archivos como lo haría un navegador y deja
+  hojas de contacto en `film/out/`; `node render.mjs --stills` las saca sin codificar. Abrir
+  `film/film.html` con un servidor local la reproduce con sonido.
+- En la landing el vídeo sigue arrancando solo y en silencio (los navegadores no dejan otra cosa);
+  el sonido se activa en los controles. La nota pasa de "No sound" a "With sound".
+- `film/` no se sube a Cloud Run (`.gcloudignore`, `.dockerignore`).
 
 ## Cómo está hecho
 

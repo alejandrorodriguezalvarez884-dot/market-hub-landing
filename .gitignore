@@ -19,6 +19,7 @@ dist/
 .vscode/
 .idea/
 
-# Site
+# Site and film
 node_modules/
+film/out/
 .astro/

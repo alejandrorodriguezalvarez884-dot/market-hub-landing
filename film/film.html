@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Market Hub: the film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
+<style>
+	html, body { margin: 0; background: #070808; color: #8c8b86; font: 14px "IBM Plex Sans", system-ui, sans-serif; }
+	main { display: grid; gap: 12px; justify-items: center; padding: 24px; }
+	canvas { width: min(100%, 1280px); height: auto; background: #0b0c0d; }
+	button { border: 1px solid #3a3e42; border-radius: 3px; background: none; color: #f2f0ea; font: inherit; padding: 7px 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+	<canvas id="stage" width="1920" height="1080"></canvas>
+	<!-- Opened by hand, this page plays the film as it will be rendered. `make film` drives it instead. -->
+	<p><button id="play" type="button">Play, with sound</button> <span id="clock"></span></p>
+</main>
+<script type="module" src="./page.js"></script>
+</body>
+</html>
