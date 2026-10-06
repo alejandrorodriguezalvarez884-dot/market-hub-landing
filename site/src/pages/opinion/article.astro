@@ -1,0 +1,147 @@
+---
+// One opinion article, with its sources and, under it, the readers' comments as threads: anyone
+// reads them, a signed-in reader writes and answers.
+import Site from "../../components/Site.astro";
+import { link } from "../../lib/site";
+---
+
+<Site title="Opinion" description="An opinion article of Market Hub, with its readers' comments.">
+	<div class="mx-auto max-w-[44rem]">
+		<a href={link("/opinion/")} class="text-[13px] text-muted hover:text-ink-strong"><span aria-hidden="true">←</span> Opinion</a>
+		<article id="piece" class="mt-8"><div class="skeleton h-5 w-56"></div><div class="skeleton mt-4 h-24"></div><div class="skeleton mt-8 h-96"></div></article>
+		<section id="comments" class="sec mt-16" aria-labelledby="comments-title" hidden>
+			<div class="sec-head"><h2 id="comments-title" class="sec-title">Comments</h2><span id="comments-count" class="sec-note"></span></div>
+			<div id="composer"></div>
+			<div id="thread" class="mt-6"></div>
+		</section>
+	</div>
+</Site>
+
+<script>
+	import { ApiError } from "../../lib/api";
+	import { add, h, linkTo } from "../../lib/dom";
+	import { timeAgo } from "../../lib/format";
+	import { article, comment, overline, prose, removeComment, thread, type Article, type Comment, type Thread } from "../../lib/opinion";
+	import { link } from "../../lib/site";
+	import { quoteHref } from "../../lib/widgets";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const slug = new URLSearchParams(location.search).get("slug") ?? "";
+
+	function draw(a: Article) {
+		document.title = `${a.title} — Market Hub`;
+		const sources = a.sources.length
+			? add(h("footer", "sec mt-12"),
+				add(h("div", "sec-head"), h("h2", "sec-title", "Sources")),
+				add(h("ul", "space-y-1.5 text-sm text-ink"), ...a.sources.map((s) => {
+					const own = s.url.startsWith("/");
+					const to = linkTo(own ? link(s.url) : s.url, "link", s.title);
+					if (!own) (to.target = "_blank"), (to.rel = "noopener");
+					return add(h("li"), to, own ? "" : " ↗");
+				})))
+			: null;
+		$("piece").replaceChildren();
+		add($("piece"),
+			overline(a),
+			h("h1", "mt-3 text-[2rem] font-medium leading-[1.12] tracking-tight text-ink-strong sm:text-[2.6rem]", a.title),
+			h("p", "mt-5 text-xl leading-relaxed text-ink-strong", a.dek),
+			add(h("div", "mt-8 space-y-5 text-[17px] leading-[1.7] text-ink"), ...prose(a.body)),
+			a.tickers.length ? add(h("p", "mt-8 flex flex-wrap gap-1.5"), ...a.tickers.map((t) => linkTo(quoteHref(t), "chip", t))) : null,
+			sources);
+	}
+
+	// --- Comments ----------------------------------------------------------------------------------
+
+	// Where a comment or an answer is written. `parent` is the comment it answers, if any.
+	function composer(parent: string | null, done: () => void, cancel?: () => void): HTMLElement {
+		const box = h("textarea", "field min-h-[5.5rem] w-full resize-y");
+		box.maxLength = 2000;
+		box.placeholder = parent ? "Write your answer" : "What do you think?";
+		box.setAttribute("aria-label", box.placeholder);
+		const send = h("button", "btn btn-primary", parent ? "Answer" : "Comment");
+		send.type = "submit";
+		const note = h("p", "text-[13px] text-down");
+		note.setAttribute("role", "alert");
+		const form = add(h("form", "space-y-2"), box, add(h("div", "flex flex-wrap items-center gap-3"), send,
+			cancel ? Object.assign(h("button", "btn btn-ghost", "Cancel"), { type: "button", onclick: cancel }) : null,
+			h("span", "text-[12.5px] text-muted", "Shown with your first name. Be civil."), note));
+		form.addEventListener("submit", async (e) => {
+			e.preventDefault();
+			if (!box.value.trim()) return;
+			send.disabled = true;
+			note.textContent = "";
+			try {
+				await comment(slug, box.value, parent);
+				done();
+			} catch (err) {
+				send.disabled = false;
+				note.textContent = err instanceof ApiError ? err.message : "The comment could not be sent.";
+			}
+		});
+		return form;
+	}
+
+	function one(c: Comment, t: Thread, children: Map<string | null, Comment[]>): HTMLElement {
+		const el = h("div", "pt-5");
+		el.id = `c-${c.id}`;
+		const head = add(h("p", "flex flex-wrap items-center gap-x-2.5 text-[12.5px] text-muted"),
+			c.deleted ? h("span", "", "Deleted") : add(h("span", "flex items-center gap-2 font-medium text-ink-strong"),
+				h("span", "flex h-6 w-6 items-center justify-center rounded-full bg-raised text-[11px]", c.name.charAt(0).toUpperCase()), c.name),
+			h("time", "num", timeAgo(c.created_utc)));
+		const actions = h("p", "mt-1.5 flex gap-4 text-[12.5px] text-muted");
+		const slot = h("div", "mt-3");
+		if (!c.deleted) {
+			if (t.signed_in && c.depth < 6) {
+				const reply = Object.assign(h("button", "hover:text-ink-strong", "Answer"), { type: "button" });
+				reply.addEventListener("click", () => {
+					slot.replaceChildren(composer(c.id, load, () => slot.replaceChildren()));
+					slot.querySelector("textarea")!.focus();
+				});
+				actions.append(reply);
+			}
+			if (c.mine || t.moderator) {
+				const del = Object.assign(h("button", "hover:text-down", "Delete"), { type: "button" });
+				del.addEventListener("click", async () => {
+					if (!confirm("Delete this comment?")) return;
+					await removeComment(c.id).catch(() => {});
+					load();
+				});
+				actions.append(del);
+			}
+		}
+		add(el, head, c.deleted ? null : h("p", "mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink", c.text), actions, slot);
+		const under = children.get(c.id) ?? [];
+		// Answers hang from a rule at the left of what they answer, as deep as the thread goes.
+		if (under.length) el.append(add(h("div", "ml-1.5 border-l border-line pl-4 sm:ml-3 sm:pl-5"), ...under.map((x) => one(x, t, children))));
+		return el;
+	}
+
+	function show(t: Thread) {
+		const live = t.comments.filter((c) => !c.deleted).length;
+		$("comments-count").textContent = live ? `${live}` : "";
+		$("composer").replaceChildren(t.signed_in ? composer(null, load)
+			: add(h("p", "text-sm text-ink"), linkTo(link(`/signin/?next=${encodeURIComponent(`${location.pathname}${location.search}#comments`)}`), "btn btn-ghost", "Sign in to comment"),
+				h("span", "ml-3 text-muted", "Reading needs no account.")));
+		const children = new Map<string | null, Comment[]>();
+		for (const c of t.comments) children.set(c.parent_id, [...(children.get(c.parent_id) ?? []), c]);
+		// A deleted comment with nothing under it leaves no trace.
+		const kept = (c: Comment): boolean => !c.deleted || (children.get(c.id) ?? []).some(kept);
+		for (const [k, list] of children) children.set(k, list.filter(kept));
+		const top = [...(children.get(null) ?? [])].reverse(); // the newest conversation first; its answers in order
+		$("thread").replaceChildren(...(top.length ? top.map((c) => one(c, t, children)) : [h("p", "text-sm text-muted", "No comments yet. Be the first.")]));
+	}
+
+	const load = () => thread(slug).then(show).catch(() => {});
+
+	article(slug)
+		.then((a) => {
+			draw(a);
+			$("comments").hidden = false;
+			return load();
+		})
+		.catch((e) => {
+			$("piece").replaceChildren(
+				h("p", "text-ink", e instanceof ApiError && e.status === 404 ? "This article is not here." : "This article is not available right now."),
+				add(h("p", "mt-4"), linkTo(link("/opinion/"), "link", "All the articles")));
+		});
+</script>

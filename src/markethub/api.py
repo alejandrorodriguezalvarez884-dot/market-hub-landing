@@ -18,6 +18,12 @@
     GET    /api/public/news/item    ?id=  one item, with its article
     POST   /api/public/news/refresh read the news sources, if the news is stale
     GET    /api/news/mine           the news about the user's own stocks
+    GET    /api/public/opinion      the opinion articles, as cards
+    GET    /api/public/opinion/item ?slug=  one article
+    GET    /api/public/opinion/comments ?slug=  the thread under it (anyone reads it)
+    POST   /api/opinion/comments    {slug, text, parent_id}: comment or answer (signed in)
+    GET    /api/opinion/mine        the user's own comments
+    DELETE /api/opinion/comments/{id}   take one's own comment down
 
 Market figures come from FMP when there is a key (live.py), else from sample.py; the overview
 names any part that is sample data in "sample_sections". The news comes from news.py.
@@ -45,8 +51,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import dashboard
 from .live import default_markets
 from .news import default_news
+from .opinion import Opinion, Refused, default_opinion
 from .auth import InvalidToken, Verifier, google_verifier, verify
-from .config import (COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
+from .config import (COMMENTS_PER_USER_PER_HOUR, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
 from .market import Directory, Fmp, MarketUnavailable
 from .users import InvalidPortfolio, UserStore, clean, default_users, empty, touch
@@ -109,7 +116,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                verifier: Verifier = google_verifier, client_id: str | None = None,
                session_secret: str | None = None, secure_cookies: bool | None = None,
                static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN, markets=None,
-               news=None) -> FastAPI:
+               news=None, opinion: Opinion | None = None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -122,6 +129,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     directory = directory or Directory()
     markets = markets or default_markets(market)
     news = news or default_news(markets, directory)
+    opinion = opinion or Opinion(default_opinion())
     client_id = GOOGLE_CLIENT_ID if client_id is None else client_id
     secret = session_secret or SESSION_SECRET
     if not secret:
@@ -129,6 +137,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         secret = secrets.token_urlsafe(32)
     secure = SECURE_COOKIES if secure_cookies is None else secure_cookies
     limiter = RateLimiter(PER_IP_PER_HOUR)
+    commenting = RateLimiter(COMMENTS_PER_USER_PER_HOUR)
 
     origins = [o.strip() for o in os.environ.get("MARKETHUB_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
@@ -223,6 +232,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.delete("/api/me")
     def delete_me(request: Request) -> dict:
         user = current(request)
+        opinion.forget(user["id"])  # the comments go with the account
         users.delete(user["id"])
         request.session.clear()
         log.info("account deleted")
@@ -332,6 +342,47 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         if not tickers:
             return news.news(limit=1) | {"items": []}
         return news.news(tickers=tickers, limit=20)
+
+    @app.get("/api/public/opinion")
+    def public_opinion(limit: int = Query(50, ge=1, le=100)) -> dict:
+        return {"articles": opinion.articles(limit)}
+
+    @app.get("/api/public/opinion/item")
+    def public_opinion_item(slug: str = Query(max_length=100)) -> dict:
+        found = opinion.article(slug)
+        if not found:
+            raise HTTPException(404, "No such article.")
+        return found
+
+    @app.get("/api/public/opinion/comments")
+    def public_comments(request: Request, slug: str = Query(max_length=100)) -> dict:
+        """Anyone reads the thread. A signed-in reader is told which comments are theirs."""
+        user = request.session.get("user")
+        return {"comments": opinion.comments(slug, user), "signed_in": bool(user), "moderator": opinion.can_moderate(user)}
+
+    @app.post("/api/opinion/comments")
+    def comment(request: Request, slug: str = Body(max_length=100), text: str = Body(max_length=8000),
+                parent_id: str | None = Body(None, max_length=40)) -> dict:
+        user = current(request)
+        if not commenting.allow(user["id"]):
+            raise HTTPException(429, "That is a lot of comments in an hour. Try again later.")
+        try:
+            return opinion.add(user, slug, text, parent_id)
+        except Refused as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.get("/api/opinion/mine")
+    def my_comments(request: Request) -> dict:
+        """What the account page shows as kept: the user's own comments."""
+        return {"comments": opinion.mine(current(request)["id"])}
+
+    @app.delete("/api/opinion/comments/{comment_id}")
+    def remove_comment(request: Request, comment_id: str) -> dict:
+        user = current(request)
+        try:
+            return {"deleted": opinion.remove(user, comment_id)}
+        except PermissionError:
+            raise HTTPException(403, "That comment is not yours.") from None
 
     static_dir = static_dir or os.environ.get("MARKETHUB_STATIC_DIR", "")
     if static_dir and Path(static_dir).is_dir():

@@ -52,6 +52,8 @@ QUOTA_PAUSE_SECONDS = 15 * 60
 
 # Requests per address per hour on the endpoints that call the data provider.
 PER_IP_PER_HOUR = 240
+# Comments a signed-in reader can leave in an hour.
+COMMENTS_PER_USER_PER_HOUR = 20
 
 # --- News ----------------------------------------------------------------------------------
 

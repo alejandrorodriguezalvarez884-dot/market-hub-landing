@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from markethub.api import create_app
 from markethub.market import Company, Directory
+from markethub.opinion import MemoryOpinion, Opinion
 from markethub.users import MemoryUsers
 
 CLIENT_ID = "test-client.apps.googleusercontent.com"
@@ -87,10 +88,20 @@ def market():
     return FakeFmp()
 
 
+ARTICLE = {"slug": "a-quiet-jobs-report", "title": "A quiet jobs report", "dek": "What 29,000 jobs say.", "kind": "Analysis",
+           "tags": ["Macro"], "tickers": [], "published_utc": "2026-10-06T08:00:00+00:00", "minutes": 4,
+           "body": "First paragraph.\n\n## A heading\n\nSecond paragraph.", "sources": [{"title": "BLS", "url": "https://www.bls.gov/"}]}
+
+
 @pytest.fixture
-def client(users, market, directory):
+def opinion():
+    return Opinion(MemoryOpinion([ARTICLE]), admins={"owner@gmail.com"})
+
+
+@pytest.fixture
+def client(users, market, directory, opinion):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
-                     client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False)
+                     client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion)
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

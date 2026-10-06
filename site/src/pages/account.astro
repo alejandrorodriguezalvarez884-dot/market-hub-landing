@@ -10,6 +10,7 @@ import App from "../components/App.astro";
 
 <script>
 	import { api, requireUser, type Portfolio } from "../lib/api";
+	import { articleHref } from "../lib/opinion";
 	import { add, card, h } from "../lib/dom";
 	import { link } from "../lib/site";
 
@@ -18,17 +19,24 @@ import App from "../components/App.astro";
 	async function start() {
 		const who = await requireUser();
 		const p = await api<Portfolio>("/api/portfolio");
+		const mine = await api<{ comments: { slug: string; text: string; created_utc: string }[] }>("/api/opinion/mine").catch(() => ({ comments: [] }));
 		const info = card("What we keep", "Everything stored about you, as saved now");
 		add(info.body, add(h("dl", "grid grid-cols-[8rem_1fr] gap-y-2 text-[13px]"),
 			h("dt", "text-muted", "Name"), h("dd", "text-ink-strong", who.user.name),
 			h("dt", "text-muted", "Email"), h("dd", "text-ink-strong", who.user.email),
 			h("dt", "text-muted", "Positions"), h("dd", "text-ink-strong", p.positions.map((x) => `${x.ticker} (${x.shares})`).join(", ") || "None"),
 			h("dt", "text-muted", "Watchlist"), h("dd", "text-ink-strong", p.watchlist.join(", ") || "None"),
+			h("dt", "text-muted", "Comments"), h("dd", "text-ink-strong", mine.comments.length ? `${mine.comments.length}, public, shown with your first name` : "None"),
 		));
+		if (mine.comments.length) add(info.body, add(h("ul", "mt-3 space-y-1.5 text-[13px]"), ...mine.comments.slice(0, 20).map((c) => {
+			const a = h("a", "link", c.text.length > 80 ? `${c.text.slice(0, 80)}…` : c.text) as HTMLAnchorElement;
+			a.href = articleHref(c.slug);
+			return add(h("li", "truncate"), a);
+		})));
 		const download = h("button", "btn btn-ghost mt-4", "Download my data (JSON)");
 		download.type = "button";
 		download.addEventListener("click", () => {
-			const blob = new Blob([JSON.stringify({ user: who.user, ...p }, null, 2)], { type: "application/json" });
+			const blob = new Blob([JSON.stringify({ user: who.user, ...p, comments: mine.comments }, null, 2)], { type: "application/json" });
 			const a = h("a") as HTMLAnchorElement;
 			a.href = URL.createObjectURL(blob);
 			a.download = "market-hub-data.json";
@@ -37,7 +45,7 @@ import App from "../components/App.astro";
 		});
 		info.body.append(download);
 
-		const danger = card("Delete your account", "Removes your positions, watchlist and profile from our database at once. Signing in again later starts from zero.");
+		const danger = card("Delete your account", "Removes your positions, watchlist and profile from our database at once, and empties the comments you wrote. Signing in again later starts from zero.");
 		const del = h("button", "btn btn-danger", "Delete my account");
 		del.type = "button";
 		const status = h("p", "mt-2 text-[13px] text-muted");

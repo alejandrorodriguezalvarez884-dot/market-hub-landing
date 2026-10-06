@@ -1,0 +1,43 @@
+---
+// Opinion: the articles, newest first. The newest opens the page; the rest follow in two columns.
+import Site from "../components/Site.astro";
+---
+
+<Site title="Opinion" description="Opinion and analysis on the markets, the economy and what companies say, from Market Hub.">
+	<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Opinion</h1>
+	<p class="mt-2 max-w-xl text-ink">What the news means, argued. Read, and answer back.</p>
+	<div id="opinion" class="mt-10"><div class="skeleton h-56"></div><div class="skeleton mt-8 h-40"></div></div>
+</Site>
+
+<script>
+	import { add, h, linkTo } from "../lib/dom";
+	import { articleHref, articles, overline, type Card } from "../lib/opinion";
+	import { failed } from "../lib/widgets";
+
+	const root = document.getElementById("opinion")!;
+	const tags = (a: Card) => (a.tags.length ? add(h("p", "mt-3 flex flex-wrap gap-1.5"), ...a.tags.slice(0, 4).map((t) => h("span", "chip !font-sans", t))) : null);
+
+	function lead(a: Card): HTMLElement {
+		return add(h("article", "sec pb-10"),
+			overline(a),
+			add(h("h2", "lede mt-3 !max-w-[22em] !text-ink-strong"), linkTo(articleHref(a.slug), "hover:underline", a.title)),
+			h("p", "mt-4 max-w-2xl text-lg leading-relaxed text-ink", a.dek),
+			tags(a));
+	}
+
+	function card(a: Card): HTMLElement {
+		return add(h("article", "sec pb-2"),
+			overline(a),
+			add(h("h2", "mt-2 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong"), linkTo(articleHref(a.slug), "hover:underline", a.title)),
+			h("p", "mt-2.5 text-ink", a.dek),
+			tags(a));
+	}
+
+	articles()
+		.then(({ articles: all }) => {
+			if (!all.length) return failed(root, "No articles yet.");
+			const [first, ...rest] = all;
+			root.replaceChildren(lead(first), add(h("div", "grid gap-x-14 gap-y-10 md:grid-cols-2"), ...rest.map(card)));
+		})
+		.catch(() => failed(root, "The articles are not available right now."));
+</script>

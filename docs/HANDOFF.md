@@ -202,9 +202,42 @@ Pendiente:
   que la licencia de FMP. `NEWS_PRESS_FEEDS=` vacío los apaga.
 - GDELT se descartó: devolvió 429 en todas las pruebas. El feed de notas del Tesoro no responde.
 - La landing no tiene bloque ni captura de News (el vídeo nuevo sí la enseña).
-- **Opinión**: una pieza diaria generada desde el archivo `news/` y las cifras del día, con las
-  dos lecturas posibles y sin elegir ninguna, marcada como escrita por IA y con enlaces a sus
-  noticias. Sin empezar.
+
+### Opinión, con comentarios (2026-10-06; en local, sin commit, sin publicar y sin desplegar)
+
+El usuario pidió una pestaña de opinión: artículos generados con IA a partir de las noticias y de
+otras fuentes, en un repo aparte, que se actualizan con una skill de Claude Code cuando él lo pide
+("añade tantos"), y con comentarios tipo Reddit que piden login para escribir y no para leer.
+
+- **Los artículos no se escriben aquí.** Viven en el repo `market-hub-opinion` (hermano de este en
+  el workspace), un Markdown por artículo. Su skill `update-opinion` los escribe, `make check` los
+  valida y `make publish` los sube a Firestore: `opinion/{slug}` y `opinion_state/front` (las
+  fichas de todos, para que la lista sea una lectura). **Publicar un artículo no pide redesplegar.**
+  Este servicio solo los lee (`src/markethub/opinion.py`). En local: `make preview` allí los deja
+  en `data/opinion/`.
+- **Web**: pestaña `Opinion` en la cabecera pública y en la navegación de My Hub; `/opinion/` (el
+  más nuevo arriba, el resto a dos columnas) y `/opinion/article/?slug=` (texto, valores, fuentes
+  y comentarios). El texto es un Markdown reducido que se pinta como elementos, nunca como HTML.
+- **Comentarios** (`opinion_comments/{id}`): hilos con respuestas hasta seis niveles. Leer no pide
+  cuenta; escribir y responder, sí (`POST /api/opinion/comments`, con el control de `Origin` de
+  siempre). 2.000 caracteres, 20 por usuario y hora, 1.000 por artículo, solo texto. Cada uno borra
+  los suyos; el hueco queda vacío en el hilo para que las respuestas sigan teniendo sentido.
+  **Moderación**: con una cuenta de `MARKETHUB_ADMINS` (correos separados por comas; el script de
+  deploy la pasa) se borra cualquiera. No hay votos ni avisos por correo.
+- **Privacidad**: de quien comenta se guarda su id de cuenta (para que pueda borrar lo suyo) y el
+  **nombre de pila**, que es lo único que se muestra: ni apellido, ni correo, ni foto. Borrar la
+  cuenta vacía sus comentarios. Está dicho en `/privacy/` y `/account/` (que los lista y los
+  incluye en la descarga). El texto de los comentarios no va a los logs.
+- 76 tests en verde (`tests/test_opinion.py`). Probado en local con capturas; el flujo de comentar
+  con sesión real de Google no se ha probado en el navegador.
+
+Pendiente:
+- **Crear el repo `market-hub-opinion` en GitHub** (lo tiene que hacer el usuario: la cuenta con
+  sesión en el equipo no puede crear repos en la suya) y añadirlo como submódulo del workspace.
+- **Desplegar** portal y herramientas (enlace `Opinion` en su navegación) y **publicar** los seis
+  artículos iniciales (`make publish` en `market-hub-opinion`).
+- Poner `MARKETHUB_ADMINS` en `.env` antes de desplegar, o nadie podrá moderar.
+- La landing y la película no enseñan Opinión.
 
 ### Artículos de noticias, con su tono y su sector (2026-10-06; desplegado como `market-hub-00012-w8l`)
 

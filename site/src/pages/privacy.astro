@@ -6,11 +6,13 @@ import { link } from "../lib/site";
 <Site title="Privacy" description="What Market Hub keeps about you and why.">
 	<div class="max-w-3xl space-y-5 text-[14px] leading-relaxed text-ink">
 		<h1 class="text-2xl font-bold text-ink-strong">Privacy</h1>
-		<p>Market Hub keeps the least it needs to show you your private dashboard. The public pages (markets, quotes) need no account and keep nothing about you.</p>
+		<p>Market Hub keeps the least it needs to show you your private dashboard and to let you comment. The public pages (markets, quotes, news, opinion) need no account and keep nothing about you.</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">What we keep</h2>
 		<ul class="list-disc space-y-1 pl-5">
 			<li>From your Google account, when you sign in: your account id, name, email address and profile picture.</li>
 			<li>What you add: the tickers you hold with their number of shares and average cost, and the tickers you follow.</li>
+			<li>The comments you write under opinion articles. They are public, and they are shown with your first name: not with your
+				surname, your email address or your picture.</li>
 			<li>A session cookie, signed by us, that keeps you signed in for up to 30 days. No advertising or tracking cookies.</li>
 			<li>Nothing about you in the analysis tools. Fundamentals Lab and the Earnings Radar, on their own subdomains, read the
 				same session cookie only to check that you are signed in; they do not store your name, email or stocks.</li>
@@ -25,7 +27,8 @@ import { link } from "../lib/site";
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Your control</h2>
 		<p>
 			On <a href={link("/account/")} class="link">Account and data</a> you can see and download everything kept about you, and
-			delete your account: that removes it from the database at once.
+			delete your account: that removes it from the database at once, and empties every comment you wrote. You can also
+			delete any comment of yours where it stands.
 		</p>
 	</div>
 </Site>
