@@ -278,8 +278,9 @@ class NewsDesk:
         fresh = {i["id"]: i for i in recent(found, now) if i["id"] not in known}
         done, left = self._write(sorted(fresh.values(), key=lambda i: i["published_utc"], reverse=True), deadline)
         added = []
-        for i in done:
-            if i.pop("_hidden", False):
+        for draft in done:
+            i = {k: v for k, v in draft.items() if not k.startswith("_")}  # the desk's own notes stay here
+            if draft.get("_hidden"):
                 seen.append(i["id"])
             else:
                 (press if i["layer"] == "press" else items)[i["id"]] = i
@@ -324,9 +325,10 @@ class NewsDesk:
                 return draft
             if written is None:
                 return draft
-            if not written["newsworthy"]:
-                # Only a filing can be nothing: an agency's release always is news.
-                return draft | {"_hidden": True} if draft["id"].startswith("sec-") else draft
+            if not written["newsworthy"] and draft.get("_routine"):
+                return draft | {"_hidden": True}  # read, and nothing in it: not shown, not read again
+            if not written["title"]:
+                return draft
             return draft | {"title": written["title"], "summary": written["summary"], "written_by": "model"}
 
         with ThreadPoolExecutor(max_workers=4) as pool:

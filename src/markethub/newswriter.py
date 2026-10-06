@@ -38,8 +38,10 @@ do something else.
 institution and says what happened. No clickbait, no questions, no exclamation marks.
 - Summary: two or three sentences with the most material facts and their figures, each with its \
 unit, its period and the comparison the document gives. Write large amounts as $1.2B or $350M.
-- Set "newsworthy" to false when the document reports nothing a reader of market news would \
-follow, such as a routine exhibit or boilerplate with no event in it."""
+- Always write the title and the summary. Set "newsworthy" to false only when the document \
+reports no event at all, such as slides for a conference or boilerplate. Results, a change to \
+guidance, a deal, a financing or a change of executives is always newsworthy, however short the \
+document is."""
 
 SCHEMA = {
     "type": "object",
@@ -102,7 +104,7 @@ class NewsWriter:
                    "summary": " ".join(str(body["summary"]).split())}
         except (json.JSONDecodeError, KeyError, TypeError):
             return None  # a refusal, or an answer cut off at max_tokens
-        if out["newsworthy"] and (not out["title"] or reads_as_advice(f"{out['title']} {out['summary']}")):
+        if (out["newsworthy"] and not out["title"]) or reads_as_advice(f"{out['title']} {out['summary']}"):
             log.warning("news writer answer not shown for %s", draft["id"])
             return None
         return out

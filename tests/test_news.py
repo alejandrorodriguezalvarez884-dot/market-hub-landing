@@ -132,7 +132,8 @@ def test_sec_filings_of_the_largest_companies_titled_by_code():
     assert apple["summary"] == "Form 8-K filed with the SEC (items 2.02 and 9.01)." and apple["written_by"] == "code"
     # The document behind it is the press release, not the cover form; nothing is fetched until asked.
     assert http.asked == [SEC_FEED]
-    assert apple["_read"]().startswith("Apple reports fourth quarter results.")
+    assert apple["_read"]().startswith("[Exhibit 99, attached to the form]\nApple reports fourth quarter results.")  # its form is down
+    assert apple["_routine"] is False
 
 
 def test_sec_feed_is_read_back_to_the_last_refresh_and_no_further():
@@ -228,11 +229,12 @@ class Clock:
 
 class FakeWriter:
     def __init__(self, answers=None):
-        self.answers, self.read = answers or {}, []
+        self.answers, self.read, self.documents = answers or {}, [], {}
 
     def write(self, draft, document):
         self.read.append(draft["id"])
-        return self.answers.get(draft["id"], {"newsworthy": True, "title": f"Written: {draft['title']}", "summary": document[:20]})
+        self.documents[draft["id"]] = document
+        return self.answers.get(draft["id"], {"newsworthy": True, "title": f"Written: {draft['title']}", "summary": "What it says."})
 
 
 class FakeMarkets:
@@ -280,18 +282,34 @@ def test_nothing_is_read_while_the_news_is_fresh_and_nothing_twice():
     assert len(d.news(limit=50)["items"]) == 4
 
 
-def test_the_model_writes_the_item_and_a_filing_that_is_not_news_is_remembered():
+def test_the_model_writes_the_item_from_the_form_and_its_press_release():
+    # The model calls the change of officers nothing; it is not a catch-all filing, so it is shown.
     writer = FakeWriter({"sec-0000021344-26-000011": {"newsworthy": False, "title": "", "summary": ""}})
-    d, clock, _ = desk(writer=writer)
+    d, _, _ = desk(writer=writer)
     d.refresh()
     items = {i["id"]: i for i in d.news(limit=50)["items"]}
     apple = items["sec-0000320193-26-000070"]
     assert apple["title"] == "Written: Apple Inc. published results" and apple["written_by"] == "model"
-    assert apple["summary"] == "Apple reports fourth"
-    assert "sec-0000021344-26-000011" not in items and d.store.front()["seen"] == ["sec-0000021344-26-000011"]
+    assert "Apple reports fourth quarter results." in writer.documents[apple["id"]]
+    assert writer.documents["sec-0000021344-26-000011"].startswith("[Form 8-K]\nThe Coca-Cola Company announced")
+    coke = items["sec-0000021344-26-000011"]
+    assert coke["written_by"] == "code" and coke["title"].startswith("Coca Cola Co reported a change")
+    assert all(not key.startswith("_") for i in items.values() for key in i) and d.store.front()["seen"] == []
+
+
+def test_a_catch_all_filing_with_nothing_in_it_is_remembered_and_not_shown():
+    slides = "sec-0000320193-26-000071"
+    index = APPLE_INDEX.replace("000070", "000071")
+    http = FakeHttp({SEC_FEED: atom(filing("Apple Inc.", 320193, "0000320193-26-000071", ["7.01", "9.01"])),
+                     index: INDEX.replace("000032019326000070", "000032019326000071").encode(),
+                     "https://www.sec.gov/Archives/edgar/data/320193/000032019326000071/ex991.htm": RELEASE.encode()})
+    writer = FakeWriter({slides: {"newsworthy": False, "title": "Apple posts slides", "summary": ""}})
+    d, clock, _ = desk(writer=writer, sources=[SecFilings(http, directory())])
+    d.refresh()
+    assert d.news()["items"] == [] and d.store.front()["seen"] == [slides]
     clock.at += timedelta(hours=1)
     d.refresh()
-    assert writer.read.count("sec-0000021344-26-000011") == 1
+    assert writer.read == [slides]  # read once
 
 
 def test_a_writer_that_fails_leaves_the_codes_title():
@@ -381,8 +399,10 @@ def test_writer_asks_for_json_and_reads_only_the_opening_of_the_document():
 def test_writer_answers_that_cannot_be_shown():
     advice = answer('{"newsworthy": true, "title": "Apple looks undervalued after results", "summary": "x"}')
     cut = answer('{"newsworthy": true, "title": "App', stop="max_tokens")
-    writer = NewsWriter(client=FakeClaude(advice, cut))
+    nothing = answer('{"newsworthy": false, "title": "", "summary": ""}')
+    writer = NewsWriter(client=FakeClaude(advice, cut, nothing))
     assert writer.write(DRAFT, "doc") is None and writer.write(DRAFT, "doc") is None
+    assert writer.write(DRAFT, "doc") == {"newsworthy": False, "title": "", "summary": ""}  # the desk decides what to do
 
 
 def test_writer_stops_asking_when_the_account_is_refused():

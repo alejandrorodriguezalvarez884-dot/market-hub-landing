@@ -187,6 +187,8 @@ ITEMS = {
     "8.01": ("reported an event to its investors", "Companies"),
     "7.01": ("made a disclosure to its investors", "Companies"),
 }
+ROUTINE = {"7.01", "8.01"}
+FORM_CHARS = 6000  # of the form itself, what is read before its press release
 FORM_TITLE = re.compile(r"^8-K - (.+?) \((\d{10})\) \(Filer\)\s*$")  # amendments (8-K/A) are left out
 READABLE = (".htm", ".html", ".txt")
 
@@ -225,9 +227,13 @@ def filing_item(entry: dict, company: Company) -> dict | None:
         return None
     phrase, category = ITEMS[told[0]]
     codes = sorted(set(entry["items"]))
-    return item(f"sec-{entry['accession']}", "official", category, f"{_tidy(company.name)} {phrase}", "SEC filing",
-                entry["url"], entry["filed"], summary=f"Form 8-K filed with the SEC (item{'s' if len(codes) > 1 else ''} {_list(codes)}).",
-                tickers=[company.ticker], written_by="code")
+    found = item(f"sec-{entry['accession']}", "official", category, f"{_tidy(company.name)} {phrase}", "SEC filing",
+                 entry["url"], entry["filed"], summary=f"Form 8-K filed with the SEC (item{'s' if len(codes) > 1 else ''} {_list(codes)}).",
+                 tickers=[company.ticker], written_by="code")
+    # Only a filing made under the two catch-all items can turn out to be nothing (slides for a
+    # conference, say). Results, deals and changes of officers are always shown.
+    found["_routine"] = set(told) <= ROUTINE
+    return found
 
 
 def filing_documents(index_html: str) -> list[tuple[str, str]]:
@@ -244,11 +250,14 @@ def filing_documents(index_html: str) -> list[tuple[str, str]]:
     return out
 
 
-def _reading_order(docs: list[tuple[str, str]]) -> list[str]:
-    """The press release first (EX-99.1 by convention), then the form itself."""
+def _to_read(docs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """(label, address) of what the model reads: the form, where the company says what happened,
+    and its first press release or statement (EX-99.1 by convention), where the figures are."""
     def rank(kind: str) -> int:
-        return 0 if kind in ("EX-99.1", "EX-99.01", "EX-99") else 1 if kind.startswith("EX-99") else 2 if kind == "8-K" else 9
-    return [url for kind, url in sorted(docs, key=lambda d: rank(d[0])) if rank(kind) < 9]
+        return 0 if kind in ("EX-99.1", "EX-99.01", "EX-99") else 1
+    form = [("Form 8-K", url) for kind, url in docs if kind == "8-K"][:1]
+    exhibits = sorted((d for d in docs if d[0].startswith("EX-99")), key=lambda d: rank(d[0]))
+    return form + [("Exhibit 99, attached to the form", url) for _, url in exhibits[:1]]
 
 
 class SecFilings:
@@ -277,11 +286,21 @@ class SecFilings:
 
     def _reader(self, index_url: str) -> Callable[[], str]:
         def read() -> str:
-            for url in _reading_order(filing_documents(self.http.text(index_url))):
-                text = html_text(self.http.text(url))
-                if len(text) > 400:  # a cover page or an image-only exhibit says nothing
-                    return text
-            raise SourceDown("the filing has no readable document")
+            parts = []
+            for label, url in _to_read(filing_documents(self.http.text(index_url))):
+                try:
+                    text = html_text(self.http.text(url))
+                except SourceDown as exc:
+                    log.warning("news document not read: %s", exc)
+                    continue
+                if label == "Form 8-K":
+                    # Past the cover page (addresses, the list of securities), from the first item on.
+                    start = re.search(r"^Item\s+\d\.\d\d", text, re.M)
+                    text = text[start.start() if start else 0:][:FORM_CHARS]
+                parts.append(f"[{label}]\n{text}")
+            if sum(map(len, parts)) < 400:  # a cover page alone says nothing
+                raise SourceDown("the filing has no readable document")
+            return "\n\n".join(parts)
         return read
 
 

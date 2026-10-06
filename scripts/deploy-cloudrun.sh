@@ -4,8 +4,11 @@
 # go to Secret Manager. The service scales to zero.
 #
 # Requirements: the gcloud CLI logged in on a project with billing enabled, and .env with
-# GOOGLE_CLIENT_ID, SESSION_SECRET, FMP_API_KEY and SEC_USER_AGENT. ANTHROPIC_API_KEY is optional:
-# with it the news items are written by the model, without it they keep the titles the code writes.
+# GOOGLE_CLIENT_ID, SESSION_SECRET, FMP_API_KEY and SEC_USER_AGENT. The news writer takes its
+# Anthropic key from Secret Manager: ANTHROPIC_SECRET names the secret (default
+# market-hub-anthropic-api-key; it can be one another service already uses). A key in
+# ANTHROPIC_API_KEY is stored there first; with no key and no secret the news items keep the
+# titles the code writes.
 #
 # Optional overrides: GCP_PROJECT, GCP_REGION, SERVICE_NAME, MAX_INSTANCES, FIRESTORE_LOCATION,
 # FIRESTORE_DATABASE.
@@ -39,6 +42,8 @@ SESSION_SECRET="$(env_value SESSION_SECRET)"
 FMP_KEY="$(env_value FMP_API_KEY)"
 SEC_USER_AGENT="$(env_value SEC_USER_AGENT)"
 ANTHROPIC_KEY="$(env_value ANTHROPIC_API_KEY)"
+ANTHROPIC_SECRET="${ANTHROPIC_SECRET:-$(env_value ANTHROPIC_SECRET)}"
+ANTHROPIC_SECRET="${ANTHROPIC_SECRET:-market-hub-anthropic-api-key}"
 EARNINGS_RADAR_URL="$(env_value EARNINGS_RADAR_URL)"
 FUNDAMENTALS_LAB_URL="$(env_value FUNDAMENTALS_LAB_URL)"
 COOKIE_DOMAIN="$(env_value MARKETHUB_COOKIE_DOMAIN)"
@@ -85,10 +90,15 @@ put_secret market-hub-session-secret "$SESSION_SECRET"
 put_secret market-hub-fmp-api-key "$FMP_KEY"
 SECRETS="SESSION_SECRET=market-hub-session-secret:latest,FMP_API_KEY=market-hub-fmp-api-key:latest"
 if [[ -n "$ANTHROPIC_KEY" ]]; then
-  put_secret market-hub-anthropic-api-key "$ANTHROPIC_KEY"
-  SECRETS="$SECRETS,ANTHROPIC_API_KEY=market-hub-anthropic-api-key:latest"
+  put_secret "$ANTHROPIC_SECRET" "$ANTHROPIC_KEY"
+fi
+if gcp secrets describe "$ANTHROPIC_SECRET" >/dev/null 2>&1; then
+  gcp secrets add-iam-policy-binding "$ANTHROPIC_SECRET" \
+    --member "serviceAccount:$SERVICE_ACCOUNT" --role roles/secretmanager.secretAccessor >/dev/null
+  SECRETS="$SECRETS,ANTHROPIC_API_KEY=$ANTHROPIC_SECRET:latest"
+  echo "→ News writer on, key from the secret $ANTHROPIC_SECRET"
 else
-  echo "note: ANTHROPIC_API_KEY is empty in $ENV_FILE: news items will keep the titles the code writes."
+  echo "note: no Anthropic key anywhere: news items will keep the titles the code writes."
 fi
 
 echo "→ Building with Cloud Build and deploying '$SERVICE_NAME' to $GCP_REGION (a few minutes)"
