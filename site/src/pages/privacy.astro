@@ -11,6 +11,10 @@ import { link } from "../lib/site";
 		<ul class="list-disc space-y-1 pl-5">
 			<li>From your Google account, when you sign in: your account id, name, email address and profile picture.</li>
 			<li>What you add: the tickers you hold with their number of shares and average cost, and the tickers you follow.</li>
+			<li>If you choose to share your portfolio, and only then: the name you pick to be shown under, the tickers you hold with each
+				one's share of the portfolio in percent, and the returns of those holdings. Signed-in members see that on the Community
+				page. It never includes your name, email or picture, how many shares you hold, what you paid or what it is worth.
+				It is off until you turn it on, and turning it off removes it at once.</li>
 			<li>The comments you write under opinion articles. They are public, and they are shown with your first name: not with your
 				surname, your email address or your picture.</li>
 			<li>A session cookie, signed by us, that keeps you signed in for up to 30 days. No advertising or tracking cookies.</li>
@@ -19,15 +23,22 @@ import { link } from "../lib/site";
 		</ul>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">What we do with it</h2>
 		<p>
-			Only show it back to you. To value your positions, the server asks the market data provider for the prices of your tickers;
-			it does not send your name, email, share counts or costs. Nothing is sold or shared, and we do not connect to any broker.
+			Show it back to you, and to other members only what you chose to share. To value your positions, the server asks the
+			market data provider for the prices of your tickers; it does not send your name, email, share counts or costs.
+		</p>
+		<p>
+			The sentences that read your portfolio back to you are written by a language model run by Anthropic. To write them, the
+			server sends it what your portfolio is made of and how it has moved: the tickers, each one's share in percent, and their
+			returns. It does not send your name, email or account, how many shares you hold, what you paid or what it is worth, and
+			we keep nothing of what the model writes. Nothing is sold, and we do not connect to any broker.
 		</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Where it lives</h2>
 		<p>In a Google Cloud Firestore database in the European Union (Belgium region), accessible only to the service.</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Your control</h2>
 		<p>
 			On <a href={link("/account/")} class="link">Account and data</a> you can see and download everything kept about you, and
-			delete your account: that removes it from the database at once, and empties every comment you wrote. You can also
+			delete your account: that removes it from the database at once, takes your portfolio off the Community page and empties every
+			comment you wrote. You can also
 			delete any comment of yours where it stands.
 		</p>
 	</div>

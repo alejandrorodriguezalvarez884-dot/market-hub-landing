@@ -92,6 +92,20 @@ NEWS_DOC_CHARS = 16000  # of a document, what the model reads: the narrative com
 # USD per million tokens (input, output), to log what each item cost.
 MODEL_PRICES = {"claude-haiku-4-5": (1.00, 5.00)}
 
+# --- My Hub ------------------------------------------------------------------------------------
+
+# The model that reads a portfolio back to its owner in a few sentences (insights.py), with the
+# same key as the news. A portfolio that has not changed is read once a day; one that changes, at
+# most this many times a day per user. Without a key the page keeps the sentences the code writes.
+INSIGHTS_MODEL = os.environ.get("INSIGHTS_MODEL", "claude-haiku-4-5")
+INSIGHTS_PER_USER_PER_DAY = int(os.environ.get("INSIGHTS_PER_USER_PER_DAY", "6"))
+# Portfolios their owners chose to share, shown on the community board.
+COMMUNITY_MEMBERS = 300
+# A shared portfolio's figures are worked out again when they are older than this...
+COMMUNITY_STALE_SECONDS = 6 * 3600
+# ...and at most this many of them on one visit to the board.
+COMMUNITY_REFRESH_PER_VISIT = 4
+
 # --- The tools the portal opens ------------------------------------------------------------
 
 EARNINGS_RADAR_URL = os.environ.get("EARNINGS_RADAR_URL", "https://earningsradar.app").rstrip("/")

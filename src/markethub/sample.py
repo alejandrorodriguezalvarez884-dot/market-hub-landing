@@ -18,6 +18,9 @@ from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 
 START = date(2019, 1, 2)
+MARKET_VOL = 0.0095  # the daily volatility of the market as a whole, in the sample
+# The seed of the market's own walk: one whose last year looks like an ordinary year, not a crash.
+MARKET_SEED = "market-57"
 RANGES = ("1D", "5D", "1M", "6M", "YTD", "1Y", "5Y")
 
 
@@ -117,6 +120,16 @@ def spec(symbol: str, name: str | None = None) -> Spec:
                 r.choice(SECTORS), shares, round(level / r.uniform(12, 40), 2), round(r.choice([0, 0, 0.008, 0.015, 0.024]), 4))
 
 
+def beta_of(s: Spec) -> float:
+    """How much of the market's move an instrument takes: a share's grows with its volatility,
+    less than in proportion; an index or a fund's is its volatility over the market's."""
+    if s.symbol == "VIX":
+        return -5.0
+    if s.kind == "stock":
+        return round(min(1.9, max(0.4, 0.35 + 0.65 * s.vol / 0.0105)), 2)
+    return round(min(2.2, max(0.35, s.vol / 0.0105)), 2)
+
+
 def trading_day(today: date | None = None) -> date:
     d = today or datetime.now(timezone.utc).date()
     while d.weekday() >= 5:
@@ -133,10 +146,20 @@ def _daily(symbol: str, name: str, last_day: date) -> tuple[tuple, ...]:
     """(date, open, high, low, close, volume) per trading day from START to ``last_day``."""
     s = spec(symbol, name)
     r = random.Random(_seed("daily", s.symbol))
+    # The market's own move each day, the same for every symbol: shares and their indices move
+    # with it, each by its beta, so a basket of them behaves like one (it is less volatile than
+    # its parts, and it has a beta to the index). Everything else walks on its own.
+    market = random.Random(_seed(MARKET_SEED))
+    equity = s.kind in ("index", "stock", "etf")
+    beta = beta_of(s)
+    # What is left of its own volatility once the market's part is taken out. An index or a fund
+    # is nearly all market; the volatility index moves against it.
+    own = s.vol * (0.5 if s.symbol == "VIX" else 0.15 if s.kind != "stock" else max(0.35, (max(0.0, 1 - (beta * MARKET_VOL / s.vol) ** 2)) ** 0.5))
     rows, level, d = [], 100.0, START
     while d <= last_day:
         if d.weekday() < 5:
-            ret = r.gauss(0.0004, s.vol)
+            moved = market.gauss(0.0005, MARKET_VOL)
+            ret = beta * moved + r.gauss(0, own) if equity else r.gauss(0.0004, s.vol)
             o = level * (1 + r.gauss(0, s.vol / 4))
             c = level * (1 + ret)
             hi = max(o, c) * (1 + abs(r.gauss(0, s.vol / 2)))

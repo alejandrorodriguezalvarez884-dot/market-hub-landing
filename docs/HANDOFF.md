@@ -333,6 +333,70 @@ grabación con Playwright descrita más arriba.
   el sonido se activa en los controles. La nota pasa de "No sound" a "With sound".
 - `film/` no se sube a Cloud Run (`.gcloudignore`, `.dockerignore`).
 
+### My Hub a fondo: análisis de cartera, frases con IA, comunidad (2026-10-06)
+
+El usuario pidió mejorar mucho My Hub: mucha más información de la cartera (aunque hubiera que
+simular datos, porque FMP está sin cuota), frases escritas con IA que la analicen, verla agrupada
+por sector, volatilidad, país..., compartir carteras (solo si el usuario quiere) con una
+clasificación que diga si estás por encima de la media (día, 1 mes, 3 meses, YTD, 1 año) y
+gráficas comparadas con los índices. **Hecho y probado en local; sin commit ni despliegue.**
+
+- **Tres páginas** en la barra de My Hub: `Overview` (`/dashboard/`, rehecha), `Analysis`
+  (`/analysis/`, nueva) y `Community` (`/community/`, nueva), además de `Portfolio` y `Account`.
+  `HubNav.astro` de `fundamentals-lab` y `decision-signal-lab` lleva los dos enlaces nuevos.
+- **Datos con respaldo** (`src/markethub/holdings.py`): `gather()` pide cotizaciones, cierres y
+  ficha a FMP; si no contesta (o no da ni un precio), toda la respuesta sale de los datos de ejemplo
+  (`SampleData`, sobre `sample.py`) y lleva `"sample": true`. Nunca se mezclan. Las páginas lo
+  dicen con la etiqueta "sample figures" junto al título. `/api/dashboard` ya no da 503 por FMP.
+  `MARKETHUB_SAMPLE_MARKETS=1` fuerza el ejemplo. Los datos de ejemplo ahora se sostienen: las
+  acciones y los índices comparten el movimiento del mercado (`MARKET_SEED`, `beta_of` en
+  `sample.py`), así que una cesta tiene beta y menos volatilidad que sus partes; las empresas
+  conocidas tienen su sector y su país (`SAMPLE_SECTOR_OF`, `SAMPLE_COUNTRIES`).
+- **Análisis** (`dashboard.py`): por posición, país, beta, volatilidad anualizada del último año y
+  su tramo (baja <20 %, media, alta ≥35 %), tamaño por capitalización, rentabilidad por dividendo,
+  distancia al máximo de 52 semanas y los puntos que aporta al movimiento del día. `groups`: las
+  posiciones agrupadas por sector, país, volatilidad y tamaño, cada grupo con su peso y sus
+  rentabilidades ponderadas. `performance`: la cartera frente a S&P 500, Nasdaq 100, Dow Jones y
+  Russell 2000 (por sus fondos SPY, QQQ, DIA, IWM) en los cinco periodos. `risk`: volatilidad, beta
+  frente al S&P 500, mayor caída desde un máximo, días al alza, mejor y peor día, peso de la mayor
+  y de las tres mayores, "se comporta como N posiciones iguales" (1/Σw²) y dividendo ponderado.
+  **Toda rentabilidad de la cartera es la de las posiciones de hoy mantenidas durante el periodo**
+  (no se guardan operaciones), y las páginas lo dicen.
+- **Frases** (`insights.py`): dos redactores de lo mismo. `sentences()` es código: sale con el
+  dashboard, gratis y siempre. `InsightWriter` es Claude Haiku 4.5 (misma clave que las noticias):
+  la página pinta las del código y pide `/api/insights`; si el modelo contesta, las sustituye. Al
+  modelo solo va `facts()`: tickers, pesos y rentabilidades en porcentaje; **nunca** identidad,
+  número de acciones, costes ni importes (hay un test que lo comprueba). Lo que escribe pasa un
+  filtro de consejos (`reads_as_advice`): la frase que aconseja se descarta. Una cartera sin
+  cambios se lee una vez al día y como mucho `INSIGHTS_PER_USER_PER_DAY` (6) veces por usuario; la
+  caché es en memoria, así que un arranque en frío la vuelve a pedir. Cada lectura cuesta medio
+  céntimo (unos 3.900 tokens de entrada y 330 de salida); el coste va al log. No se guarda nada de
+  lo que escribe. En la página no se dice que lo escribe una IA (el dueño no quiere notas de cómo
+  está hecho); sí en `/privacy/`, porque es un dato que sale del servidor.
+- **Comunidad** (`community.py`): compartir está apagado hasta que el usuario lo enciende y elige
+  un nombre (3 a 20 caracteres, único). Se guarda un documento aparte (`shared_portfolios/{id}`,
+  el id de la cuenta no sale del servidor) con el nombre, los tickers con su peso, las
+  rentabilidades y las "unidades" (peso/precio), que permiten recalcular sin saber el tamaño de
+  nada. Lo ven solo usuarios con sesión. Sigue a la cartera (se rehace al guardar y al abrir el
+  dashboard; las viejas de más de 6 h, cuatro por visita al tablero), y desaparece al apagarlo, al
+  vaciar la cartera o al borrar la cuenta. El tablero ordena por la rentabilidad del periodo,
+  intercala los cuatro índices y la media, y dice a cada usuario, comparta o no, su puesto, si
+  está por encima de la media y por cuántos puntos. **Mientras los datos son de ejemplo se añaden
+  doce carteras de relleno** (`SAMPLE_NAMES`), marcadas "sample" una a una: no son personas, y
+  desaparecen en cuanto las cifras son reales. Con datos reales y pocos usuarios el tablero estará
+  casi vacío: es lo honesto.
+- **Privacidad y cuenta**: `/privacy/` dice lo que se comparte y lo que va al modelo; `/account/`
+  muestra si la cartera está compartida y lo incluye en la descarga; borrar la cuenta la quita.
+- **Tests**: 106 en verde (29 nuevos en `tests/test_myhub.py`).
+- **Probado** en local con Chrome a 1440 y 390 px, con una sesión de prueba y datos de ejemplo:
+  las tres páginas, sin desbordes. Una llamada real al modelo para ver la calidad de las frases
+  (dos, 0,01 USD en total): las cifras que escribió coincidían con los datos.
+- **Pendiente**: desplegar los tres servicios (el portal y, por la navegación, las dos
+  herramientas); verlo con el login real de Google; moderación de nombres del tablero (hoy solo
+  se rechazan los reservados; un admin no puede quitar uno); la clasificación compara carteras
+  "como están hoy", no lo que cada uno ganó de verdad; revisar con FMP real el campo `country` y
+  la capitalización de la ficha (`profile`), que hasta ahora no se leían.
+
 ### Portadas de noticias y de opinión (2026-10-06)
 
 El usuario pidió imágenes en noticias y en opinión, **generadas en local con Claude Code, sin

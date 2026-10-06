@@ -1,0 +1,191 @@
+---
+// My Hub, Analysis: the portfolio taken apart. What it is made of (by sector, country, volatility
+// and size), how today's holdings did against each index, how much it moves and how its weight
+// is spread, and every position's own figures. Descriptive: it says what is, not what to do.
+import App from "../components/App.astro";
+---
+
+<App title="Analysis" description="Your portfolio taken apart: what it is made of, how it moves and how it stands against the indices.">
+	<div id="analysis" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-72"></div><div class="skeleton h-64"></div></div>
+</App>
+
+<script>
+	import { requireUser } from "../lib/api";
+	import { add, card, h, linkTo, stat } from "../lib/dom";
+	import { pct, shortDate, signedPct } from "../lib/format";
+	import { cell, empty, failure, getDashboard, moveCell, pageHead, points, shareBar, stackedBar, tickerChips, tone } from "../lib/hub";
+	import { link, tidyName } from "../lib/site";
+	import type { Dashboard, Grouping, Row } from "../lib/types";
+	import { rulerAxis, track } from "../lib/widgets";
+
+	const root = document.getElementById("analysis")!;
+	const th = (text: string, cls = "") => h("th", cls, text);
+
+	// --- What it is made of ------------------------------------------------------------------------
+
+	function makeup(d: Dashboard): HTMLElement {
+		const c = card("What it is made of", "The same positions, gathered four ways");
+		const tabs = h("div", "tabs");
+		tabs.setAttribute("role", "tablist");
+		const body = h("div", "mt-4");
+		const show = (g: Grouping) => {
+			tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.key === g.key)));
+			const table = h("table", "data-table");
+			add(table,
+				add(h("thead"), add(h("tr"), th(g.label), th("Share"), th("Positions"), th("Today"), th("1 month"), th("This year"), th("1 year"), th("Volatility"))),
+				add(h("tbody"), ...g.items.map((it) => add(h("tr"),
+					add(h("td"), h("span", "font-semibold text-ink-strong", it.label), h("div", "text-[11px] text-muted", `${it.count} position${it.count > 1 ? "s" : ""}`)),
+					add(h("td", "whitespace-nowrap"), shareBar(it.weight, "mr-2 w-20"), h("span", "num text-ink-strong", pct(it.weight))),
+					add(h("td", "!text-left"), tickerChips(it.tickers)),
+					moveCell(it.day_change_pct, 2), moveCell(it.return_1m), moveCell(it.return_ytd), moveCell(it.return_1y),
+					cell(pct(it.volatility, 0), "num text-muted")))));
+			body.replaceChildren(
+				g.note ? h("p", "mb-3 text-[13px] text-muted", g.note) : h("span"),
+				stackedBar(g.items),
+				add(h("div", "mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-muted"), ...g.items.slice(0, 6).map((it) => h("span", "", `${it.label} ${pct(it.weight, 0)}`))),
+				add(h("div", "mt-4 overflow-x-auto"), table));
+		};
+		for (const g of d.groups) {
+			const b = h("button", "tab-btn", `By ${g.label.toLowerCase()}`);
+			b.type = "button";
+			b.dataset.key = g.key;
+			b.setAttribute("role", "tab");
+			b.addEventListener("click", () => {
+				show(g);
+				history.replaceState(null, "", `#${g.key}`);
+			});
+			tabs.append(b);
+		}
+		add(c.body, tabs, body);
+		show(d.groups.find((g) => g.key === location.hash.slice(1)) ?? d.groups[0]);
+		return c.el;
+	}
+
+	// --- Against the indices -----------------------------------------------------------------------
+
+	function against(d: Dashboard): HTMLElement {
+		const c = card("Against the indices", "Today's holdings held through each period. Trades are not recorded, so this is not your actual past return.");
+		const indices = d.performance.indices;
+		const gaps = d.performance.periods.map((p) => (p.portfolio != null && p.indices[indices[0].ticker] != null ? p.portfolio - p.indices[indices[0].ticker]! : null));
+		// One scale for the five gaps, so a period's lead or lag reads against the others.
+		const scale = Math.max(0.02, ...gaps.map((g) => Math.abs(g ?? 0)));
+		const table = h("table", "data-table");
+		add(table,
+			add(h("thead"), add(h("tr"), th("Period"), th("Your holdings"), ...indices.map((i) => th(i.name)),
+				add(th(""), add(h("div", "ml-auto flex w-[132px] flex-col items-end"), h("span", "", `vs ${indices[0].name}`))), th(""))),
+			add(h("tbody"), ...d.performance.periods.map((p, n) => add(h("tr"),
+				add(h("td"), h("span", "font-semibold text-ink-strong", p.label)),
+				cell(signedPct(p.portfolio, p.key === "1d" ? 2 : 1), `num font-semibold ${tone(p.portfolio)}`),
+				...indices.map((i) => moveCell(p.indices[i.ticker], p.key === "1d" ? 2 : 1)),
+				add(h("td"), add(h("div", "ml-auto w-[132px]"), track(gaps[n], scale))),
+				cell(points(gaps[n], p.key === "1d" ? 2 : 1), `num ${tone(gaps[n])}`)))));
+		c.body.className = "";
+		c.body.append(add(h("div", "overflow-x-auto"), table));
+		return c.el;
+	}
+
+	// --- How it moves, how it is spread ------------------------------------------------------------
+
+	function movement(d: Dashboard): HTMLElement {
+		const r = d.risk, index = d.performance.indices[0].name;
+		const day = (x: Dashboard["risk"]["best_day"]) => (x ? shortDate(x.date) : undefined);
+		const moves = card("How it moves", "Over the last year, for today's holdings");
+		add(moves.body, add(h("div", "grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3"),
+			stat("Volatility", pct(r.volatility, 0), r.benchmark_volatility != null ? `${index} ${pct(r.benchmark_volatility, 0)} a year` : "a year"),
+			stat("Beta", r.beta == null ? "—" : r.beta.toFixed(2), `Its move for each 1% of the ${index}`),
+			stat("Deepest fall", pct(r.max_drawdown, 1), "From a peak to the low after it", r.max_drawdown ? "down" : ""),
+			stat("Days up", pct(r.up_days, 0), "Of the sessions of the year"),
+			stat("Best day", signedPct(r.best_day?.return, 2), day(r.best_day), "up"),
+			stat("Worst day", signedPct(r.worst_day?.return, 2), day(r.worst_day), "down")));
+		const spread = card("How its weight is spread", "Share of the portfolio's value");
+		add(spread.body, add(h("div", "grid grid-cols-2 gap-x-6 gap-y-5"),
+			stat("Largest position", pct(r.top1), r.top3_tickers[0]),
+			stat("Three largest", pct(r.top3), r.top3_tickers.join(", ")),
+			stat("Behaves like", r.effective_positions == null ? "—" : `${r.effective_positions.toFixed(1)} positions`, `of equal size, out of ${d.totals.positions} held`),
+			stat("Dividend yield", r.dividend_yield ? pct(r.dividend_yield) : "—", "A year, at the last dividends")));
+		return add(h("div", "grid gap-4 lg:grid-cols-[3fr_2fr]"), moves.el, spread.el);
+	}
+
+	// --- Today, position by position ---------------------------------------------------------------
+
+	function today(d: Dashboard): HTMLElement {
+		const c = card("Today, position by position", `How many points of the portfolio's ${signedPct(d.totals.day_change_pct, 2)} each position accounts for`);
+		const rows = d.positions.filter((r) => r.day_contribution != null).sort((a, b) => b.day_contribution! - a.day_contribution!);
+		const scale = Math.max(0.002, ...rows.map((r) => Math.abs(r.day_contribution!)));
+		add(c.body, add(h("div", "ruler"),
+			add(h("div", "ruler-row !py-0 pb-1"), h("span"), h("span", "hidden sm:block"), rulerAxis(scale), h("span")),
+			...rows.map((r) => add(linkTo(link(`/quote/?t=${encodeURIComponent(r.ticker)}`), "ruler-row"),
+				add(h("span", "min-w-0"), h("span", "font-semibold text-ink-strong", r.ticker), h("span", "ml-2 hidden truncate text-[12.5px] text-muted sm:inline", tidyName(r.name))),
+				h("span", `num hidden text-right text-[13px] sm:block ${tone(r.day_change_pct)}`, signedPct(r.day_change_pct, 2)),
+				track(r.day_contribution, scale),
+				h("span", `num text-right text-[13px] ${tone(r.day_contribution)}`, points(r.day_contribution, 2).replace(" pts", ""))))));
+		return c.el;
+	}
+
+	// --- Every position ----------------------------------------------------------------------------
+
+	type Column = { head: string; value: (r: Row) => number | string | null; draw: (r: Row) => HTMLElement };
+	const COLUMNS: Column[] = [
+		{ head: "Stock", value: (r) => r.ticker, draw: (r) => add(h("td"), linkTo(link(`/quote/?t=${encodeURIComponent(r.ticker)}`), "font-semibold text-ink-strong hover:underline", r.ticker), h("div", "max-w-[11rem] truncate text-[11px] text-muted", tidyName(r.name))) },
+		{ head: "Weight", value: (r) => r.weight, draw: (r) => add(h("td", "whitespace-nowrap"), shareBar(r.weight, "mr-2 w-12"), h("span", "num text-ink-strong", pct(r.weight))) },
+		{ head: "Sector", value: (r) => r.sector, draw: (r) => cell(r.sector, "!font-sans text-muted") },
+		{ head: "Country", value: (r) => r.country, draw: (r) => cell(r.country, "!font-sans text-muted") },
+		{ head: "Size", value: (r) => r.market_cap, draw: (r) => cell(r.size, "!font-sans text-muted") },
+		{ head: "Volatility", value: (r) => r.volatility, draw: (r) => add(h("td", "whitespace-nowrap"), h("span", "num text-ink", pct(r.volatility, 0)), h("span", "ml-1.5 font-sans text-[11px] text-muted", r.volatility_group.toLowerCase())) },
+		{ head: "Beta", value: (r) => r.beta, draw: (r) => cell(r.beta == null ? "—" : r.beta.toFixed(2), "num") },
+		{ head: "From 52-week high", value: (r) => r.from_high_52w, draw: (r) => cell(signedPct(r.from_high_52w), "num text-muted") },
+		{ head: "Dividend yield", value: (r) => r.dividend_yield, draw: (r) => cell(r.dividend_yield ? pct(r.dividend_yield) : "—", "num text-muted") },
+		{ head: "1 month", value: (r) => r.return_1m, draw: (r) => moveCell(r.return_1m) },
+		{ head: "3 months", value: (r) => r.return_3m, draw: (r) => moveCell(r.return_3m) },
+		{ head: "This year", value: (r) => r.return_ytd, draw: (r) => moveCell(r.return_ytd) },
+		{ head: "1 year", value: (r) => r.return_1y, draw: (r) => moveCell(r.return_1y) },
+	];
+
+	function positions(d: Dashboard): HTMLElement {
+		const c = card("Every position", "Press a column's name to order by it");
+		const table = h("table", "data-table");
+		const body = h("tbody");
+		let by = 1, down = true;
+		const heads = COLUMNS.map((col, i) => {
+			const b = h("button", "hover:text-ink-strong", col.head);
+			b.type = "button";
+			b.addEventListener("click", () => {
+				down = by === i ? !down : i !== 0 && i !== 2 && i !== 3;
+				by = i;
+				fill();
+			});
+			return add(h("th"), b);
+		});
+		const fill = () => {
+			heads.forEach((x, i) => x.setAttribute("aria-sort", i === by ? (down ? "descending" : "ascending") : "none"));
+			heads.forEach((x, i) => ((x.firstChild as HTMLElement).className = i === by ? "text-ink-strong underline decoration-line-strong underline-offset-4" : "hover:text-ink-strong"));
+			const value = COLUMNS[by].value;
+			const sorted = [...d.positions].sort((a, b) => {
+				const [x, y] = [value(a), value(b)];
+				if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1; // what is not known goes last
+				const order = typeof x === "string" ? x.localeCompare(String(y)) : x - (y as number);
+				return down ? -order : order;
+			});
+			body.replaceChildren(...sorted.map((r) => add(h("tr"), ...COLUMNS.map((col) => col.draw(r)))));
+		};
+		add(table, add(h("thead"), add(h("tr"), ...heads)), body);
+		fill();
+		c.body.className = "";
+		c.body.append(add(h("div", "overflow-x-auto"), table));
+		return c.el;
+	}
+
+	async function start() {
+		await requireUser();
+		try {
+			const d = await getDashboard();
+			const head = pageHead("Analysis", "Your portfolio taken apart: what it is made of, how it moves and how it stands against the indices.",
+				{ sample: d.sample, action: linkTo(link("/portfolio/"), "btn btn-ghost", "Edit portfolio") });
+			if (!d.positions.length) return root.replaceChildren(head, empty("There is nothing to take apart yet."));
+			root.replaceChildren(add(h("div", "grid min-w-0 gap-4"), head, makeup(d), against(d), movement(d), today(d), positions(d)));
+		} catch (e) {
+			failure(root, e);
+		}
+	}
+	start().catch(() => {});
+</script>

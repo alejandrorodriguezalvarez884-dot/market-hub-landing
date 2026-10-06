@@ -2,20 +2,21 @@
 import App from "../components/App.astro";
 ---
 
-<App title="My Hub" description="Your portfolio and your favourite stocks.">
+<App title="Overview" description="Your portfolio today: what it is worth, how it reads and how it stands against the indices.">
 	<div id="dash" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-28"></div><div class="skeleton h-80"></div></div>
 </App>
 
 <script>
-	import { api, config, requireUser, toolLinks, type Config } from "../lib/api";
-	import { compareChart } from "../lib/lwc";
+	import { config, requireUser, toolLinks, type Config } from "../lib/api";
 	import { add, card, h, linkTo, stat, toneOf } from "../lib/dom";
+	import { failure, getDashboard, insightPanel, pageHead, shareBar, stackedBar } from "../lib/hub";
+	import { indexChart } from "../lib/hubcharts";
 	import { money, pct, price, signedPct } from "../lib/format";
 	import { myNews, watchNews } from "../lib/market";
 	import { newsLine } from "../lib/news";
 	import { link, tidyName } from "../lib/site";
 	import { sparkline } from "../lib/spark";
-	import type { Dashboard, Row, Watch } from "../lib/types";
+	import type { Dashboard, Group, Row, Watch } from "../lib/types";
 
 	const root = document.getElementById("dash")!;
 	const tone = (v: number | null | undefined) => (v == null ? "text-ink" : v > 0 ? "up" : v < 0 ? "down" : "text-ink");
@@ -93,32 +94,22 @@ import App from "../components/App.astro";
 		return c.el;
 	}
 
-	function allocation(d: Dashboard): HTMLElement {
-		const c = card("Allocation", "Share of the portfolio's value");
-		const bars = (items: { label: string; weight: number }[]) => add(h("div", "space-y-2"), ...items.map((it) => {
-			const bar = h("div", "h-2 rounded-full");
-			bar.style.width = `${Math.max(1, it.weight * 100)}%`;
-			bar.style.background = "var(--color-ink)";
-			return add(h("div"), add(h("div", "mb-1 flex justify-between gap-3 text-[13px]"), h("span", "truncate text-ink", it.label), h("span", "num font-semibold text-ink-strong", pct(it.weight))),
-				add(h("div", "h-2 rounded-full bg-raised"), bar));
-		}));
-		add(c.body, add(h("div", "grid gap-6 sm:grid-cols-2"),
-			add(h("div"), h("h3", "label mb-3", "By position"),
-				bars(d.positions.filter((p) => p.weight != null).slice(0, 10).map((p) => ({ label: p.ticker, weight: p.weight! })))),
-			add(h("div"), h("h3", "label mb-3", "By sector"),
-				bars(d.sectors.map((s) => ({ label: s.sector, weight: s.weight }))))));
-		return c.el;
-	}
-
-	function history(d: Dashboard): HTMLElement {
-		const hst = d.history;
-		const c = card("Your holdings over the last year", `Today's positions held through the year, against the S&P 500 (${hst.benchmark ?? "SPY"}), both from 100. Trades are not recorded, so this is not your actual past return.`);
-		if (!hst.dates.length) return (c.body.append(h("p", "text-sm text-muted", "No common price history yet.")), c.el);
-		// Drawn once the panel is in the page, so the chart knows its width.
-		requestAnimationFrame(() => compareChart(c.body, hst.dates, [
-			{ name: "Your holdings", values: hst.portfolio_rebased, color: "#f2f0ea" },
-			{ name: "S&P 500", values: hst.benchmark_rebased, color: "#6f6e6a" },
-		]));
+	// What it is made of, at a glance: one line per way of looking at it. The Analysis page takes each apart.
+	function makeup(d: Dashboard): HTMLElement {
+		const c = card("What it is made of", "Share of the portfolio's value");
+		const more = linkTo(link("/analysis/"), "text-[13px] text-muted hover:text-ink-strong", "Take it apart →");
+		c.head.append(more);
+		const line = (title: string, items: Group[]) => add(h("div", "min-w-0"),
+			add(h("div", "mb-2 flex items-baseline justify-between gap-3"), h("h3", "label flex-none", title),
+				h("span", "min-w-0 truncate text-[12.5px] text-muted", items.slice(0, 3).map((g) => `${g.label} ${pct(g.weight, 0)}`).join(" · "))),
+			stackedBar(items));
+		const top = add(h("div", "space-y-2"), ...d.positions.filter((x) => x.weight != null).slice(0, 6).map((x) =>
+			add(h("div", "grid grid-cols-[4.5rem_1fr_3.5rem] items-center gap-3 text-[13px]"),
+				linkTo(link(`/quote/?t=${encodeURIComponent(x.ticker)}`), "font-semibold text-ink-strong hover:underline", x.ticker),
+				shareBar(x.weight, "w-full"), h("span", "num text-right text-ink-strong", pct(x.weight)))));
+		add(c.body, add(h("div", "grid gap-x-10 gap-y-6 lg:grid-cols-2"),
+			add(h("div", "min-w-0 space-y-5"), ...d.groups.map((g) => line(`By ${g.label.toLowerCase()}`, g.items))),
+			add(h("div", "min-w-0"), h("h3", "label mb-3", "Largest positions"), top)));
 		return c.el;
 	}
 
@@ -150,15 +141,17 @@ import App from "../components/App.astro";
 	function draw(name: string, d: Dashboard, cfg: Config) {
 		const t = d.totals;
 		const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-		const edit = linkTo(link("/portfolio/"), "btn btn-ghost", "Edit portfolio");
-		const header = add(h("div", "flex flex-wrap items-end justify-between gap-3"),
-			add(h("div"), h("p", "label", "My Hub"), h("h1", "mt-1 text-2xl font-bold text-ink-strong", greeting(name)), h("p", "mt-0.5 text-[13px] text-muted", today)), edit);
+		const header = pageHead(greeting(name), today, { sample: d.sample, action: linkTo(link("/portfolio/"), "btn btn-ghost", "Edit portfolio") });
+		const year = d.performance.periods.find((x) => x.key === "1y");
+		const index = d.performance.indices[0];
+		const gap = year?.portfolio != null && year.indices[index.ticker] != null ? year.portfolio - year.indices[index.ticker]! : null;
 
 		const tiles = add(h("div", "panel grid grid-cols-2 gap-x-6 gap-y-5 p-4 sm:grid-cols-4 sm:p-5"),
 			stat("Portfolio value", money(t.value), t.positions ? `${t.positions} position${t.positions > 1 ? "s" : ""}` : "No positions"),
-			stat("Today", t.day_change == null ? "—" : `${t.day_change >= 0 ? "+" : ""}${money(t.day_change)}`, signedPct(t.day_change_pct, 2), toneOf(t.day_change)),
+			stat("Today", t.day_change == null ? "—" : `${t.day_change >= 0 ? "+" : ""}${money(t.day_change)}`,
+				`${signedPct(t.day_change_pct, 2)} · ${index.name} ${signedPct(d.benchmark.day_change_pct, 2)}`, toneOf(t.day_change)),
 			stat("Gain / loss", t.pnl == null ? "—" : `${t.pnl >= 0 ? "+" : ""}${money(t.pnl)}`, t.pnl_pct != null ? `${signedPct(t.pnl_pct)} on your cost` : "Add average costs to see it", toneOf(t.pnl)),
-			stat("S&P 500 today", signedPct(d.benchmark.day_change_pct, 2), d.benchmark.return_ytd != null ? `${signedPct(d.benchmark.return_ytd)} this year` : undefined, toneOf(d.benchmark.day_change_pct)),
+			stat("Holdings over 1 year", signedPct(year?.portfolio), gap == null ? undefined : `${(Math.abs(gap) * 100).toFixed(1)} points ${gap >= 0 ? "ahead of" : "behind"} the ${index.name}`, toneOf(year?.portfolio)),
 		);
 
 		const moves = [...d.movers.up.map((x) => [x, "up"]), ...d.movers.down.map((x) => [x, "down"])];
@@ -170,8 +163,9 @@ import App from "../components/App.astro";
 				}))
 			: null;
 
-		const parts: (HTMLElement | null)[] = [header, d.positions.length ? tiles : null, movers];
-		if (d.positions.length) parts.push(history(d), holdings(d, cfg), allocation(d));
+		const parts: (HTMLElement | null)[] = [header, d.positions.length ? tiles : null];
+		if (d.positions.length) parts.push(insightPanel(d.insights), movers, indexChart(d), holdings(d, cfg), makeup(d));
+		else parts.push(movers);
 		if (d.watchlist.length) parts.push(watchTable(d, cfg));
 		parts.push(ownNews());
 		parts.push(add(h("section"), h("h2", "label mb-2", "Analysis tools"), toolCards(cfg)));
@@ -183,10 +177,10 @@ import App from "../components/App.astro";
 		const who = await requireUser();
 		if (!who.has_data) return location.replace(link("/portfolio/?welcome=1"));
 		try {
-			const [d, cfg] = await Promise.all([api<Dashboard>("/api/dashboard"), config()]);
+			const [d, cfg] = await Promise.all([getDashboard(), config()]);
 			draw(who.user.name, d, cfg);
 		} catch (e) {
-			root.replaceChildren(h("p", "rounded-md border border-down/40 bg-down-soft p-4 text-[13px] text-down", e instanceof Error ? e.message : "The dashboard failed to load."));
+			failure(root, e);
 		}
 	}
 	start().catch(() => {});

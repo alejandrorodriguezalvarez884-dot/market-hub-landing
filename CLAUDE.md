@@ -11,8 +11,11 @@ Reglas que no se negocian:
 - **Los datos del usuario son suyos.** Solo se guarda lo que la web dice en `/privacy/`. El
   contenido de las carteras nunca va a los logs. Cada usuario solo lee y escribe su documento
   (la clave es el `sub` de Google que sale de la sesión, nunca un parámetro de la petición).
-  Borrar la cuenta borra el documento entero. Cualquier dato nuevo que se guarde se añade antes a
-  la página de privacidad y a la de cuenta.
+  Borrar la cuenta borra el documento entero. De una cartera solo salen del servidor los tickers
+  (al proveedor de precios), los tickers con sus pesos y rentabilidades (al modelo que escribe
+  las frases de My Hub, `insights.facts`) y lo que su dueño decide compartir en Community: nunca
+  la identidad, el número de acciones, los costes ni los importes. Cualquier dato nuevo que se
+  guarde se añade antes a la página de privacidad y a la de cuenta.
 - **El login se verifica en el servidor.** Nunca se confía en un email o un id que mande el
   navegador; solo en el ID token verificado y en la cookie firmada. Las escrituras pasan el
   control de `Origin`.

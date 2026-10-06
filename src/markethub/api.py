@@ -8,6 +8,10 @@
     DELETE /api/me                  delete the account and everything saved
     GET    /api/portfolio           positions and watchlist
     PUT    /api/portfolio           replace them
+    GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
+    GET    /api/sharing             whether the portfolio is shared, and under what name
+    PUT    /api/sharing             {enabled, handle}: share it, rename it or stop
+    GET    /api/community           the shared portfolios and where the user's stands
     GET    /api/dashboard           positions valued at today's prices, favourites, history
     GET    /api/search?q=           companies by ticker or name
     GET    /api/public/overview     markets: indices, rates, commodities, currencies, sectors, movers
@@ -50,6 +54,11 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import dashboard
+from .community import PERIODS as BOARD_PERIODS
+from .community import Community, CommunityStore, default_community
+from .community import Refused as SharingRefused
+from .holdings import SampleData, sample_only
+from .insights import default_writer
 from .live import default_markets
 from .news import default_news
 from .opinion import Opinion, Refused, default_opinion
@@ -117,7 +126,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                verifier: Verifier = google_verifier, client_id: str | None = None,
                session_secret: str | None = None, secure_cookies: bool | None = None,
                static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN, markets=None,
-               news=None, opinion: Opinion | None = None) -> FastAPI:
+               news=None, opinion: Opinion | None = None, community_store: CommunityStore | None = None,
+               insight_writer="default") -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -131,6 +141,19 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     markets = markets or default_markets(market)
     news = news or default_news(markets, directory)
     opinion = opinion or Opinion(default_opinion())
+    writer = default_writer() if insight_writer == "default" else insight_writer
+    # What answers for the provider when it does not: sample figures, said to be so.
+    stand_in = SampleData(lambda ticker: company_name(ticker))
+    only_sample = sample_only()
+
+    def figures(doc: dict) -> dict:
+        return dashboard.build(doc, market, stand_in, sample=only_sample)
+
+    def mix(positions: list[dict]) -> dict:
+        return {"positions": positions, "watchlist": []}
+
+    community = Community(community_store or default_community(), value=lambda positions: figures(mix(positions)),
+                          sample_value=lambda positions: dashboard.build(mix(positions), stand_in, stand_in, sample=True))
     client_id = GOOGLE_CLIENT_ID if client_id is None else client_id
     secret = session_secret or SESSION_SECRET
     if not secret:
@@ -235,6 +258,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def delete_me(request: Request) -> dict:
         user = current(request)
         opinion.forget(user["id"])  # the comments go with the account
+        community.stop(user["id"])  # and so does the shared portfolio
         users.delete(user["id"])
         request.session.clear()
         log.info("account deleted")
@@ -256,6 +280,13 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         except MarketUnavailable as exc:
             raise HTTPException(503, str(exc)) from None
         doc = touch(load(user), positions=pos, watchlist=watch)
+        if doc.get("shared"):
+            # What is shared follows what is held; with nothing held, nothing is shared.
+            try:
+                community.refresh(user["id"], figures(doc))
+            except MarketUnavailable:
+                pass
+            doc["shared"] = bool(pos)
         users.put(user["id"], doc)
         return {"positions": pos, "watchlist": watch, "updated_utc": doc["updated_utc"]}
 
@@ -263,10 +294,63 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def dash(request: Request) -> dict:
         user = current(request)
         allow(request)
+        doc = load(user)
         try:
-            return dashboard.build(load(user), market)
+            d = figures(doc)
         except MarketUnavailable as exc:
             raise HTTPException(503, str(exc)) from None
+        if doc.get("shared"):
+            community.refresh(user["id"], d)
+        return d
+
+    @app.get("/api/insights")
+    def insights(request: Request) -> dict:
+        """The portfolio read back in a few sentences: the model's when it answers, the code's
+        otherwise. What the model is sent is in insights.facts: no amounts, nothing of the user."""
+        user = current(request)
+        allow(request)
+        doc = load(user)
+        try:
+            d = figures(doc)
+        except MarketUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+        return (writer.read(user["id"], doc, d) if writer else None) or d["insights"]
+
+    @app.get("/api/sharing")
+    def sharing(request: Request) -> dict:
+        return community.status(current(request)["id"])
+
+    @app.put("/api/sharing")
+    def set_sharing(request: Request, enabled: bool = Body(embed=True), handle: str = Body("", embed=True, max_length=40)) -> dict:
+        user = current(request)
+        allow(request)
+        doc = load(user)
+        if not enabled:
+            users.put(user["id"], touch(doc, shared=False))
+            return community.stop(user["id"])
+        try:
+            status = community.share(user["id"], handle, figures(doc))
+        except SharingRefused as exc:
+            raise HTTPException(400, str(exc)) from None
+        except MarketUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+        users.put(user["id"], touch(doc, shared=True))
+        log.info("portfolio shared")
+        return status
+
+    @app.get("/api/community")
+    def board(request: Request) -> dict:
+        user = current(request)
+        allow(request)
+        try:
+            d = figures(load(user))
+        except MarketUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+        periods = d["performance"]["periods"]
+        return {**community.board(user["id"], d),
+                "periods": [{"key": p["key"], "label": p["label"]} for p in periods if p["key"] in BOARD_PERIODS],
+                "indices": [{"ticker": i["ticker"], "name": i["name"], "performance": {p["key"]: p["indices"].get(i["ticker"]) for p in periods}}
+                            for i in d["performance"]["indices"]]}
 
     @app.get("/api/search")
     def search(request: Request, q: str = Query(min_length=1, max_length=60)) -> dict:

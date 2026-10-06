@@ -1,0 +1,204 @@
+---
+// My Hub, Community: the portfolios their owners chose to share, ranked by how today's holdings
+// did over a period, and where yours stands among them, shared or not. Sharing is off until the
+// user turns it on, and shows weights and returns only: never amounts.
+import App from "../components/App.astro";
+---
+
+<App title="Community" description="Portfolios their owners chose to share, and where yours stands among them.">
+	<div id="community" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-40"></div><div class="skeleton h-96"></div></div>
+</App>
+
+<script>
+	import { api, requireUser } from "../lib/api";
+	import { add, card, h, linkTo } from "../lib/dom";
+	import { pct, signedPct, timeAgo } from "../lib/format";
+	import { cell, failure, ordinal, pageHead, points, shareBar, tone } from "../lib/hub";
+	import { link } from "../lib/site";
+	import type { Board, Member, PeriodKey, Sharing } from "../lib/types";
+
+	const root = document.getElementById("community")!;
+	let period: PeriodKey = "ytd";
+	const digits = (key: PeriodKey) => (key === "1d" ? 2 : 1);
+
+	// --- Where you stand ---------------------------------------------------------------------------
+
+	function standing(b: Board): HTMLElement {
+		const c = card("Where you stand", b.you.sharing ? `Shared as ${b.you.handle}` : "Only you see this: your portfolio is not shared");
+		if (!b.you.performance) {
+			add(c.body, h("p", "text-sm text-ink", "Add your positions to see where they stand among the shared portfolios."),
+				add(h("p", "mt-3"), linkTo(link("/portfolio/"), "btn btn-primary", "Add your positions")));
+			return c.el;
+		}
+		c.body.className = "";
+		c.body.append(add(h("div", "grid grid-cols-2 gap-px bg-line sm:grid-cols-5"), ...b.periods.map((p) => {
+			const st = b.you.standing[p.key];
+			const mine = b.you.performance![p.key];
+			const pick = h("button", "block w-full bg-page p-4 text-left transition-colors hover:bg-raised aria-[pressed=true]:bg-raised");
+			pick.type = "button";
+			pick.setAttribute("aria-pressed", String(p.key === period));
+			pick.addEventListener("click", () => ((period = p.key), draw(b)));
+			add(pick, h("div", "label", p.label), h("div", `num mt-1 text-xl font-semibold ${tone(mine)}`, signedPct(mine, digits(p.key))));
+			if (!st) return add(pick, h("div", "mt-2 text-[12.5px] text-muted", "Nobody to stand against yet"));
+			// Where the portfolio falls between the last and the first: a dot on a line.
+			const line = h("div", "relative mt-3 h-[3px] rounded-full bg-raised");
+			const dot = h("span", `absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ${st.above_average ? "bg-up" : "bg-down"}`);
+			dot.style.left = `${st.ahead_of * 100}%`;
+			const middle = h("span", "absolute top-[-3px] h-[9px] w-px bg-line-strong");
+			middle.style.left = "50%";
+			line.append(middle, dot);
+			return add(pick,
+				add(h("div", `mt-1 flex items-center gap-1.5 text-[13px] font-medium ${st.above_average ? "up" : "down"}`), st.above_average ? "Above average" : "Below average"),
+				h("div", "num text-[12.5px] text-muted", `${points(st.return - st.average, digits(p.key))} · average ${signedPct(st.average, digits(p.key))}`),
+				line,
+				h("div", "mt-2 text-[12.5px] text-muted", `${ordinal(st.rank)} of ${st.of}`));
+		})));
+		return c.el;
+	}
+
+	// --- Sharing -----------------------------------------------------------------------------------
+
+	function sharing(b: Board): HTMLElement {
+		const on = b.you.sharing;
+		const c = card(on ? "Your portfolio is shared" : "Share your portfolio", on ? `As ${b.you.handle}${b.you.since_utc ? `, since ${new Date(b.you.since_utc).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` : ""}` : "Off until you turn it on");
+		const name = h("input", "field w-56");
+		name.maxLength = 20;
+		name.placeholder = "A name to be shown under";
+		name.value = b.you.handle;
+		name.autocomplete = "off";
+		name.setAttribute("aria-label", "The name your portfolio is shown under");
+		const note = h("p", "text-[13px] text-down");
+		note.setAttribute("role", "alert");
+		const send = async (body: { enabled: boolean; handle?: string }, button: HTMLButtonElement) => {
+			button.disabled = true;
+			note.textContent = "";
+			try {
+				await api<Sharing>("/api/sharing", { method: "PUT", body: JSON.stringify(body) });
+				await load();
+			} catch (e) {
+				button.disabled = false;
+				note.textContent = e instanceof Error ? e.message : "That did not work.";
+			}
+		};
+		const share = h("button", on ? "btn btn-ghost" : "btn btn-primary", on ? "Change the name" : "Share my portfolio");
+		share.type = "submit";
+		const form = add(h("form", "flex flex-wrap items-center gap-2"), name, share);
+		form.addEventListener("submit", (e) => (e.preventDefault(), send({ enabled: true, handle: name.value }, share)));
+		const stop = h("button", "btn btn-ghost", "Stop sharing");
+		stop.type = "button";
+		stop.addEventListener("click", () => send({ enabled: false }, stop));
+		const list = (title: string, items: string[]) => add(h("div"), h("h3", "label mb-1.5", title),
+			add(h("ul", "space-y-1 text-[13px] text-ink"), ...items.map((x) => h("li", "", x))));
+		add(c.body,
+			add(h("div", "grid gap-x-10 gap-y-4 sm:grid-cols-2"),
+				list("What others see", ["The name you pick here", "The tickers you hold and each one's share, in percent", "The returns of those holdings"]),
+				list("What nobody sees", ["Your name, email or picture", "How many shares you hold, or what they are worth", "What you paid, your gains and your watchlist"])),
+			h("p", "mt-4 text-[13px] text-muted", b.you.performance || on
+				? "Only signed-in members see the shared portfolios. It follows what you hold, and stops the moment you say so."
+				: "You need at least one position to share."),
+			add(h("div", "mt-4 flex flex-wrap items-center gap-2"), form, on ? stop : null), note);
+		return c.el;
+	}
+
+	// --- The board ---------------------------------------------------------------------------------
+
+	type Line = { name: string; value: number | null; kind: "member" | "index" | "average" | "you"; member?: Member };
+
+	function holdings(m: Member): HTMLElement {
+		return add(h("div", "grid gap-x-8 gap-y-1.5 px-1 py-3 sm:grid-cols-2 lg:grid-cols-3"), ...m.positions.map((p) =>
+			add(h("div", "grid grid-cols-[4rem_1fr_3.25rem] items-center gap-2 text-[13px]"),
+				linkTo(link(`/quote/?t=${encodeURIComponent(p.ticker)}`), "font-semibold text-ink-strong hover:underline", p.ticker),
+				shareBar(p.weight, "w-full"), h("span", "num text-right text-ink", pct(p.weight)))));
+	}
+
+	function board(b: Board): HTMLElement {
+		const label = b.periods.find((p) => p.key === period)!.label;
+		const c = card("Shared portfolios", b.shared ? `${b.shared} shared so far. Ranked by how today's holdings did: ${label.toLowerCase()}.` : `Nobody has shared a portfolio yet. Ranked by how today's holdings did: ${label.toLowerCase()}.`);
+		const tabs = h("div", "tabs");
+		tabs.setAttribute("role", "tablist");
+		for (const p of b.periods) {
+			const t = h("button", "tab-btn", p.label);
+			t.type = "button";
+			t.setAttribute("role", "tab");
+			t.setAttribute("aria-selected", String(p.key === period));
+			t.addEventListener("click", () => ((period = p.key), draw(b)));
+			tabs.append(t);
+		}
+		c.head.append(tabs);
+
+		const lines: Line[] = [
+			...b.members.map((m): Line => ({ name: m.handle, value: m.performance[period], kind: "member", member: m })),
+			...b.indices.map((i): Line => ({ name: i.name, value: i.performance[period], kind: "index" })),
+			{ name: "Average of the shared portfolios", value: b.average[period], kind: "average" },
+		];
+		// Someone who does not share sees their own line among the others; nobody else does.
+		if (b.you.performance && !b.you.sharing) lines.push({ name: "You (not shared)", value: b.you.performance[period], kind: "you" });
+		lines.sort((x, y) => (y.value ?? -Infinity) - (x.value ?? -Infinity));
+		const reach = Math.max(0.01, ...lines.map((l) => Math.abs(l.value ?? 0)));
+
+		const table = h("table", "data-table");
+		const body = h("tbody");
+		let place = 0;
+		for (const l of lines) {
+			const m = l.member;
+			const ranked = l.kind === "member" || l.kind === "you";
+			if (ranked) place++;
+			const mine = l.kind === "you" || m?.you;
+			const bar = h("span", `block h-[5px] rounded-full ${(l.value ?? 0) >= 0 ? "bg-up" : "bg-down"} ${ranked ? "" : "opacity-40"}`);
+			bar.style.width = `${Math.max(2, (Math.abs(l.value ?? 0) / reach) * 100)}%`;
+			const who = add(h("td", "!text-left !font-sans"),
+				h("span", ranked ? "font-semibold text-ink-strong" : "text-muted", l.name),
+				m?.you ? h("span", "chip !font-sans ml-2", "you") : null,
+				m?.stand_in ? h("span", "ml-2 text-[11.5px] text-warn", "sample") : null,
+				l.kind === "index" ? h("span", "ml-2 text-[11.5px] text-faint", "index") : null);
+			const row = add(h("tr", mine ? "bg-raised/60" : ""),
+				cell(ranked ? String(place) : "", "num w-8 !text-left text-muted"),
+				who,
+				cell(signedPct(l.value, digits(period)), `num font-semibold ${ranked ? tone(l.value) : "text-muted"}`),
+				add(h("td", "hidden w-40 sm:table-cell"), add(h("span", "block w-full"), bar)),
+				cell(m ? String(m.count) : "", "num hidden text-muted md:table-cell"),
+				cell(m?.top_sector ?? "", "hidden !font-sans text-muted md:table-cell"),
+				add(h("td", "hidden lg:table-cell"), m ? h("span", "text-[12.5px] text-muted", m.positions.slice(0, 3).map((p) => `${p.ticker} ${pct(p.weight, 0)}`).join(" · ")) : null),
+				cell(m && !m.stand_in ? timeAgo(m.updated_utc) : "", "hidden !font-sans text-[12.5px] text-faint xl:table-cell"));
+			body.append(row);
+			if (m) {
+				// A member's line opens onto what they hold.
+				const detail = add(h("tr"), add(Object.assign(h("td"), { colSpan: 8 }), holdings(m)));
+				detail.hidden = true;
+				row.classList.add("cursor-pointer");
+				row.tabIndex = 0;
+				row.setAttribute("aria-expanded", "false");
+				const toggle = () => ((detail.hidden = !detail.hidden), row.setAttribute("aria-expanded", String(!detail.hidden)));
+				row.addEventListener("click", (e) => (e.target as HTMLElement).closest("a") || toggle());
+				row.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle()));
+				body.append(detail);
+			}
+		}
+		add(table, add(h("thead"), add(h("tr"), h("th", "!text-left", "#"), h("th", "!text-left", "Portfolio"), h("th", "", label), h("th", "hidden sm:table-cell"),
+			h("th", "hidden md:table-cell", "Positions"), h("th", "hidden md:table-cell", "Largest sector"), h("th", "hidden lg:table-cell", "Largest positions"), h("th", "hidden xl:table-cell", "Updated"))), body);
+		c.body.className = "";
+		c.body.append(add(h("div", "overflow-x-auto"), table),
+			h("p", "border-t border-line px-4 py-3 text-[12.5px] text-muted", "A line opens onto what that portfolio holds. Every return is that of the holdings as they are now, held through the period: it ranks portfolios, not the trades behind them."));
+		return c.el;
+	}
+
+	function draw(b: Board) {
+		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"),
+			pageHead("Community", "Portfolios their owners chose to share, and where yours stands among them.", { sample: b.sample }),
+			standing(b), board(b), sharing(b)));
+	}
+
+	async function load() {
+		draw(await api<Board>("/api/community"));
+	}
+
+	async function start() {
+		await requireUser();
+		try {
+			await load();
+		} catch (e) {
+			failure(root, e);
+		}
+	}
+	start().catch(() => {});
+</script>

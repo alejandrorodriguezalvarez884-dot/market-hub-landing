@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from markethub.api import create_app
+from markethub.community import MemoryCommunity
 from markethub.market import Company, Directory
 from markethub.opinion import MemoryOpinion, Opinion
 from markethub.users import MemoryUsers
@@ -99,9 +100,31 @@ def opinion():
 
 
 @pytest.fixture
-def client(users, market, directory, opinion):
+def shared():
+    return MemoryCommunity()
+
+
+class FakeWriter:
+    """Stands for the model: it answers with one sentence, and counts how often it was asked."""
+
+    def __init__(self):
+        self.seen = []
+
+    def read(self, user_id, doc, d):
+        self.seen.append((user_id, d))
+        return {"headline": "Written by the model.", "items": [{"kind": "risk", "text": "A sentence."}], "written": True}
+
+
+@pytest.fixture
+def writer():
+    return FakeWriter()
+
+
+@pytest.fixture
+def client(users, market, directory, opinion, shared, writer):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
-                     client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion)
+                     client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
+                     community_store=shared, insight_writer=writer)
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

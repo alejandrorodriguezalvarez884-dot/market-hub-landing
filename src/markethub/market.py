@@ -171,7 +171,8 @@ class Fmp:
              "name": row.get("companyName") or ticker, "is_etf": bool(row.get("isEtf")),
              "exchange": row.get("exchange") or row.get("exchangeShortName") or "",
              "beta": _num(row.get("beta")), "last_dividend": _num(row.get("lastDividend")),
-             "average_volume": _num(row.get("averageVolume", row.get("volAvg")))}
+             "average_volume": _num(row.get("averageVolume", row.get("volAvg"))),
+             "market_cap": _num(row.get("marketCap", row.get("mktCap"))), "country": row.get("country") or ""}
         self.cache.put(f"p:{ticker}", p)
         return p
 
