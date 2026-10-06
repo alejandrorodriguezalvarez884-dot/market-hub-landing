@@ -333,6 +333,25 @@ grabación con Playwright descrita más arriba.
   el sonido se activa en los controles. La nota pasa de "No sound" a "With sound".
 - `film/` no se sube a Cloud Run (`.gcloudignore`, `.dockerignore`).
 
+### Desplegado el 2026-10-06, y despliegues en paralelo
+
+- **En producción**: My Hub nuevo (Overview, Analysis, Community), el login con email y contraseña y
+  el captcha del registro. Revisiones `market-hub-00015-gj9`, `fundamentals-lab-00009-94c` y
+  `earnings-radar-hub-00007-rdt`. La configuración de las dos herramientas (variables, topes,
+  escalado) quedó idéntica a la de antes; en el portal solo cambian las tres variables nuevas
+  (`MARKETHUB_PASSWORD_LOGIN` y las dos claves de Turnstile, leídas de Secret Manager).
+- **Comprobado en producción sin sesión**: `/api/config` da `registration: captcha`; registrarse sin
+  captcha da 400; entrar con un email que no existe da el mensaje genérico; `/analysis/` y
+  `/community/` cargan y sus datos piden sesión; las herramientas mandan a `/signin/`;
+  `earningsradar.app` sigue igual. **Sin comprobar por el agente**: crear una cuenta con el captcha
+  real y entrar con Google (lo revisa el dueño).
+- **Despliegues en paralelo**: `scripts/deploy-cloudrun.sh` ya solo escribe un permiso cuando falta (`grant`): antes cada
+  despliegue reescribía la política IAM del proyecto y dos a la vez chocaban ("concurrent policy
+  changes"). Ahora los despliegues de los tres servicios pueden lanzarse en paralelo. Comprobado
+  contra el proyecto sin escribir nada; aún no se ha hecho un despliegue en paralelo de verdad.
+  Desde la raíz del workspace:
+  `(cd market-hub-landing && make deploy) & (cd fundamentals-lab && make deploy) & (cd decision-signal-lab && make deploy-hub) & wait`
+
 ### Login propio: email y contraseña (2026-10-06)
 
 El usuario pidió poder entrar sin Google, con un login gestionado por nosotros.
@@ -438,8 +457,7 @@ gráficas comparadas con los índices. **Hecho y probado en local; sin commit ni
 - **Probado** en local con Chrome a 1440 y 390 px, con una sesión de prueba y datos de ejemplo:
   las tres páginas, sin desbordes. Una llamada real al modelo para ver la calidad de las frases
   (dos, 0,01 USD en total): las cifras que escribió coincidían con los datos.
-- **Pendiente**: desplegar los tres servicios (el portal y, por la navegación, las dos
-  herramientas); verlo con el login real de Google; moderación de nombres del tablero (hoy solo
+- **Pendiente**: verlo con el login real de Google; moderación de nombres del tablero (hoy solo
   se rechazan los reservados; un admin no puede quitar uno); la clasificación compara carteras
   "como están hoy", no lo que cada uno ganó de verdad; revisar con FMP real el campo `country` y
   la capitalización de la ficha (`profile`), que hasta ahora no se leían.

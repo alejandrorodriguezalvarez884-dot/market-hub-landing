@@ -63,16 +63,33 @@ grep -qE '^MARKETHUB_INSECURE_COOKIES=1' "$ENV_FILE" && echo "note: MARKETHUB_IN
 
 gcp() { gcloud --project "$GCP_PROJECT" --quiet "$@"; }
 
+# Give the service's account a role on something, only if it does not have it yet. A policy is
+# one document: two deploys writing it at the same moment collide ("concurrent policy changes"),
+# and the second fails. Reading it first means that in the ordinary deploy nothing is written,
+# so the services' deploys can run side by side.
+#   grant projects "$GCP_PROJECT" roles/run.builder --condition=None
+#   grant secrets my-secret roles/secretmanager.secretAccessor
+#   grant "storage buckets" "gs://my-bucket" roles/storage.objectAdmin
+grant() {
+  local kind="$1" resource="$2" role="$3" member="serviceAccount:$SERVICE_ACCOUNT"
+  shift 3
+  # $kind is left unquoted on purpose: "storage buckets" is two words of the command. grep reads
+  # the whole answer (no -q): leaving early would break the pipe, and that would read as "missing".
+  if gcp $kind get-iam-policy "$resource" --flatten='bindings[].members' --format='value(bindings.role,bindings.members)' 2>/dev/null \
+      | tr -d '\r' | grep -xF "$role"$'\t'"$member" >/dev/null; then
+    return 0
+  fi
+  gcp $kind add-iam-policy-binding "$resource" --member "$member" --role "$role" "$@" >/dev/null
+}
+
 echo "→ Enabling APIs in $GCP_PROJECT"
 gcp services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   secretmanager.googleapis.com firestore.googleapis.com
 
 PROJECT_NUMBER="$(gcp projects describe "$GCP_PROJECT" --format='value(projectNumber)')"
 SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-gcp projects add-iam-policy-binding "$GCP_PROJECT" \
-  --member "serviceAccount:$SERVICE_ACCOUNT" --role roles/run.builder --condition=None >/dev/null
-gcp projects add-iam-policy-binding "$GCP_PROJECT" \
-  --member "serviceAccount:$SERVICE_ACCOUNT" --role roles/datastore.user --condition=None >/dev/null
+grant projects "$GCP_PROJECT" roles/run.builder --condition=None
+grant projects "$GCP_PROJECT" roles/datastore.user --condition=None
 
 echo "→ Firestore (database '$FIRESTORE_DATABASE', $FIRESTORE_LOCATION)"
 DB_LOCATION="$(gcp firestore databases describe --database="$FIRESTORE_DATABASE" --format='value(locationId)' 2>/dev/null || true)"
@@ -90,8 +107,7 @@ put_secret() {
   if [[ "$(gcp secrets versions access latest --secret "$name" 2>/dev/null || true)" != "$value" ]]; then
     printf '%s' "$value" | gcp secrets versions add "$name" --data-file=- >/dev/null
   fi
-  gcp secrets add-iam-policy-binding "$name" \
-    --member "serviceAccount:$SERVICE_ACCOUNT" --role roles/secretmanager.secretAccessor >/dev/null
+  grant secrets "$name" roles/secretmanager.secretAccessor
 }
 echo "→ Secrets"
 put_secret market-hub-session-secret "$SESSION_SECRET"
@@ -101,8 +117,7 @@ if [[ -n "$ANTHROPIC_KEY" ]]; then
   put_secret "$ANTHROPIC_SECRET" "$ANTHROPIC_KEY"
 fi
 if gcp secrets describe "$ANTHROPIC_SECRET" >/dev/null 2>&1; then
-  gcp secrets add-iam-policy-binding "$ANTHROPIC_SECRET" \
-    --member "serviceAccount:$SERVICE_ACCOUNT" --role roles/secretmanager.secretAccessor >/dev/null
+  grant secrets "$ANTHROPIC_SECRET" roles/secretmanager.secretAccessor
   SECRETS="$SECRETS,ANTHROPIC_API_KEY=$ANTHROPIC_SECRET:latest"
   echo "→ News writer on, key from the secret $ANTHROPIC_SECRET"
 else
@@ -112,8 +127,7 @@ fi
 # The captcha's keys are only ever in Secret Manager: the service is pointed at them, nothing is copied.
 if gcp secrets describe market-hub-turnstile-site-key >/dev/null 2>&1 && gcp secrets describe market-hub-turnstile-secret >/dev/null 2>&1; then
   for name in market-hub-turnstile-site-key market-hub-turnstile-secret; do
-    gcp secrets add-iam-policy-binding "$name" \
-      --member "serviceAccount:$SERVICE_ACCOUNT" --role roles/secretmanager.secretAccessor >/dev/null
+    grant secrets "$name" roles/secretmanager.secretAccessor
   done
   SECRETS="$SECRETS,TURNSTILE_SITE_KEY=market-hub-turnstile-site-key:latest,TURNSTILE_SECRET_KEY=market-hub-turnstile-secret:latest"
   echo "→ Accounts with a password: on, behind the captcha (keys from Secret Manager)"
