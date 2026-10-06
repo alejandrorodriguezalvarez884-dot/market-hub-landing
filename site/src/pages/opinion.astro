@@ -11,22 +11,34 @@ import Site from "../components/Site.astro";
 
 <script>
 	import { add, h, linkTo } from "../lib/dom";
-	import { articleHref, articles, overline, type Card } from "../lib/opinion";
+	import { articleHref, articles, cover, overline, type Card } from "../lib/opinion";
 	import { failed } from "../lib/widgets";
 
 	const root = document.getElementById("opinion")!;
 	const tags = (a: Card) => (a.tags.length ? add(h("p", "mt-3 flex flex-wrap gap-1.5"), ...a.tags.slice(0, 4).map((t) => h("span", "chip !font-sans", t))) : null);
 
+	// The picture of an article leads to it, as its title does; it is not a second stop for the keyboard.
+	function pictured(a: Card, cls: string): HTMLElement | null {
+		const img = cover(a, "aspect-video w-full");
+		if (!img) return null;
+		const to = add(linkTo(articleHref(a.slug), `block ${cls}`), img);
+		to.tabIndex = -1;
+		return to;
+	}
+
 	function lead(a: Card): HTMLElement {
-		return add(h("article", "sec pb-10"),
+		const words = add(h("div", "min-w-0"),
 			overline(a),
 			add(h("h2", "lede mt-3 !max-w-[22em] !text-ink-strong"), linkTo(articleHref(a.slug), "hover:underline", a.title)),
 			h("p", "mt-4 max-w-2xl text-lg leading-relaxed text-ink", a.dek),
 			tags(a));
+		const picture = pictured(a, "lg:order-last");
+		return add(h("article", `sec pb-10 ${picture ? "grid items-center gap-x-12 gap-y-6 lg:grid-cols-[1fr_1.15fr]" : ""}`), picture, words);
 	}
 
 	function card(a: Card): HTMLElement {
 		return add(h("article", "sec pb-2"),
+			pictured(a, "mb-5"),
 			overline(a),
 			add(h("h2", "mt-2 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong"), linkTo(articleHref(a.slug), "hover:underline", a.title)),
 			h("p", "mt-2.5 text-ink", a.dek),

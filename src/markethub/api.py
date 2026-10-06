@@ -20,6 +20,7 @@
     GET    /api/news/mine           the news about the user's own stocks
     GET    /api/public/opinion      the opinion articles, as cards
     GET    /api/public/opinion/item ?slug=  one article
+    GET    /api/public/opinion/cover ?slug=&v=  its picture (JPEG)
     GET    /api/public/opinion/comments ?slug=  the thread under it (anyone reads it)
     POST   /api/opinion/comments    {slug, text, parent_id}: comment or answer (signed in)
     GET    /api/opinion/mine        the user's own comments
@@ -44,7 +45,7 @@ from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -154,7 +155,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             if origin not in allowed:
                 return JSONResponse({"detail": "Cross-site request refused."}, status_code=403)
         response = await call_next(request)
-        if request.url.path.startswith("/api/"):
+        # Nothing of the API is kept by a browser, but what says itself that it can be (a picture).
+        if request.url.path.startswith("/api/") and "cache-control" not in response.headers:
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -353,6 +355,15 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         if not found:
             raise HTTPException(404, "No such article.")
         return found
+
+    @app.get("/api/public/opinion/cover")
+    def public_opinion_cover(slug: str = Query(max_length=100), v: str = Query("", max_length=40)) -> Response:
+        found = opinion.cover(slug, v)
+        if not found:
+            raise HTTPException(404, "No such picture.")
+        # A version names one picture for good; without it, the address may show another tomorrow.
+        keep = "public, max-age=31536000, immutable" if v else "public, max-age=300"
+        return Response(found, media_type="image/jpeg", headers={"Cache-Control": keep})
 
     @app.get("/api/public/opinion/comments")
     def public_comments(request: Request, slug: str = Query(max_length=100)) -> dict:

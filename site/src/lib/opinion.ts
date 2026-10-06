@@ -1,11 +1,12 @@
 // Opinion: the articles, their text and the comments under them. The articles are written in
 // the market-hub-opinion repo; the comments are written here by signed-in readers.
-import { api } from "./api";
+import { API, api } from "./api";
 import { add, h, linkTo } from "./dom";
 import { link } from "./site";
 
 export type Source = { title: string; url: string };
-export type Card = { slug: string; title: string; dek: string; kind: string; tags: string[]; tickers: string[]; published_utc: string; minutes: number };
+export type Cover = { alt: string; v: string };
+export type Card = { slug: string; title: string; dek: string; kind: string; tags: string[]; tickers: string[]; published_utc: string; minutes: number; cover?: Cover | null };
 export type Article = Card & { body: string; sources: Source[] };
 export type Comment = { id: string; parent_id: string | null; depth: number; created_utc: string; deleted: boolean; name: string; text: string; mine: boolean };
 export type Thread = { comments: Comment[]; signed_in: boolean; moderator: boolean };
@@ -19,6 +20,15 @@ export const removeComment = (id: string) => api<{ deleted: boolean }>(`/api/opi
 
 export const articleHref = (slug: string) => link(`/opinion/article/?slug=${encodeURIComponent(slug)}`);
 export const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+// The picture an article was published with, if it has one. Its address names its version, so a
+// browser keeps it for good and a cover drawn again is asked for again.
+export function cover(a: Card, cls: string): HTMLImageElement | null {
+  if (!a.cover) return null;
+  const img = h("img", `rounded-md bg-line object-cover ${cls}`);
+  Object.assign(img, { src: `${API}/api/public/opinion/cover?slug=${encodeURIComponent(a.slug)}&v=${encodeURIComponent(a.cover.v)}`, alt: a.cover.alt, loading: "lazy", decoding: "async" });
+  return img;
+}
 
 // The line over a title: what kind of piece it is, when it was published and how long it takes.
 export function overline(a: Card): HTMLElement {

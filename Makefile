@@ -7,7 +7,7 @@
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: help install env test check site api dev serve deploy film
+.PHONY: help install env test check site api dev serve deploy film covers
 
 help: ## List the targets
 	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  make %-9s %s\n", $$1, $$2}'
@@ -39,6 +39,9 @@ serve: env site ## Run site and API together at http://localhost:8080, as in pro
 
 film: ## Draw, score and encode the landing page's film into site/public (uses this machine's Chrome)
 	cd film && npm ci && node render.mjs && node check.mjs
+
+covers: ## Draw the library of news covers into site/public (uses this machine's Chrome); ONLY=Energy for one scope
+	cd covers && npm ci && node render.mjs --sheet $(if $(ONLY),--only "$(ONLY)") && node overview.mjs
 
 deploy: env ## Build and deploy the portal to Cloud Run (see scripts/deploy-cloudrun.sh)
 	./scripts/deploy-cloudrun.sh

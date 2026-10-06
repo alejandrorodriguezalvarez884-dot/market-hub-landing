@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Market Hub: the news covers</title>
+<script type="importmap">
+{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }
+</script>
+<style>html, body { margin: 0; background: #070808; } canvas { display: block; max-width: 100%; }</style>
+</head>
+<body>
+<canvas id="out" width="1280" height="720"></canvas>
+<script type="module">
+	// render.mjs asks this page for one cover at a time: a scope, a tone and a view of it.
+	import { SCENES } from "./scenes.js";
+	import { TONES, stage } from "./stage.js";
+
+	const out = document.getElementById("out");
+	const seedOf = (scope, view) => Object.keys(SCENES).indexOf(scope) * 100 + view * 7 + 3;
+
+	window.covers = {
+		scopes: Object.keys(SCENES), tones: Object.keys(TONES),
+		// The same scene under each light: the seed belongs to the scope and its view, not to the tone.
+		make(scope, tone, view) {
+			const gl = document.createElement("canvas");
+			const s = stage(gl, tone, seedOf(scope, view));
+			s.shoot(out, SCENES[scope](s, view));
+			// Two sizes of it: the one an article opens with, and the small one of the lists.
+			const small = Object.assign(document.createElement("canvas"), { width: 480, height: 270 });
+			const g = small.getContext("2d");
+			g.imageSmoothingQuality = "high";
+			g.drawImage(out, 0, 0, small.width, small.height);
+			const data = [out.toDataURL("image/jpeg", 0.84), small.toDataURL("image/jpeg", 0.8)];
+			gl.getContext("webgl2")?.getExtension("WEBGL_lose_context")?.loseContext();
+			return data;
+		},
+	};
+	// Opened by hand: ?scope=Energy&tone=bullish&view=1 shows that cover.
+	const q = new URLSearchParams(location.search);
+	if (q.has("scope")) window.covers.make(q.get("scope"), q.get("tone") ?? "bullish", +(q.get("view") ?? 1));
+</script>
+</body>
+</html>

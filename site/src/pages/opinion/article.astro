@@ -21,7 +21,7 @@ import { link } from "../../lib/site";
 	import { ApiError } from "../../lib/api";
 	import { add, h, linkTo } from "../../lib/dom";
 	import { timeAgo } from "../../lib/format";
-	import { article, comment, overline, prose, removeComment, thread, type Article, type Comment, type Thread } from "../../lib/opinion";
+	import { article, comment, cover, overline, prose, removeComment, thread, type Article, type Comment, type Thread } from "../../lib/opinion";
 	import { link } from "../../lib/site";
 	import { quoteHref } from "../../lib/widgets";
 
@@ -45,6 +45,7 @@ import { link } from "../../lib/site";
 			overline(a),
 			h("h1", "mt-3 text-[2rem] font-medium leading-[1.12] tracking-tight text-ink-strong sm:text-[2.6rem]", a.title),
 			h("p", "mt-5 text-xl leading-relaxed text-ink-strong", a.dek),
+			cover(a, "mt-8 aspect-video w-full"),
 			add(h("div", "mt-8 space-y-5 text-[17px] leading-[1.7] text-ink"), ...prose(a.body)),
 			a.tickers.length ? add(h("p", "mt-8 flex flex-wrap gap-1.5"), ...a.tickers.map((t) => linkTo(quoteHref(t), "chip", t))) : null,
 			sources);

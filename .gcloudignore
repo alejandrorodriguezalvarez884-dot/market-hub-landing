@@ -3,6 +3,7 @@
 data/
 site/node_modules/
 film/
+/covers/
 site/dist/
 site/.astro/
 .git/

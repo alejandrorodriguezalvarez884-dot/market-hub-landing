@@ -23,6 +23,18 @@ def test_articles_are_public_and_the_list_carries_no_body(client):
     assert client.get("/api/public/opinion/item", params={"slug": "../etc/passwd"}).status_code == 404
 
 
+def test_a_cover_is_a_picture_a_browser_may_keep(client, opinion):
+    assert client.get("/api/public/opinion/cover", params={"slug": SLUG}).status_code == 404
+    opinion.store.covers[SLUG] = b"\xff\xd8\xff a picture"
+    named = client.get("/api/public/opinion/cover", params={"slug": SLUG, "v": "abc123"})
+    assert named.content == b"\xff\xd8\xff a picture" and named.headers["content-type"] == "image/jpeg"
+    assert "immutable" in named.headers["cache-control"]
+    assert client.get("/api/public/opinion/cover", params={"slug": SLUG}).headers["cache-control"] == "public, max-age=300"
+    # The rest of the API is still never kept.
+    assert client.get("/api/public/opinion").headers["cache-control"] == "no-store"
+    assert client.get("/api/public/opinion/cover", params={"slug": "../etc/passwd"}).status_code == 404
+
+
 def test_reading_the_thread_needs_no_account_and_commenting_does(client):
     assert thread(client) == {"comments": [], "signed_in": False, "moderator": False}
     assert post(client, "Hello").status_code == 401

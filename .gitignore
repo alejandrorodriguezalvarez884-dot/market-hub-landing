@@ -22,4 +22,5 @@ dist/
 # Site and film
 node_modules/
 film/out/
+covers/out/
 .astro/

@@ -2,7 +2,8 @@
 
 The articles are not written here. The market-hub-opinion repo writes them and publishes them
 into the store (an article per document, and one "front" document with their cards, so the list
-is one read). This service only reads them.
+is one read), and with each its cover: a picture, kept as it was published. This service only
+reads them.
 
 The comments are written here, by signed-in readers, as threads: a comment can answer another.
 What is kept of a comment's author is their account id (to let them delete it, and to remove
@@ -31,6 +32,7 @@ COMMENT_MAX = 2000  # characters
 DEPTH_MAX = 6  # an answer to an answer to an answer...: below this the thread reads no more
 PER_ARTICLE_MAX = 1000
 FRONT_CACHE_SECONDS = 60
+COVERS_KEPT = 48  # covers held in memory, so a picture is read from the store once
 
 
 class Refused(ValueError):
@@ -47,6 +49,7 @@ def _now() -> str:
 class OpinionStore(Protocol):
     def front(self) -> list[dict]: ...
     def article(self, slug: str) -> dict | None: ...
+    def cover(self, slug: str) -> bytes | None: ...
     def comments(self, slug: str) -> list[dict]: ...
     def comment(self, id_: str) -> dict | None: ...
     def put_comment(self, comment: dict) -> None: ...
@@ -56,6 +59,7 @@ class OpinionStore(Protocol):
 class MemoryOpinion:
     def __init__(self, articles: list[dict] | None = None):
         self.articles = {a["slug"]: a for a in articles or []}
+        self.covers: dict[str, bytes] = {}
         self.kept: dict[str, dict] = {}
 
     def front(self) -> list[dict]:
@@ -64,6 +68,9 @@ class MemoryOpinion:
 
     def article(self, slug: str) -> dict | None:
         return self.articles.get(slug)
+
+    def cover(self, slug: str) -> bytes | None:
+        return self.covers.get(slug)
 
     def comments(self, slug: str) -> list[dict]:
         return [dict(c) for c in self.kept.values() if c["slug"] == slug]
@@ -80,7 +87,7 @@ class MemoryOpinion:
 
 
 class FileOpinion:
-    """For local development only: data/opinion/front.json, articles/ and comments/."""
+    """For local development only: data/opinion/front.json, articles/, covers/ and comments/."""
 
     def __init__(self, root: Path | None = None):
         self.root = Path(root or DATA_DIR / "opinion")
@@ -94,6 +101,10 @@ class FileOpinion:
 
     def article(self, slug: str) -> dict | None:
         return self._read(self.root / "articles" / f"{slug}.json") if SLUG.fullmatch(slug) else None
+
+    def cover(self, slug: str) -> bytes | None:
+        path = self.root / "covers" / f"{slug}.jpg"
+        return path.read_bytes() if path.exists() else None
 
     def _all(self) -> list[dict]:
         folder = self.root / "comments"
@@ -124,6 +135,7 @@ class FirestoreOpinion:
         self.where = lambda field, value: FieldFilter(field, "==", value)
         self.state = self.client.collection("opinion_state").document("front")
         self.articles = self.client.collection("opinion")
+        self.covers = self.client.collection("opinion_covers")
         self.kept = self.client.collection("opinion_comments")
 
     def front(self) -> list[dict]:
@@ -133,6 +145,10 @@ class FirestoreOpinion:
     def article(self, slug: str) -> dict | None:
         snap = self.articles.document(slug).get()
         return snap.to_dict() if snap.exists else None
+
+    def cover(self, slug: str) -> bytes | None:
+        snap = self.covers.document(slug).get()
+        return (snap.to_dict() or {}).get("jpeg") if snap.exists else None
 
     def comments(self, slug: str) -> list[dict]:
         return [s.to_dict() for s in self.kept.where(filter=self.where("slug", slug)).limit(PER_ARTICLE_MAX).stream()]
@@ -167,6 +183,7 @@ class Opinion:
         # The owner's addresses: they can take any comment down.
         self.admins = admins if admins is not None else {a.strip().lower() for a in os.environ.get("MARKETHUB_ADMINS", "").split(",") if a.strip()}
         self._cached: tuple[float, list[dict]] | None = None
+        self._covers: dict[tuple[str, str], bytes] = {}
 
     def articles(self, limit: int = 50) -> list[dict]:
         hit = self._cached
@@ -176,6 +193,20 @@ class Opinion:
 
     def article(self, slug: str) -> dict | None:
         return self.store.article(slug) if SLUG.fullmatch(slug) else None
+
+    def cover(self, slug: str, version: str = "") -> bytes | None:
+        """The picture of an article, as JPEG. ``version`` is the one the article's card names: a
+        cover that is drawn again is another version, and is read again."""
+        if not SLUG.fullmatch(slug):
+            return None
+        found = self._covers.get((slug, version))
+        if found is None:
+            found = self.store.cover(slug)
+            if found:
+                if len(self._covers) >= COVERS_KEPT:
+                    self._covers.pop(next(iter(self._covers)))
+                self._covers[(slug, version)] = found
+        return found
 
     def can_moderate(self, user: dict | None) -> bool:
         return bool(user and str(user.get("email", "")).lower() in self.admins)

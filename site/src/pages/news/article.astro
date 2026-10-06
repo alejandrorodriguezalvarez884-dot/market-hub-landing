@@ -16,7 +16,7 @@ import { link } from "../../lib/site";
 	import { ApiError } from "../../lib/api";
 	import { add, h, linkTo } from "../../lib/dom";
 	import { newsItem, type NewsItem } from "../../lib/market";
-	import { byline, tickers } from "../../lib/news";
+	import { byline, cover, picture, tickers } from "../../lib/news";
 	import { link } from "../../lib/site";
 
 	const root = document.getElementById("item")!;
@@ -38,12 +38,14 @@ import { link } from "../../lib/site";
 
 	function draw(n: NewsItem) {
 		document.title = `${n.title} — Market Hub`;
+		const src = cover(n);
 		const paragraphs = (n.article ?? "").split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p && p !== n.summary);
 		root.replaceChildren();
 		add(root,
 			byline(n),
 			h("h1", "mt-3 text-[2rem] font-medium leading-[1.15] tracking-tight text-ink-strong sm:text-[2.4rem]", n.title),
 			n.summary ? h("p", "mt-5 text-lg leading-relaxed text-ink-strong", n.summary) : null,
+			src ? picture(src, "mt-7 aspect-video w-full") : null,
 			add(h("div", "mt-6 space-y-5 text-[17px] leading-relaxed text-ink"), ...paragraphs.map((p) => h("p", "", p))),
 			tickers(n),
 			source(n));

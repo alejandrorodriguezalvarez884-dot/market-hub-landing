@@ -1,0 +1,62 @@
+{
+  "Technology": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Communication Services": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Consumer Cyclical": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Consumer Defensive": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Financial Services": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Healthcare": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Industrials": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Energy": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Utilities": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Real Estate": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Basic Materials": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  },
+  "Macro": {
+    "bullish": 2,
+    "bearish": 2,
+    "neutral": 2
+  }
+}

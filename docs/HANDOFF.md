@@ -333,6 +333,42 @@ grabación con Playwright descrita más arriba.
   el sonido se activa en los controles. La nota pasa de "No sound" a "With sound".
 - `film/` no se sube a Cloud Run (`.gcloudignore`, `.dockerignore`).
 
+### Portadas de noticias y de opinión (2026-10-06)
+
+El usuario pidió imágenes en noticias y en opinión, **generadas en local con Claude Code, sin
+Hugging Face ni ningún otro servicio de imágenes** (lo dijo expresamente tras un primer intento
+con HF, que se retiró).
+
+- **Noticias: una biblioteca, no una imagen por noticia.** `covers/` construye con three.js una
+  escena por ámbito (los once sectores y `Macro`), la fotografía desde dos sitios y bajo tres
+  luces, que son la lectura de la noticia: sol bajo y cálido (bullish), anochecer frío con lluvia
+  (bearish), día nublado (neutral). 12 x 3 x 2 = 72 imágenes en `site/public/covers/news/`
+  (1280x720 y una `-s` de 480x270 para las listas; unos 12 MB) y el índice
+  `site/src/lib/news-covers.json`. Las dibuja el Chrome del equipo (`playwright-core`):
+  `make covers`, o `make covers ONLY=Energy`. `covers/out/` (hojas de contacto) no se sube.
+- **Cómo se asigna**: `cover()` en `site/src/lib/news.ts` elige por `scope` y `sentiment` de la
+  noticia, y el id de la noticia decide cuál de las vistas: una noticia tiene siempre la misma
+  imagen, en la lista (`/news/`, miniatura a la derecha) y en su página (bajo la entradilla). Los
+  titulares de prensa, que no tienen ni ámbito ni lectura, no llevan imagen.
+- **Skill `news-covers`** (`.claude/skills/news-covers/SKILL.md`): cómo añadir vistas o escenas y
+  qué mirar en las hojas. Para más variedad basta una tercera cámara por escena y añadir `3` a
+  `VIEWS` en `covers/render.mjs`.
+- **Son escenas renderizadas por código, no fotografías.** El resultado es cinematográfico
+  (siluetas, bruma, reflejos en suelo mojado), no fotorrealista: es el techo de lo que se puede
+  generar en local sin un modelo de imagen. Las más flojas: `Healthcare` (laboratorio) y
+  `Consumer Cyclical` (calle).
+- **Opinión**: las portadas las dibuja la skill `update-opinion` en el repo `market-hub-opinion`
+  (un SVG o HTML por artículo, cada uno de un estilo) y las publica como JPEG en Firestore
+  (`opinion_covers/{slug}`). Aquí: `cover()` en los almacenes y en `Opinion`
+  (`src/markethub/opinion.py`, con una pequeña caché en memoria), `GET
+  /api/public/opinion/cover?slug=&v=` (el único punto de `/api/` que un navegador puede guardar:
+  con `v`, un año e `immutable`; el resto sigue en `no-store`), y la imagen en `/opinion/` (el
+  primero a dos columnas, el resto encima del título) y en el artículo. 77 tests en verde.
+- **Sin desplegar ni publicar todavía**: falta `make deploy` aquí y `make publish` en
+  `market-hub-opinion` (en ese orden, o las tarjetas nombrarán portadas que el portal aún no sirve;
+  con el orden inverso solo se verían sin imagen hasta desplegar, porque el portal antiguo ignora
+  el campo).
+
 ## Cómo está hecho
 
 - **Login:** la web carga Google Identity Services, que devuelve un ID token. `POST /api/auth/google`
