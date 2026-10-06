@@ -206,7 +206,7 @@ Pendiente:
   dos lecturas posibles y sin elegir ninguna, marcada como escrita por IA y con enlaces a sus
   noticias. Sin empezar.
 
-### Artículos de noticias, con su tono y su sector (2026-10-06)
+### Artículos de noticias, con su tono y su sector (2026-10-06; desplegado como `market-hub-00012-w8l`)
 
 El usuario pidió que un titular no lleve directamente a la fuente sino a un artículo propio, con
 la fuente enlazada dentro, y que en la lista se vea si la noticia es bullish, bearish o neutral y
@@ -233,7 +233,7 @@ a qué sector afecta, o si es macro.
 - Coste: cada documento pide ahora unos 500 tokens de salida más; del orden de medio céntimo a un
   céntimo por noticia.
 
-### Estado del mercado en Today y vuelta a la portada desde My Hub (2026-10-06)
+### Estado del mercado en Today y vuelta a la portada desde My Hub (2026-10-06; desplegado)
 
 - **Today** abre con el estado de la bolsa de EE. UU. en vez de la frase escrita con las cifras
   ("US stocks are higher. The S&P 500 is up…"), que al usuario le parecía horrible; con ella se
