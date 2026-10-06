@@ -364,10 +364,13 @@ con HF, que se retiró).
   /api/public/opinion/cover?slug=&v=` (el único punto de `/api/` que un navegador puede guardar:
   con `v`, un año e `immutable`; el resto sigue en `no-store`), y la imagen en `/opinion/` (el
   primero a dos columnas, el resto encima del título) y en el artículo. 77 tests en verde.
-- **Sin desplegar ni publicar todavía**: falta `make deploy` aquí y `make publish` en
-  `market-hub-opinion` (en ese orden, o las tarjetas nombrarán portadas que el portal aún no sirve;
-  con el orden inverso solo se verían sin imagen hasta desplegar, porque el portal antiguo ignora
-  el campo).
+- **Desplegado y publicado el 2026-10-06** (revisión `market-hub-00014-f8z`; después, `make publish`
+  en `market-hub-opinion`). Comprobado en producción con un navegador: `/news/` carga las ocho
+  portadas de las noticias del día y `/opinion/` las seis, sin ninguna rota; el artículo de opinión
+  muestra la suya con su texto alternativo; la portada con `v` sale con `immutable` y el resto de
+  `/api/` sigue en `no-store`.
+- Ojo al añadir carpetas a `.gcloudignore`: un patrón sin barra inicial (`covers/`) vale a cualquier
+  profundidad y dejaría fuera `site/public/covers/`. Por eso es `/covers/`.
 
 ## Cómo está hecho
 
