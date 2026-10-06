@@ -288,6 +288,36 @@ a qué sector afecta, o si es macro.
 - **My Hub** tiene un botón "Back to the home page" al pie de la barra lateral ("← Home" en la
   barra de pantallas estrechas), también en los `HubNav.astro` de las dos herramientas.
 
+### Media (2026-10-06; en `main`, sin desplegar)
+
+El usuario pidió una pestaña Media con tres secciones grandes: YouTube (por listas de
+reproducción, dejando claro que vendrán más), Instagram y X (las dos, para cuentas que dará más
+adelante).
+
+- **`/media/`** (`pages/media.astro`) es estática: no llama a la API ni a YouTube. Los datos están
+  a mano en `lib/media.ts` (el canal, cada lista con sus vídeos y sus Shorts, cuántas listas
+  vienen, y las cuentas de Instagram y X, hoy vacías). **Cada vídeo nuevo se añade ahí** cuando
+  se publica (su dirección está en `the-market-hub-media`, en el `published.json` del vídeo),
+  con su carátula en `site/public/media/` (la miniatura que dibuja ese repo; para un Short, un
+  fotograma suyo a 540x960).
+- **YouTube**: cada lista tiene un reproductor y la relación de sus vídeos; el más nuevo abre en
+  el reproductor. Las carátulas son archivos nuestros: **la página no pide nada a YouTube hasta
+  que se pulsa play**, y entonces carga el vídeo desde `youtube-nocookie.com`. `/privacy/` lo
+  dice. Los Shorts enlazan a YouTube. Dos huecos "Another subject" dicen que vienen más listas,
+  sin prometer cuáles ni cuándo.
+- **Instagram y X**: la sección, su texto y unos huecos vacíos, con "Account coming soon". Al
+  poner el usuario en `INSTAGRAM.handle` o `X.handle` sale el enlace a la cuenta. **Enseñar los
+  posts está sin hacer**: depende de la cuenta. Instagram no deja leer los posts de una cuenta
+  sin una aplicación de Meta y su token (o incrustando post a post con su script); X solo ofrece
+  su widget de cronología, que carga su script y falla a menudo para quien no tiene sesión. Hay
+  que decidirlo con el usuario cuando dé las cuentas, y añadirlo a `/privacy/`.
+- **Navegación**: "Media" en la cabecera pública (`Site.astro`), en "Explore" de la barra de My
+  Hub (`App.astro`) y en los `HubNav.astro` de `fundamentals-lab` y `decision-signal-lab`.
+- **Comprobado en local** (`hub-sample`): la página a 1366 y 375 px sin desbordes, la pestaña
+  marcada, y que al elegir un vídeo el reproductor pide su dirección de `youtube-nocookie.com`
+  (las dos responden 200). Que el vídeo se reproduzca dentro de la página no se pudo ver en el
+  navegador de pruebas. `make check` en verde (136 tests).
+
 ### Las herramientas, dentro de My Hub (2026-10-06; desplegado)
 
 El usuario pidió que Fundamentals y Earnings queden integradas en el área privada, porque solo se

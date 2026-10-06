@@ -1,0 +1,190 @@
+---
+// Media: what Market Hub publishes outside the portal. YouTube, playlist by playlist, with a
+// player; then Instagram and X, each waiting for its account. The covers are our own files: the
+// page asks nothing of YouTube until a visitor presses play.
+import Site from "../components/Site.astro";
+import { INSTAGRAM, X, YOUTUBE, shortUrl } from "../lib/media";
+import { link } from "../lib/site";
+
+const cover = (file: string) => link(`/media/${file}`);
+const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+---
+
+<Site title="Media" description="Market Hub's videos, playlist by playlist, and its posts on Instagram and X.">
+	<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Media</h1>
+	<p class="mt-2 max-w-xl text-ink">What Market Hub publishes outside this site: the videos, and soon the posts.</p>
+
+	<section id="youtube" class="sec mt-10 !pt-5">
+		<div class="sec-head">
+			<h2 class="text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong">YouTube</h2>
+			<a href={YOUTUBE.channel} class="sec-note link" rel="noopener" target="_blank">Open the channel</a>
+		</div>
+
+		{YOUTUBE.playlists.map((list, n) => {
+			// The newest video of the playlist opens in the player.
+			const first = list.videos[list.videos.length - 1];
+			return (
+				<article class="playlist pb-4 pt-2" data-playlist={n}>
+					<div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+						<h3 class="text-[1.75rem] font-medium leading-tight tracking-tight text-ink-strong">{list.name}</h3>
+						<p class="sec-note">
+							Playlist · {count(list.videos.length, "video")} · {count(list.shorts.length, "Short")}
+							{list.url && <> · <a href={list.url} class="link" rel="noopener" target="_blank">On YouTube</a></>}
+						</p>
+					</div>
+					<p class="mt-1.5 max-w-2xl text-ink">{list.about}</p>
+
+					<div class="mt-6 grid gap-x-10 gap-y-6 lg:grid-cols-[1.7fr_1fr]">
+						<div class="min-w-0">
+							<div class="player relative aspect-video overflow-hidden rounded-sm bg-deep">
+								<button type="button" class="group absolute inset-0 block" data-play={first.id} aria-label={`Play: ${first.title}`}>
+									<img src={cover(first.cover)} alt="" class="h-full w-full object-cover" width="1280" height="720" />
+									<span class="absolute inset-0 grid place-items-center bg-page/20 transition-colors group-hover:bg-page/5">
+										<span class="grid h-16 w-16 place-items-center rounded-full bg-ink-strong text-page">
+											<svg class="ml-1 h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5-13-7.5Z"></path></svg>
+										</span>
+									</span>
+								</button>
+							</div>
+							<p class="playing mt-3 text-[1.05rem] font-medium leading-snug text-ink-strong">{first.title}</p>
+							<p class="mt-1 text-[13px] text-muted">Pressing play loads the video from YouTube.</p>
+						</div>
+
+						<ol class="min-w-0 divide-y divide-line border-y border-line">
+							{list.videos.map((v) => (
+								<li>
+									<button type="button" class="video-row flex w-full items-center gap-4 py-3 text-left" data-video={v.id} data-title={v.title} data-cover={cover(v.cover)}
+										aria-current={v.id === first.id ? "true" : undefined}>
+										<img src={cover(v.cover)} alt="" class="aspect-video w-32 flex-none rounded-sm object-cover" width="320" height="180" loading="lazy" />
+										<span class="min-w-0">
+											<span class="label">{v.note ?? "Video"} · <span class="num">{v.length}</span></span>
+											<span class="title mt-1 block text-[14px] leading-snug text-ink">{v.title}</span>
+										</span>
+									</button>
+								</li>
+							))}
+						</ol>
+					</div>
+
+					{list.shorts.length > 0 && (
+						<div class="mt-8">
+							<p class="label">Shorts</p>
+							<ul class="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+								{list.shorts.map((s) => (
+									<li>
+										<a href={shortUrl(s.id)} class="group block" rel="noopener" target="_blank">
+											<img src={cover(s.cover)} alt="" class="aspect-[9/16] w-full rounded-sm object-cover" width="540" height="960" loading="lazy" />
+											<span class="mt-2 block text-[13px] leading-snug text-ink group-hover:text-ink-strong">{s.title}</span>
+											<span class="num mt-0.5 block text-[12px] text-muted">{s.length}</span>
+										</a>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+				</article>
+			);
+		})}
+
+		{YOUTUBE.upcoming > 0 && (
+			<div class="mt-8">
+				<p class="label">More playlists</p>
+				<ul class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{Array.from({ length: YOUTUBE.upcoming }, () => (
+						<li class="waiting grid aspect-video place-items-center rounded-sm p-6 text-center">
+							<span>
+								<span class="block text-[15px] font-medium text-ink">Another subject</span>
+								<span class="mt-1 block text-[13px] text-muted">A new playlist, in the works.</span>
+							</span>
+						</li>
+					))}
+				</ul>
+			</div>
+		)}
+	</section>
+
+	<section id="instagram" class="sec mt-16 !pt-5">
+		<div class="sec-head">
+			<h2 class="text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong">Instagram</h2>
+			{INSTAGRAM.handle
+				? <a href={`https://www.instagram.com/${INSTAGRAM.handle}/`} class="sec-note link" rel="noopener" target="_blank">@{INSTAGRAM.handle}</a>
+				: <span class="sec-note">Account coming soon</span>}
+		</div>
+		<p class="max-w-2xl text-ink">The posts of Market Hub's Instagram account will be shown here: one idea in a picture, the short way into each video.</p>
+		<ul class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-hidden="true">
+			{Array.from({ length: 4 }, (_, n) => <li class:list={["waiting aspect-square rounded-sm", n === 3 && "sm:hidden lg:block"]}></li>)}
+		</ul>
+	</section>
+
+	<section id="x" class="sec mt-16 !pt-5">
+		<div class="sec-head">
+			<h2 class="text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong">X</h2>
+			{X.handle
+				? <a href={`https://x.com/${X.handle}`} class="sec-note link" rel="noopener" target="_blank">@{X.handle}</a>
+				: <span class="sec-note">Account coming soon</span>}
+		</div>
+		<p class="max-w-2xl text-ink">The posts of Market Hub's account on X will be shown here: the market's day in a line, and each new video and article as it comes out.</p>
+		<ul class="mt-6 grid gap-4 lg:grid-cols-3" aria-hidden="true">
+			{Array.from({ length: 3 }, () => (
+				<li class="waiting rounded-sm p-5">
+					<span class="block h-2.5 w-24 rounded-full bg-line-strong"></span>
+					<span class="mt-4 block h-2.5 w-full rounded-full bg-line"></span>
+					<span class="mt-2.5 block h-2.5 w-11/12 rounded-full bg-line"></span>
+					<span class="mt-2.5 block h-2.5 w-2/3 rounded-full bg-line"></span>
+				</li>
+			))}
+		</ul>
+	</section>
+</Site>
+
+<style>
+	/* A place that is waiting for something: an outline, nothing in it. */
+	.waiting {
+		border: 1px dashed var(--color-line-strong);
+	}
+	.video-row[aria-current="true"] .title {
+		color: var(--color-ink-strong);
+		font-weight: 500;
+	}
+	.video-row:hover .title {
+		color: var(--color-ink-strong);
+	}
+	.video-row[aria-current="true"] img {
+		outline: 2px solid var(--color-ink-strong);
+		outline-offset: 2px;
+	}
+</style>
+
+<script>
+	// The player of each playlist. Nothing is asked of YouTube until play is pressed: then the
+	// video is loaded from its no-cookie address, in the page.
+	const frame = (id: string, title: string): HTMLIFrameElement => {
+		const f = document.createElement("iframe");
+		f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0`;
+		f.title = title;
+		f.className = "absolute inset-0 h-full w-full";
+		f.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+		f.allowFullscreen = true;
+		f.referrerPolicy = "strict-origin-when-cross-origin";
+		return f;
+	};
+
+	for (const list of document.querySelectorAll<HTMLElement>(".playlist")) {
+		const player = list.querySelector<HTMLElement>(".player")!;
+		const playing = list.querySelector<HTMLElement>(".playing")!;
+		const rows = [...list.querySelectorAll<HTMLButtonElement>(".video-row")];
+		const play = (id: string, title: string) => {
+			player.replaceChildren(frame(id, title));
+			playing.textContent = title;
+			for (const row of rows) {
+				if (row.dataset.video === id) row.setAttribute("aria-current", "true");
+				else row.removeAttribute("aria-current");
+			}
+		};
+		player.querySelector<HTMLButtonElement>("[data-play]")?.addEventListener("click", (e) => {
+			const id = (e.currentTarget as HTMLButtonElement).dataset.play!;
+			play(id, rows.find((r) => r.dataset.video === id)?.dataset.title ?? "");
+		});
+		for (const row of rows) row.addEventListener("click", () => play(row.dataset.video!, row.dataset.title ?? ""));
+	}
+</script>
