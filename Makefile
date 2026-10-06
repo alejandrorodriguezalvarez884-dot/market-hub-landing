@@ -1,4 +1,5 @@
-# Everything is started from here, by hand. Nothing runs on a timer.
+# Everything is started from here, by hand. Nothing runs on a timer: the news refreshes when a
+# visit finds it stale.
 #
 #   make            list the targets
 #   make api + make dev    API on :8000 and the site with reload on :4321

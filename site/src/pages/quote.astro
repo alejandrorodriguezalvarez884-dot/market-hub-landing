@@ -3,6 +3,7 @@
 // in the analysis tools.
 import Search from "../components/Search.astro";
 import Site from "../components/Site.astro";
+import { link } from "../lib/site";
 ---
 
 <Site title="Quote" description="Price, chart, key figures and past returns for any US-listed stock, index or market.">
@@ -34,6 +35,10 @@ import Site from "../components/Site.astro";
 					<div class="sec-head"><h2 class="sec-title">Key figures</h2></div>
 					<div id="q-stats"></div>
 				</section>
+				<section id="q-news-sec" class="sec" hidden>
+					<div class="sec-head"><h2 class="sec-title">From its filings</h2><a href={link("/news/")} class="sec-note hover:text-ink-strong">All news →</a></div>
+					<div id="q-news"></div>
+				</section>
 			</aside>
 		</div>
 	</div>
@@ -45,6 +50,7 @@ import Site from "../components/Site.astro";
 	import { change, compact, level, money, signedPct, toneClass } from "../lib/format";
 	import { priceChart } from "../lib/lwc";
 	import { isEquity, quote, type Quote } from "../lib/market";
+	import { newsLine } from "../lib/news";
 	import { fundamentalsUrl, link, radarUrl, tidyName } from "../lib/site";
 	import { failed } from "../lib/widgets";
 
@@ -158,6 +164,8 @@ import Site from "../components/Site.astro";
 			head(q);
 			stats(q);
 			performance(q);
+			$("q-news-sec").hidden = !q.news.length;
+			$("q-news").replaceChildren(...q.news.map(newsLine));
 			follow(q).catch(() => {});
 			tabs(q);
 		} catch (e) {

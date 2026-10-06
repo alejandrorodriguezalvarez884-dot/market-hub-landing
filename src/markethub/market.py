@@ -183,6 +183,7 @@ class Fmp:
 class Company:
     ticker: str
     name: str
+    cik: int = 0  # the SEC's id of the company; 0 for funds added by hand
 
 
 def _norm(text: str) -> str:
@@ -205,7 +206,7 @@ def sec_loader(client: httpx.Client | None = None) -> list[Company]:
         t = str(row["ticker"]).upper()
         if t not in seen:
             seen.add(t)
-            out.append(Company(t, str(row["title"])))
+            out.append(Company(t, str(row["title"]), int(row.get("cik_str") or 0)))
     return out
 
 
@@ -243,6 +244,17 @@ class Directory:
 
     def known(self, ticker: str) -> bool:
         return self.get(ticker) is not None
+
+    def largest(self, n: int) -> dict[int, Company]:
+        """The ``n`` largest companies by their SEC id. The SEC orders its list by market value;
+        a company with several share classes counts once, under its first ticker."""
+        out: dict[int, Company] = {}
+        for c in self._all():
+            if len(out) >= n:
+                break
+            if c.cik:
+                out.setdefault(c.cik, c)
+        return out
 
     def search(self, query: str, limit: int = 8) -> list[Company]:
         q = query.strip()

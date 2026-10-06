@@ -64,6 +64,12 @@ def fake_verifier(token: str, client_id: str) -> dict:
     raise ValueError("Could not verify token")
 
 
+@pytest.fixture(autouse=True)
+def sample_news(monkeypatch):
+    """An app built without a news desk gets the sample one: no test reads the news sources."""
+    monkeypatch.setenv("MARKETHUB_SAMPLE_NEWS", "1")
+
+
 @pytest.fixture
 def users():
     return MemoryUsers()

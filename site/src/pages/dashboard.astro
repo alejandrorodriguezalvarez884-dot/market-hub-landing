@@ -11,6 +11,8 @@ import App from "../components/App.astro";
 	import { compareChart } from "../lib/lwc";
 	import { add, card, h, linkTo, stat, toneOf } from "../lib/dom";
 	import { money, pct, price, signedPct } from "../lib/format";
+	import { myNews, watchNews } from "../lib/market";
+	import { newsLine } from "../lib/news";
 	import { link, tidyName } from "../lib/site";
 	import { sparkline } from "../lib/spark";
 	import type { Dashboard, Row, Watch } from "../lib/types";
@@ -120,6 +122,18 @@ import App from "../components/App.astro";
 		return c.el;
 	}
 
+	// What the user's companies filed lately. The panel stays out of the page until there is something.
+	function ownNews(): HTMLElement {
+		const c = card("News on your stocks", "From the filings of the companies you hold or follow");
+		c.el.hidden = true;
+		c.body.className = "px-4 py-1";
+		watchNews(myNews, (n) => {
+			c.el.hidden = n.sample || !n.items.length;
+			c.body.replaceChildren(...n.items.slice(0, 8).map(newsLine));
+		}).catch(() => {});
+		return c.el;
+	}
+
 	function toolCards(cfg: Config): HTMLElement {
 		const items = [
 			["Fundamentals Lab", "Every number of a company: statements, valuation history, forward multiples, technicals and comparison.", cfg.tools.fundamentals_lab],
@@ -159,6 +173,7 @@ import App from "../components/App.astro";
 		const parts: (HTMLElement | null)[] = [header, d.positions.length ? tiles : null, movers];
 		if (d.positions.length) parts.push(history(d), holdings(d, cfg), allocation(d));
 		if (d.watchlist.length) parts.push(watchTable(d, cfg));
+		parts.push(ownNews());
 		parts.push(add(h("section"), h("h2", "label mb-2", "Analysis tools"), toolCards(cfg)));
 		for (const n of d.notes) parts.push(h("p", "text-xs text-warn", n));
 		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"), ...parts));

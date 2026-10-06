@@ -1,6 +1,8 @@
 ---
-// Today: the market in a sentence, one chart, every move of the day on one ruler, and the sectors.
+// Today: the market in a sentence, one chart, every move of the day on one ruler, the sectors and
+// the latest news.
 import Site from "../components/Site.astro";
+import { link } from "../lib/site";
 ---
 
 <Site title="Today" description="The market at a glance: indices, rates, commodities, currencies and sectors on one scale, with charts and the analysis tools of Market Hub.">
@@ -38,6 +40,14 @@ import Site from "../components/Site.astro";
 			</div>
 			<div id="ruler" class="ruler"><div class="skeleton h-[420px]"></div></div>
 		</section>
+
+		<section id="latest" class="sec order-4" aria-labelledby="latest-title" hidden>
+			<div class="sec-head">
+				<h2 id="latest-title" class="sec-title">Latest news</h2>
+				<a href={link("/news/")} class="sec-note hover:text-ink-strong">All news →</a>
+			</div>
+			<div id="latest-list"></div>
+		</section>
 		</div>
 	</div>
 </Site>
@@ -47,7 +57,8 @@ import Site from "../components/Site.astro";
 	import { change, level, signedPct, toneClass } from "../lib/format";
 	import { lede } from "../lib/lede";
 	import { priceChart, type PriceChart } from "../lib/lwc";
-	import { overview, type Overview, type Snapshot } from "../lib/market";
+	import { news, overview, watchNews, type Overview, type Snapshot } from "../lib/market";
+	import { newsLine } from "../lib/news";
 	import { failed, flagSample, quoteHref, rateItem, rulerAxis, rulerGroup, rulerRow, rulerScale, sectorRuler, snapshotItem } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
@@ -74,6 +85,12 @@ import Site from "../components/Site.astro";
 		if (chart) chart.setSymbol(s.symbol);
 		else chart = priceChart($("main-chart"), { symbol: s.symbol, range: "1D", height: 400, intraday: o.intraday !== false });
 	}
+
+	// The newest items, when there are any that are not placeholders. The block stays out otherwise.
+	watchNews(() => news({ limit: 6 }), (n) => {
+		$("latest").hidden = n.sample || !n.items.length;
+		$("latest-list").replaceChildren(...n.items.map(newsLine));
+	}).catch(() => {});
 
 	overview()
 		.then((o) => {

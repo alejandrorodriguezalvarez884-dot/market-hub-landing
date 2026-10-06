@@ -166,7 +166,7 @@ def test_quote_from_the_provider():
     q = m.quote("AAPL")
     assert q["sample"] is False and q["price"] == 100.0 and q["change_pct"] == pytest.approx(0.015)
     assert q["sector"] == "Technology" and q["beta"] == 1.2 and q["dividend_yield"] == pytest.approx(0.01)
-    assert q["return_1y"] > 0 and q["news"]
+    assert q["return_1y"] > 0 and q["news"] == []  # the API fills it from the news desk
     assert m.quote("SPY")["kind"] == "etf"
     index = m.quote("SPX")
     assert index["kind"] == "index" and index["market_cap"] is None and index["name"] == "S&P 500"
@@ -181,7 +181,7 @@ def test_api_uses_live_data_with_a_key_and_sample_without():
     assert c.get("/api/public/overview").json()["source"] == "FMP"
     assert c.get("/api/public/chart", params={"symbol": "SPX", "range": "1D"}).status_code == 503
     assert c.get("/api/public/chart", params={"symbol": "SPX", "range": "1M"}).json()["sample"] is False
-    assert c.get("/api/public/news").json()["sample"] is True  # headlines stay sample for now
+    assert c.get("/api/public/quote", params={"t": "AAPL"}).json()["news"] == []  # sample headlines stay off a quote
     assert isinstance(default_markets(FakeFmp()), LiveMarkets)
 
     class NoKey:

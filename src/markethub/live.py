@@ -371,7 +371,7 @@ class LiveMarkets:
             "return_1m": _ret(closes, 21), "return_6m": _ret(closes, 126),
             "return_ytd": _ytd([b["time"] for b in daily], closes), "return_1y": _ret(closes, 252),
             "return_5y": _ret(closes, 1250), "spark": closes[-30:],
-            "news": sample.news(ticker=ticker, limit=4, name=known or q.get("name"))["items"],
+            "news": [],  # the API fills it from the news desk
         }
 
 

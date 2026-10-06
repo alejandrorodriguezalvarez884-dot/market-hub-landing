@@ -2,7 +2,7 @@
 // Shell of the private area (My Hub): a sidebar with the user's sections, a reminder that only
 // they see it, and the way back to the public portal. Pages check the session themselves.
 import Layout from "../layouts/Layout.astro";
-import { SITE_NAME, link } from "../lib/site";
+import { FUNDAMENTALS_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
 import Logo from "./Logo.astro";
 
 interface Props {
@@ -17,15 +17,22 @@ const icons: Record<string, string> = {
 	tools: "M4 19V9m6 10V5m6 14v-7m4 7H2",
 	account: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0",
 	markets: "M3 17l6-6 4 4 8-8M15 7h6v6",
+	earnings: "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7",
+	news: "M4 5h13v14H6a2 2 0 0 1-2-2V5Zm13 4h3v8a2 2 0 0 1-2 2M8 9h5M8 13h5",
 };
 const mine = [
 	{ href: link("/dashboard/"), label: "Overview", icon: "overview" },
 	{ href: link("/portfolio/"), label: "Portfolio", icon: "portfolio" },
 	{ href: link("/account/"), label: "Account and data", icon: "account" },
 ].map((l) => ({ ...l, active: path.startsWith(l.href) }));
-const explore = [
-	{ href: link("/markets/"), label: "Markets", icon: "markets" },
-	{ href: link("/tools/"), label: "Analysis tools", icon: "tools" },
+// The tools are reached from here only: the public header does not name them.
+const tools = [
+	{ href: `${FUNDAMENTALS_URL}/`, label: "Fundamentals", icon: "tools" },
+	{ href: `${RADAR_URL}/`, label: "Earnings", icon: "earnings" },
+];
+const groups = [
+	{ label: "Tools", links: tools },
+	{ label: "Explore", links: [{ href: link("/markets/"), label: "Markets", icon: "markets" }, { href: link("/news/"), label: "News", icon: "news" }] },
 ];
 ---
 
@@ -50,17 +57,21 @@ const explore = [
 						</li>
 					))}
 				</ul>
-				<p class="label mt-6 px-2 pb-1.5">Explore</p>
-				<ul class="space-y-0.5">
-					{explore.map((l) => (
-						<li>
-							<a href={l.href} class="flex items-center gap-2.5 rounded px-2 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-raised hover:text-ink">
-								<svg class="h-4 w-4 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons[l.icon]}></path></svg>
-								{l.label}
-							</a>
-						</li>
-					))}
-				</ul>
+				{groups.map((g) => (
+					<>
+						<p class="label mt-6 px-2 pb-1.5">{g.label}</p>
+						<ul class="space-y-0.5">
+							{g.links.map((l) => (
+								<li>
+									<a href={l.href} class="flex items-center gap-2.5 rounded px-2 py-2 text-[13px] font-medium text-muted transition-colors hover:bg-raised hover:text-ink">
+										<svg class="h-4 w-4 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={icons[l.icon]}></path></svg>
+										{l.label}
+									</a>
+								</li>
+							))}
+						</ul>
+					</>
+				))}
 			</nav>
 			<div id="app-user" class="border-t border-line p-3"></div>
 		</aside>
@@ -73,7 +84,7 @@ const explore = [
 				</div>
 				<nav class="border-t border-line" aria-label="My Hub">
 					<ul class="flex gap-1 overflow-x-auto px-2 text-[13px] font-semibold">
-						{[...mine, { href: link("/markets/"), label: "Markets", active: false }].map((l) => (
+						{[...mine, ...tools.map((l) => ({ ...l, active: false })), { href: link("/markets/"), label: "Markets", active: false }].map((l) => (
 							<li>
 								<a href={l.href} aria-current={l.active ? "page" : undefined}
 									class:list={["block whitespace-nowrap border-b-2 px-3 py-2", l.active ? "border-accent text-ink-strong" : "border-transparent text-muted"]}>{l.label}</a>

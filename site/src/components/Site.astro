@@ -2,7 +2,7 @@
 // Shell of the public portal: one header line with the search at its centre, and the footer.
 // Signed-in users get a "My Hub" button to their private area.
 import Layout from "../layouts/Layout.astro";
-import { AUTHOR_URL, FUNDAMENTALS_URL, RADAR_URL, REPO_URL, SITE_NAME, link } from "../lib/site";
+import { AUTHOR_URL, REPO_URL, SITE_NAME, link } from "../lib/site";
 import AccountMenu from "./AccountMenu.astro";
 import Logo from "./Logo.astro";
 import Search from "./Search.astro";
@@ -13,12 +13,11 @@ interface Props {
 }
 const { title, description } = Astro.props;
 const path = Astro.url.pathname;
-// The same four sections on the portal and on each tool, so moving between them reads as one site.
+// Only the public sections. The analysis tools need a session, so their links live in My Hub.
 const nav = [
 	{ href: link("/today/"), label: "Today", active: path.startsWith(link("/today/")) },
 	{ href: link("/markets/"), label: "Markets", active: path.startsWith(link("/markets/")) },
-	{ href: `${FUNDAMENTALS_URL}/`, label: "Fundamentals", active: false },
-	{ href: `${RADAR_URL}/`, label: "Earnings", active: false },
+	{ href: link("/news/"), label: "News", active: path.startsWith(link("/news/")) },
 ];
 ---
 

@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-10-05.
+Última actualización: 2026-10-06.
 
 ## Qué se pidió
 
@@ -127,6 +127,64 @@ El usuario pidió que las herramientas no parezcan páginas aparte. Hecho en los
   (`QUOTA_PAUSE_SECONDS`). El 2026-10-05 a las 18 h UTC se repitieron 209 llamadas con 429.
 - 45 tests en verde. Comprobado en producción: las páginas responden, el vídeo se sirve con
   peticiones por rangos y las capturas cargan.
+
+### Noticias, y las herramientas fuera de la cabecera pública (2026-10-06; en local, sin desplegar)
+
+El usuario pidió quitar las herramientas de la cabecera pública y añadir noticias que se actualicen
+solas; la sección de opinión vendrá después y saldrá de las noticias.
+
+- **Cabecera pública** (`Site.astro`): `Today · Markets · News`. `Fundamentals` y `Earnings` solo
+  están en la barra lateral de My Hub (`App.astro`, grupo "Tools"). La landing sigue describiendo
+  las dos herramientas en el cuerpo. La cabecera de las dos herramientas conserva sus cuatro
+  secciones y gana `News`.
+- **Tres capas de noticias** (`src/markethub/newsfeeds.py`, `news.py`):
+  1. *Documentos oficiales*: 8-K de la SEC de las 500 mayores empresas (`NEWS_UNIVERSE`; la lista
+     de la SEC viene ordenada por capitalización), Fed (solo política monetaria y anuncios; fuera
+     órdenes, sanciones y regulación bancaria), BLS (empleo, IPC, IPP, JOLTS) y BEA. Cada noticia
+     enlaza a su documento.
+  2. *El mercado del día*, escrito por código desde `overview()`: índices, sectores y mayores
+     movimientos. Tres noticias por sesión que se reescriben en el sitio (el id lleva el día). Nunca
+     a partir de cifras de ejemplo.
+  3. *Prensa*: titulares de feeds RSS (por defecto cuatro de CNBC, `NEWS_PRESS_FEEDS`). Solo
+     titular, medio y enlace; nunca el texto. Se descartan los titulares que suenan a consejo
+     (precios objetivo, "stocks to buy", subidas y bajadas de recomendación).
+- **Quién escribe** (`newswriter.py`): con `ANTHROPIC_API_KEY`, Claude Haiku 4.5 escribe titular y
+  resumen de cada 8-K (lee la nota de prensa, EX-99.1, o el propio formulario) y de los comunicados
+  de política monetaria, solo con lo que dice el documento. Puede marcar un 8-K como "no es
+  noticia" y entonces no se muestra ni se vuelve a leer. Sin clave, o si la respuesta falla o suena
+  a consejo, queda el titular que escribe el código ("Apple Inc. published results"). Las noticias
+  escritas por el modelo lo dicen en la web. **Sin tope de gasto, por decisión del usuario** (el
+  tope es el crédito de la cuenta); cada llamada deja en el log tokens y coste (`news written …`).
+  Unos 0,5 céntimos por 8-K. Si la API rechaza la clave o la cuenta, no se llama durante 15 minutos.
+- **Actualización sin nada programado**: la portada de noticias es un documento (`news_state/front`
+  en Firestore; `data/news/front.json` en local) y cada noticia se archiva además en `news/{id}`.
+  `GET /api/public/news` lo sirve con `stale: true` si tiene más de `NEWS_TTL_SECONDS` (15 min). La
+  página (`watchNews` en `lib/market.ts`) pide entonces `POST /api/public/news/refresh`, que lee
+  las fuentes dentro de esa petición (tope de 30 s para empezar documentos; lo que quede se lee en
+  el siguiente refresco) y vuelve a pintar. Sin visitas no hay refresco. Un refresco en marcha en
+  otra instancia se respeta 3 minutos (`started_utc`).
+- **Dónde salen**: `/news/` (por día, con filtro por tipo y la prensa al lado), bloque "Latest
+  news" en `/today/`, "From its filings" en la ficha de valor, y "News on your stocks" en My Hub
+  (`GET /api/news/mine`, las de las empresas de la cartera y los favoritos; no guarda nada nuevo).
+- **Despliegue**: `scripts/deploy-cloudrun.sh` sube `ANTHROPIC_API_KEY` como secreto
+  `market-hub-anthropic-api-key` si está en `.env`; si no, avisa y despliega sin modelo.
+- 68 tests en verde (`tests/test_news.py`, sin red), `astro check` y build en verde. Probado en
+  local contra las fuentes reales **sin clave de Anthropic**: el refresco tarda unos 3 s y la
+  página, Today y la ficha pintan bien a 375 px.
+
+Pendiente:
+- **Probar el redactor con una clave real** (no había `.env` en el equipo): solo está probado con
+  un cliente falso. Mirar en el log el coste real por noticia.
+- **Desplegar** (`make deploy`) y comprobar en producción que el refresco cabe en la petición
+  (Cloud Run corta a los 60 s) y que Firestore guarda `news_state/front`.
+- **Licencia de la prensa**: los feeds de CNBC son para uso personal según sus condiciones. Se
+  muestra solo titular y enlace, pero conviene revisarlo antes de dar a conocer el portal, igual
+  que la licencia de FMP. `NEWS_PRESS_FEEDS=` vacío los apaga.
+- GDELT se descartó: devolvió 429 en todas las pruebas. El feed de notas del Tesoro no responde.
+- La landing no tiene bloque ni captura de News, y el vídeo no la enseña.
+- **Opinión**: una pieza diaria generada desde el archivo `news/` y las cifras del día, con las
+  dos lecturas posibles y sin elegir ninguna, marcada como escrita por IA y con enlaces a sus
+  noticias. Sin empezar.
 
 ## Cómo está hecho
 

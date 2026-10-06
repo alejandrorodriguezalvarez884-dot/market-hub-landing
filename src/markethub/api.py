@@ -13,11 +13,13 @@
     GET    /api/public/overview     markets: indices, rates, commodities, currencies, sectors, movers
                                     (?detail=1 adds 1-month, YTD and 1-year returns)
     GET    /api/public/chart        ?symbol=&range=  price bars for the charts
-    GET    /api/public/quote        ?t=  a stock's figures and headlines
-    GET    /api/public/news         ?category=&ticker=  headlines
+    GET    /api/public/quote        ?t=  a stock's figures and its own news
+    GET    /api/public/news         ?category=&ticker=  the news, and whether it is stale
+    POST   /api/public/news/refresh read the news sources, if the news is stale
+    GET    /api/news/mine           the news about the user's own stocks
 
 Market figures come from FMP when there is a key (live.py), else from sample.py; the overview
-names any part that is sample data in "sample_sections". Headlines are sample data for now.
+names any part that is sample data in "sample_sections". The news comes from news.py.
 
 Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build.
 """
@@ -39,8 +41,9 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import dashboard, sample
+from . import dashboard
 from .live import default_markets
+from .news import default_news
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
@@ -104,7 +107,8 @@ class HostScopedCookieDomain:
 def create_app(users: UserStore | None = None, market: Fmp | None = None, directory: Directory | None = None,
                verifier: Verifier = google_verifier, client_id: str | None = None,
                session_secret: str | None = None, secure_cookies: bool | None = None,
-               static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN, markets=None) -> FastAPI:
+               static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN, markets=None,
+               news=None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -116,6 +120,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     market = market or Fmp()
     directory = directory or Directory()
     markets = markets or default_markets(market)
+    news = news or default_news(markets, directory)
     client_id = GOOGLE_CLIENT_ID if client_id is None else client_id
     secret = session_secret or SESSION_SECRET
     if not secret:
@@ -290,14 +295,34 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def public_quote(t: str = Query(max_length=12)) -> dict:
         t = symbol(t)
         try:
-            return markets.quote(t, name=company_name(t))
+            q = markets.quote(t, name=company_name(t))
         except MarketUnavailable:
             raise HTTPException(404, "No quote for that ticker right now.") from None
+        # The company's own items from the news desk; sample headlines are not shown on a quote.
+        q["news"] = [] if news.sample else news.news(tickers={t}, limit=5)["items"]
+        return q
 
     @app.get("/api/public/news")
     def public_news(category: str | None = Query(None, max_length=30), ticker: str | None = Query(None, max_length=12),
-                    limit: int = Query(20, ge=1, le=50)) -> dict:
-        return sample.news(category=category, ticker=symbol(ticker) if ticker else None, limit=limit)
+                    limit: int = Query(20, ge=1, le=100)) -> dict:
+        t = symbol(ticker) if ticker else None
+        return news.news(category=category, tickers={t} if t else None, limit=limit, name=company_name(t) if t else None)
+
+    @app.post("/api/public/news/refresh")
+    def refresh_news(request: Request) -> dict:
+        """Asked by a page that was told the news is stale. The desk decides whether to read the
+        sources: not when the news is fresh, and not while another refresh runs."""
+        allow(request)
+        return news.refresh()
+
+    @app.get("/api/news/mine")
+    def my_news(request: Request) -> dict:
+        """The news about the companies the user holds or follows."""
+        doc = load(current(request))
+        tickers = {p["ticker"] for p in doc.get("positions", [])} | set(doc.get("watchlist", []))
+        if not tickers:
+            return news.news(limit=1) | {"items": []}
+        return news.news(tickers=tickers, limit=20)
 
     static_dir = static_dir or os.environ.get("MARKETHUB_STATIC_DIR", "")
     if static_dir and Path(static_dir).is_dir():

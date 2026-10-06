@@ -53,6 +53,43 @@ QUOTA_PAUSE_SECONDS = 15 * 60
 # Requests per address per hour on the endpoints that call the data provider.
 PER_IP_PER_HOUR = 240
 
+# --- News ----------------------------------------------------------------------------------
+
+# Nothing runs on a timer: a visit that finds the news older than this asks for a refresh.
+NEWS_TTL_SECONDS = float(os.environ.get("NEWS_TTL_SECONDS", "900"))
+# A refresh that started less than this ago is taken to be still running (on another instance).
+NEWS_LOCK_SECONDS = 180
+# A refresh stops starting new documents after this long: it runs inside one request. What is
+# left is read on the next refresh.
+NEWS_BUDGET_SECONDS = 30
+NEWS_FRONT_ITEMS = 200  # items kept on the front page; every item also stays in the archive
+NEWS_PRESS_ITEMS = 40
+NEWS_FIRST_RUN_HOURS = 72  # how far back the first refresh looks
+NEWS_MAX_AGE_DAYS = 7  # agencies list months of releases: older ones are not news
+# Company filings are followed for the largest companies of the SEC's list, which is ordered by
+# market value.
+NEWS_UNIVERSE = int(os.environ.get("NEWS_UNIVERSE", "500"))
+SEC_CURRENT_URL = "https://www.sec.gov/cgi-bin/browse-edgar"
+SEC_CURRENT_PAGES = 8  # of 100 filings each
+FED_FEED = "https://www.federalreserve.gov/feeds/press_all.xml"
+BLS_FEEDS = [f"https://www.bls.gov/feed/{name}.rss" for name in ("empsit", "cpi", "ppi", "jolts")]
+BEA_FEED = "https://apps.bea.gov/rss/rss.xml"
+# Headlines from the press: "Name|feed URL" pairs separated by commas. Only the headline, the
+# publisher's name and the link are kept, never the text. Set it empty to turn them off.
+NEWS_PRESS_FEEDS = os.environ.get("NEWS_PRESS_FEEDS", ",".join((
+    "CNBC|https://www.cnbc.com/id/10000664/device/rss/rss.html",
+    "CNBC|https://www.cnbc.com/id/20910258/device/rss/rss.html",
+    "CNBC|https://www.cnbc.com/id/15839135/device/rss/rss.html",
+    "CNBC|https://www.cnbc.com/id/10001147/device/rss/rss.html",
+)))
+# The model that writes an item from an official document, with the owner's ANTHROPIC_API_KEY.
+# Without a key the items keep the title the code writes. Spend has no cap here: the owner
+# limits it with the credit on the API account.
+NEWS_MODEL = os.environ.get("NEWS_MODEL", "claude-haiku-4-5")
+NEWS_DOC_CHARS = 16000  # of a document, what the model reads: the narrative comes first
+# USD per million tokens (input, output), to log what each item cost.
+MODEL_PRICES = {"claude-haiku-4-5": (1.00, 5.00)}
+
 # --- The tools the portal opens ------------------------------------------------------------
 
 EARNINGS_RADAR_URL = os.environ.get("EARNINGS_RADAR_URL", "https://earningsradar.app").rstrip("/")
