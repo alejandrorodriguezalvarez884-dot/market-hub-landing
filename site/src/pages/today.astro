@@ -1,15 +1,14 @@
 ---
-// Today: the market in a sentence, one chart, every move of the day on one ruler, the sectors and
-// the latest news.
+// Today: where the US market is in its day, one chart, every move of the day on one ruler, the
+// sectors and the latest news.
+import MarketSession from "../components/MarketSession.astro";
 import Site from "../components/Site.astro";
 import { link } from "../lib/site";
 ---
 
 <Site title="Today" description="The market at a glance: indices, rates, commodities, currencies and sectors on one scale, with charts and the analysis tools of Market Hub.">
-	<section aria-labelledby="lede">
-		<p id="dateline" class="text-[13px] text-muted">&nbsp;</p>
-		<h1 id="lede" class="lede mt-3 min-h-[3.5em]"><span class="skeleton block h-[1em] w-4/5"></span><span class="skeleton mt-3 block h-[1em] w-3/5"></span></h1>
-	</section>
+	<h1 class="sr-only">Today</h1>
+	<MarketSession />
 
 	<!-- Two columns on a wide screen; on a narrow one the blocks follow the order-N classes. -->
 	<div class="mt-12 flex flex-col gap-x-14 gap-y-12 lg:mt-16 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
@@ -55,7 +54,6 @@ import { link } from "../lib/site";
 <script>
 	import { add, h } from "../lib/dom";
 	import { change, level, signedPct, toneClass } from "../lib/format";
-	import { lede } from "../lib/lede";
 	import { priceChart, type PriceChart } from "../lib/lwc";
 	import { news, overview, watchNews, type Overview, type Snapshot } from "../lib/market";
 	import { newsLine } from "../lib/news";
@@ -63,13 +61,6 @@ import { link } from "../lib/site";
 
 	const $ = (id: string) => document.getElementById(id)!;
 	let chart: PriceChart | null = null;
-
-	function dateline(o: Overview) {
-		const at = new Date(o.as_of);
-		const day = at.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-		const time = at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-		$("dateline").textContent = `${day} · figures read at ${time}, and they can be delayed`;
-	}
 
 	// The instrument in the chart: its name, level and move above it, its row marked on the ruler.
 	function pick(s: Snapshot, o: Overview) {
@@ -95,8 +86,6 @@ import { link } from "../lib/site";
 	overview()
 		.then((o) => {
 			const onPick = (s: Snapshot) => pick(s, o);
-			dateline(o);
-			$("lede").replaceChildren(lede(o, onPick));
 
 			const charted = [...o.indices, ...o.commodities, ...o.currencies, ...o.crypto];
 			const scale = rulerScale(charted.map((s) => s.change_pct));
@@ -115,8 +104,6 @@ import { link } from "../lib/site";
 			flagSample(o, ["sectors"], $("sectors-title"));
 		})
 		.catch(() => {
-			failed($("lede"), "The market figures are not available right now.");
-			$("lede").className = "mt-3";
 			for (const id of ["chart-figure", "ruler", "sectors"]) failed($(id));
 		});
 </script>

@@ -162,7 +162,10 @@ def item(id_: str, layer: str, category: str, title: str, source: str, url: str,
          tickers: list[str] | None = None, written_by: str = "source") -> dict:
     return {"id": id_, "layer": layer, "category": category, "title": title, "summary": summary,
             "tickers": tickers or [], "source": source, "url": url, "published_utc": utc(published),
-            "written_by": written_by}
+            "written_by": written_by,
+            # How the news reads (bullish, bearish or neutral) and what it touches (a sector, or
+            # "Macro"): set when the item is written, None until then.
+            "sentiment": None, "scope": None}
 
 
 # --- SEC: Form 8-K, the filing a company makes when something material happens ---------------
@@ -325,15 +328,24 @@ class Fed:
             if not (when and url and title) or r.get("category", "").strip() in FED_SKIP:
                 continue
             found = item(_key("fed", url), "official", "Economy", title, "Federal Reserve", url, when)
-            if r.get("category", "").strip() == "Monetary Policy":
-                found["_read"] = lambda url=url: html_text(self.http.text(url))
+            found["_read"] = lambda url=url: html_text(self.http.text(url))
             out.append(found)
         return out
 
 
 class Bls:
     """The Bureau of Labor Statistics: jobs, consumer and producer prices, job openings. Its
-    feeds carry the headline and the first paragraph of each release."""
+    feeds carry the headline and the first paragraph of each release; the article is written
+    from the release itself, or from that paragraph when the release cannot be fetched."""
+
+    def _reader(self, url: str, title: str, opening: str) -> Callable[[], str]:
+        def read() -> str:
+            try:
+                return html_text(self.http.text(url))
+            except SourceDown as exc:
+                log.warning("news document not read: %s", exc)
+                return f"{title}\n\n{opening}"
+        return read
 
     def __init__(self, http: Http, urls: list[str] = BLS_FEEDS):
         self.http, self.urls = http, urls
@@ -352,8 +364,11 @@ class Bls:
                 when, url = _feed_date(e.findtext(f"{ATOM}published")), _web(link.get("href") if link is not None else None)
                 title = _clean(e.findtext(f"{ATOM}title"))
                 if when and url and title:
-                    out.append(item(_key("bls", e.findtext(f"{ATOM}id") or url), "official", "Economy", title,
-                                    "Bureau of Labor Statistics", url, when, summary=_sentences(e.findtext(f"{ATOM}content") or "")))
+                    opening = _clean(e.findtext(f"{ATOM}content"))
+                    found = item(_key("bls", e.findtext(f"{ATOM}id") or url), "official", "Economy", title,
+                                 "Bureau of Labor Statistics", url, when, summary=_sentences(opening))
+                    found["_read"] = self._reader(url, title, opening)
+                    out.append(found)
         if down == len(self.urls):
             raise SourceDown("bls: no feed answered")
         return out
@@ -370,8 +385,12 @@ class Bea:
         for r in _rss(self.http.get(self.url), "bea"):
             when, url, title = _feed_date(r.get("pubDate")), _web(r.get("link")), _clean(r.get("title"))
             if when and url and title:
-                out.append(item(_key("bea", url), "official", "Economy", title, "Bureau of Economic Analysis", url, when,
-                                summary=_sentences(html_text(r.get("description", "")))))
+                release = html_text(r.get("description", ""))  # the feed carries the release's own text
+                found = item(_key("bea", url), "official", "Economy", title, "Bureau of Economic Analysis", url, when,
+                             summary=_sentences(release))
+                if len(release) > 200:
+                    found["_read"] = lambda title=title, release=release: f"{title}\n\n{release}"
+                out.append(found)
         return out
 
 

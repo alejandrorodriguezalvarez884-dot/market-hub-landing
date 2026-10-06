@@ -1,6 +1,7 @@
 """The news desk: reading the sources, writing the items, and refreshing only when asked and stale.
 Sources and the model are fakes: no test touches the network."""
 
+import json
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -158,10 +159,13 @@ def test_agencies():
     http = FakeHttp({"fed": FED, "bls": BLS, "bea": BEA, FOMC: b"<p>The Committee decided.</p>"})
     fed = Fed(http, "fed")(SINCE)
     assert [i["title"] for i in fed] == ["Federal Reserve issues FOMC statement", "Federal Reserve Board names a new vice chair"]
-    assert fed[0]["_read"]() == "The Committee decided." and "_read" not in fed[1]
+    assert fed[0]["_read"]() == "The Committee decided." and "_read" in fed[1]  # every release can be read
     bls = Bls(http, ["bls", "missing"])(SINCE)  # one feed down does not lose the other
     assert bls[0]["source"] == "Bureau of Labor Statistics" and bls[0]["published_utc"] == "2026-10-02T12:30:00+00:00"
     assert bls[0]["summary"] == "Nonfarm payroll employment changed little in September. The unemployment rate was 4.2 percent."
+    # Its release cannot be fetched here: the article is written from what the feed carries.
+    assert bls[0]["_read"]().startswith("Payroll employment (+29,000) changes little in September\n\nNonfarm payroll")
+    assert bls[0]["sentiment"] is None and bls[0]["scope"] is None  # until it is written
     with pytest.raises(SourceDown):
         Bls(http, ["missing"])(SINCE)
     bea = Bea(http, "bea")(SINCE)
@@ -200,6 +204,11 @@ def test_market_items_are_written_from_the_figures():
     assert sectors["summary"].startswith("2 of 3 sectors are higher")
     assert movers["title"] == "Largest moves among US stocks: AAA +12.30%, ZZZ −9.80%" and movers["tickers"] == ["AAA", "BBB", "ZZZ"]
     assert all(i["layer"] == "market" and i["written_by"] == "code" for i in items)
+    # The day's tone comes from the figures: the index is up, two of three sectors rise.
+    assert [(i["sentiment"], i["scope"]) for i in items] == [("bullish", "Macro"), ("neutral", "Macro"), ("neutral", "Macro")]
+    assert indices["article"] == indices["summary"]
+    falling = market_items(overview(indices=[{"symbol": "SPX", "name": "S&P 500", "price": 5600.0, "change_pct": -0.012}]))
+    assert falling[0]["sentiment"] == "bearish"
 
 
 def test_sample_figures_are_never_written_up_as_news():
@@ -234,7 +243,8 @@ class FakeWriter:
     def write(self, draft, document):
         self.read.append(draft["id"])
         self.documents[draft["id"]] = document
-        return self.answers.get(draft["id"], {"newsworthy": True, "title": f"Written: {draft['title']}", "summary": "What it says."})
+        return self.answers.get(draft["id"], {"newsworthy": True, "title": f"Written: {draft['title']}", "summary": "What it says.",
+                                              "article": "First paragraph.\n\nSecond paragraph.", "sentiment": "bullish", "scope": "Technology"})
 
 
 class FakeMarkets:
@@ -295,6 +305,14 @@ def test_the_model_writes_the_item_from_the_form_and_its_press_release():
     coke = items["sec-0000021344-26-000011"]
     assert coke["written_by"] == "code" and coke["title"].startswith("Coca Cola Co reported a change")
     assert all(not key.startswith("_") for i in items.values() for key in i) and d.store.front()["seen"] == []
+    # How the news reads and what it touches; an agency's release is macro whatever the model said.
+    assert (apple["sentiment"], apple["scope"]) == ("bullish", "Technology")
+    fomc = next(i for i in items.values() if i["title"].startswith("Written: Federal Reserve issues"))
+    assert (fomc["sentiment"], fomc["scope"]) == ("bullish", "Macro")
+    assert (coke["sentiment"], coke["scope"]) == (None, None)  # not written: nothing is claimed
+    # The article is not on the front, which every visit reads: it comes with the item, from the archive.
+    assert "article" not in apple and d.item(apple["id"])["article"] == "First paragraph.\n\nSecond paragraph."
+    assert d.item("sec-nothing") is None and d.item("../etc") is None
 
 
 def test_a_catch_all_filing_with_nothing_in_it_is_remembered_and_not_shown():
@@ -327,8 +345,8 @@ def test_documents_left_when_the_time_runs_out_are_read_next_time():
     d, clock, _ = desk(writer=writer, budget=-1)  # no time at all
     d.refresh()
     front = d.store.front()
-    assert writer.read == [] and [i["title"] for i in front["items"]] == ["Federal Reserve Board names a new vice chair"]  # it has no document to read
-    assert front["since_utc"] == "2026-10-05T20:30:00+00:00"  # the oldest filing left unread
+    assert writer.read == [] and front["items"] == []
+    assert front["since_utc"] == "2026-10-05T15:00:00+00:00"  # the oldest document left unread
     d.budget = 30
     clock.at += timedelta(minutes=16)
     d.refresh()
@@ -387,22 +405,34 @@ class FakeClaude:
 DRAFT = {"id": "sec-1", "title": "Apple Inc. published results", "source": "SEC filing", "published_utc": "2026-10-06T13:00:00+00:00"}
 
 
+def written(**over):
+    """The model's answer, as JSON."""
+    return json.dumps({"newsworthy": True, "title": "Apple reports results", "summary": "Up 6%.", "article": "Revenue rose.",
+                       "sentiment": "neutral", "sector": "Technology"} | over)
+
+
 def test_writer_asks_for_json_and_reads_only_the_opening_of_the_document():
-    claude = FakeClaude(answer('{"newsworthy": true, "title": "Apple reports  revenue of $100B", "summary": "Up 6%."}'))
+    claude = FakeClaude(answer(written(title="Apple reports  revenue of $100B", summary="Up 6%.", article="Revenue rose.\n\n\n  It was a record. ",
+                                       sentiment="bullish", sector="Technology")))
     out = NewsWriter(client=claude).write(DRAFT, "x" * 50_000)
-    assert out == {"newsworthy": True, "title": "Apple reports revenue of $100B", "summary": "Up 6%."}
+    assert out == {"newsworthy": True, "title": "Apple reports revenue of $100B", "summary": "Up 6%.",
+                   "article": "Revenue rose.\n\nIt was a record.", "sentiment": "bullish", "scope": "Technology"}
+    macro = NewsWriter(client=FakeClaude(answer(written(sector="Macro", sentiment="bearish")))).write(DRAFT, "doc")
+    assert (macro["sentiment"], macro["scope"]) == ("bearish", "Macro")
     call = claude.calls[0]
     assert call["model"] == "claude-haiku-4-5" and call["output_config"]["format"]["type"] == "json_schema"
-    assert "never advise" in call["system"] and len(call["messages"][0]["content"]) < 17_000
+    assert "never advise" in call["system"] and "not a forecast of any price" in call["system"]
+    assert len(call["messages"][0]["content"]) < 17_000 and "Sectors: Technology" in call["messages"][0]["content"]
 
 
 def test_writer_answers_that_cannot_be_shown():
-    advice = answer('{"newsworthy": true, "title": "Apple looks undervalued after results", "summary": "x"}')
+    advice = answer(written(title="Apple looks undervalued after results"))
+    in_article = answer(written(article="Results were solid.\n\nInvestors should buy before the next quarter."))
     cut = answer('{"newsworthy": true, "title": "App', stop="max_tokens")
-    nothing = answer('{"newsworthy": false, "title": "", "summary": ""}')
-    writer = NewsWriter(client=FakeClaude(advice, cut, nothing))
-    assert writer.write(DRAFT, "doc") is None and writer.write(DRAFT, "doc") is None
-    assert writer.write(DRAFT, "doc") == {"newsworthy": False, "title": "", "summary": ""}  # the desk decides what to do
+    nothing = answer(written(newsworthy=False, title="", summary="", article=""))
+    writer = NewsWriter(client=FakeClaude(advice, in_article, cut, nothing))
+    assert writer.write(DRAFT, "doc") is None and writer.write(DRAFT, "doc") is None and writer.write(DRAFT, "doc") is None
+    assert writer.write(DRAFT, "doc")["newsworthy"] is False  # the desk decides what to do with it
 
 
 def test_writer_stops_asking_when_the_account_is_refused():
@@ -438,6 +468,13 @@ def test_news_api_refreshes_on_request(live_client):
     assert len(got["items"]) == 7 and got["press"] and got["stale"] is False
     assert [i["id"] for i in c.get("/api/public/news", params={"ticker": "AAPL"}).json()["items"]] == ["sec-0000320193-26-000070"]
     assert [i["id"] for i in c.get("/api/public/quote", params={"t": "AAPL"}).json()["news"]] == ["sec-0000320193-26-000070"]
+    # One item, for its own page: whole, with the link to its source. The list does not carry articles.
+    one = c.get("/api/public/news/item", params={"id": "sec-0000320193-26-000070"}).json()
+    assert one["title"] == "Apple Inc. published results" and one["url"].startswith("https://www.sec.gov/Archives/")
+    market = c.get("/api/public/news/item", params={"id": "mkt-2026-10-06-indices"}).json()
+    assert market["article"] == market["summary"] and market["sentiment"] == "bullish"
+    assert c.get("/api/public/news/item", params={"id": "sec-nothing"}).status_code == 404
+    assert all("article" not in i for i in got["items"])
 
 
 def test_my_news_is_about_the_users_own_stocks(live_client):
@@ -454,3 +491,5 @@ def test_sample_news_stays_labelled_and_off_the_quote(client):
     assert client.get("/api/public/news").json()["sample"] is True
     assert client.post("/api/public/news/refresh").json() == {"refreshed": False, "reason": "sample"}
     assert client.get("/api/public/quote?t=AAPL").json()["news"] == []
+    first = client.get("/api/public/news").json()["items"][0]
+    assert client.get("/api/public/news/item", params={"id": first["id"]}).json()["title"] == first["title"]

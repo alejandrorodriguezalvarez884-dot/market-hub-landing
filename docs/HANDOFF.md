@@ -206,6 +206,53 @@ Pendiente:
   dos lecturas posibles y sin elegir ninguna, marcada como escrita por IA y con enlaces a sus
   noticias. Sin empezar.
 
+### Artículos de noticias, con su tono y su sector (2026-10-06)
+
+El usuario pidió que un titular no lleve directamente a la fuente sino a un artículo propio, con
+la fuente enlazada dentro, y que en la lista se vea si la noticia es bullish, bearish o neutral y
+a qué sector afecta, o si es macro.
+
+- **El modelo escribe ahora, de cada documento**: titular, resumen, **artículo** (de tres a cinco
+  párrafos), **tono** (`bullish`, `bearish`, `neutral`) y **sector** (los once del portal, o
+  `Macro`). También de los comunicados del BLS, del BEA y de todos los de la Fed, que antes solo
+  llevaban el texto del feed. Un comunicado de una agencia es siempre `Macro`. Las tres noticias
+  del mercado del día las sigue escribiendo el código: su tono sale de las cifras (el S&P 500 a
+  más de una décima de cero; tres cuartos de los sectores hacia un lado) y su artículo es su
+  resumen. Una noticia que el modelo no escribió no lleva tono ni sector: no se afirma nada.
+- **Ojo con la regla "describir, no recomendar"**: el tono lo pidió el usuario. Al modelo se le
+  dice que clasifica la noticia del documento y que no es una previsión de ningún precio; el
+  filtro de consejos se aplica también al artículo. La landing sigue diciendo "no predictions".
+- **Dónde vive**: el artículo solo está en el archivo (`news/{id}`); la portada de noticias, que
+  se lee en cada visita, lleva lo demás. `GET /api/public/news/item?id=` devuelve una noticia
+  entera. La página es `/news/article/?id=`: tono y sector, titular, resumen, artículo, valores y,
+  al final, "Source" con el enlace al documento. Los titulares de `/news/`, de Today, de la ficha
+  y de My Hub llevan ahí. **Los de prensa no**: de ellos solo hay el titular y siguen abriendo en
+  su medio.
+- El tono se dibuja con la marca del sitio: el punto a la derecha de la línea (verde), a la
+  izquierda (rojo) o sobre ella.
+- Coste: cada documento pide ahora unos 500 tokens de salida más; del orden de medio céntimo a un
+  céntimo por noticia.
+
+### Estado del mercado en Today y vuelta a la portada desde My Hub (2026-10-06)
+
+- **Today** abre con el estado de la bolsa de EE. UU. en vez de la frase escrita con las cifras
+  ("US stocks are higher. The S&P 500 is up…"), que al usuario le parecía horrible; con ella se
+  fueron la fecha de encima y `lib/lede.ts`. El estado: `Closed`, `Pre-market`,
+  `Open` o `After hours`, una frase con el ánimo de la hora (varias por estado, y propias para la
+  primera media hora, la última hora, el fin de semana y los festivos; cambia cada hora) y lo que
+  falta para la próxima campana. Se calcula en el navegador con la hora de Nueva York
+  (`lib/session.ts`), sin llamar al proveedor. **Los festivos y los cierres a las 13:00 están
+  escritos a mano para 2026 y 2027**: hay que añadir cada año antes de que empiece.
+- **El emblema** (`components/MarketSession.astro`) es un dial de 24 horas con el logo en el
+  centro: su línea, y su tallo hasta un punto en el borde, que marca la hora de Nueva York como
+  una aguja. El arco grueso es la sesión, los finos el pre-market y el after hours. El punto late
+  mientras se negocia.
+- **En la película**, la escena de la frase (segundos 11,6 a 15,5) es ahora la del dial: la aguja
+  recorre un día entero y pasa por los cuatro estados con su frase ("And where the market is,
+  right now.").
+- **My Hub** tiene un botón "Back to the home page" al pie de la barra lateral ("← Home" en la
+  barra de pantallas estrechas), también en los `HubNav.astro` de las dos herramientas.
+
 ### Las herramientas, dentro de My Hub (2026-10-06; desplegado)
 
 El usuario pidió que Fundamentals y Earnings queden integradas en el área privada, porque solo se

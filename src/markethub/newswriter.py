@@ -24,7 +24,8 @@ log = logging.getLogger("markethub.newswriter")
 
 SYSTEM = """You write news items for a financial data website. Each request gives you one official \
 document: a company's Form 8-K filing with the SEC (often its press release) or a release of a \
-central bank. You write a title and a summary of what that document says.
+central bank or a statistics agency. You write a title, a summary and a short article of what that \
+document says, and you classify the news.
 
 Rules:
 - Use only what the document says. Do not add facts, figures, background or context you know from \
@@ -40,10 +41,27 @@ institution and says what happened. No clickbait, no questions, no exclamation m
 unit, its period and the comparison the document gives. Write large amounts as $1.2B or $350M.
 - Keep names, abbreviations and defined terms as the document writes them. Do not spell out an \
 abbreviation the document does not spell out.
+- Article: three to five short paragraphs, separated by a blank line, for a reader who will not \
+open the document: what happened, the figures that matter with their comparisons, what the issuer \
+said about it and what it said comes next. Plain prose, no headings, no lists, nothing the \
+document does not say.
+- Sentiment: how the news itself reads for the company, or for the economy when it is not about a \
+company. "bullish" when it is clearly favourable (results above the year before, guidance raised, \
+a contract won), "bearish" when it is clearly unfavourable (guidance lowered, a loss, an \
+impairment, an investigation), "neutral" when it is mixed, routine or neither. It classifies the \
+news in the document; it is not a forecast of any price.
+- Sector: the sector of the company the document is about, from the list you are given. "Macro" \
+when the document is about the economy, rates or the markets as a whole and not about a company.
 - Always write the title and the summary. Set "newsworthy" to false only when the document \
 reports no event at all, such as slides for a conference or boilerplate. Results, a change to \
 guidance, a deal, a financing or a change of executives is always newsworthy, however short the \
 document is."""
+
+SENTIMENTS = ["bullish", "bearish", "neutral"]
+# The sectors the rest of the portal uses, and "Macro" for what is about no company.
+SECTORS = ["Technology", "Communication Services", "Consumer Cyclical", "Consumer Defensive", "Financial Services",
+           "Healthcare", "Industrials", "Energy", "Utilities", "Real Estate", "Basic Materials"]
+MACRO = "Macro"
 
 SCHEMA = {
     "type": "object",
@@ -51,8 +69,11 @@ SCHEMA = {
         "newsworthy": {"type": "boolean"},
         "title": {"type": "string"},
         "summary": {"type": "string"},
+        "article": {"type": "string"},
+        "sentiment": {"type": "string", "enum": SENTIMENTS},
+        "sector": {"type": "string", "enum": [*SECTORS, MACRO]},
     },
-    "required": ["newsworthy", "title", "summary"],
+    "required": ["newsworthy", "title", "summary", "article", "sentiment", "sector"],
     "additionalProperties": False,
 }
 
@@ -74,16 +95,17 @@ class NewsWriter:
         self._paused = 0.0
 
     def write(self, draft: dict, document: str) -> dict | None:
-        """{"newsworthy", "title", "summary"} for the document behind ``draft``, or None when the
-        model could not be asked or its answer cannot be shown."""
+        """{"newsworthy", "title", "summary", "article", "sentiment", "scope"} for the document
+        behind ``draft``, or None when the model could not be asked or its answer cannot be shown."""
         if self._paused and time.monotonic() - self._paused < PAUSE_SECONDS:
             return None
         # The opening of a release carries its narrative; the tables that follow are not read.
         prompt = (f"Source: {draft['source']}. Published: {draft['published_utc']}.\n"
-                  f"Subject: {draft['title']}.\n\n<document>\n{document[:NEWS_DOC_CHARS]}\n</document>")
+                  f"Subject: {draft['title']}.\nSectors: {', '.join(SECTORS)}, or {MACRO}.\n\n"
+                  f"<document>\n{document[:NEWS_DOC_CHARS]}\n</document>")
         try:
             response = self.client.messages.create(
-                model=self.model, max_tokens=600, system=SYSTEM,
+                model=self.model, max_tokens=1600, system=SYSTEM,
                 output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -102,11 +124,14 @@ class NewsWriter:
         text = "".join(b.text for b in response.content if b.type == "text")
         try:
             body = json.loads(text)
+            paragraphs = [" ".join(p.split()) for p in str(body["article"]).split("\n\n")]
             out = {"newsworthy": bool(body["newsworthy"]), "title": " ".join(str(body["title"]).split()),
-                   "summary": " ".join(str(body["summary"]).split())}
+                   "summary": " ".join(str(body["summary"]).split()), "article": "\n\n".join(p for p in paragraphs if p),
+                   "sentiment": body["sentiment"] if body["sentiment"] in SENTIMENTS else "neutral",
+                   "scope": body["sector"] if body["sector"] in SECTORS else MACRO}
         except (json.JSONDecodeError, KeyError, TypeError):
             return None  # a refusal, or an answer cut off at max_tokens
-        if (out["newsworthy"] and not out["title"]) or reads_as_advice(f"{out['title']} {out['summary']}"):
+        if (out["newsworthy"] and not out["title"]) or reads_as_advice(f"{out['title']} {out['summary']} {out['article']}"):
             log.warning("news writer answer not shown for %s", draft["id"])
             return None
         return out

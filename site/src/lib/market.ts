@@ -23,6 +23,9 @@ export type NewsItem = {
   url?: string; // the document or the article; a path for the portal's own pages
   layer?: "official" | "market" | "press";
   written_by?: "source" | "code" | "model"; // who wrote the title: the source itself, the portal's code, or the AI model
+  sentiment?: "bullish" | "bearish" | "neutral" | null; // how the news reads; null when nobody has said
+  scope?: string | null; // the sector it touches, or "Macro"
+  article?: string; // its paragraphs, separated by a blank line: only on an item asked for by its id
 };
 export type News = {
   sample: boolean; categories: string[]; items: NewsItem[];
@@ -57,6 +60,7 @@ export function news(opts: { category?: string; ticker?: string; limit?: number 
   return api<News>(`/api/public/news?${q}`);
 }
 export const myNews = () => api<News>("/api/news/mine");
+export const newsItem = (id: string) => api<NewsItem>(`/api/public/news/item?id=${encodeURIComponent(id)}`);
 
 // Nothing refreshes the news on a timer. A page draws what is stored; when that is stale it asks
 // for the refresh itself, waits for it and draws again. `draw` is told whether one is under way.

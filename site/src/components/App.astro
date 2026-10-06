@@ -1,6 +1,7 @@
 ---
 // Shell of the private area (My Hub): a sidebar with the user's sections, a reminder that only
-// they see it, and the way back to the public portal. Pages check the session themselves.
+// they see it, and the way back to the public portal (the tools, and a button to the home page).
+// Pages check the session themselves.
 import Layout from "../layouts/Layout.astro";
 import { FUNDAMENTALS_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
 import Logo from "./Logo.astro";
@@ -73,6 +74,7 @@ const groups = [
 					</>
 				))}
 			</nav>
+			<div class="px-3 pb-3"><a href={link("/")} class="btn btn-ghost w-full py-1.5 text-[13px]"><span aria-hidden="true">←</span> Back to the home page</a></div>
 			<div id="app-user" class="border-t border-line p-3"></div>
 		</aside>
 
@@ -84,6 +86,7 @@ const groups = [
 				</div>
 				<nav class="border-t border-line" aria-label="My Hub">
 					<ul class="flex gap-1 overflow-x-auto px-2 text-[13px] font-semibold">
+						<li><a href={link("/")} class="block whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-muted"><span aria-hidden="true">←</span> Home</a></li>
 						{[...mine, ...tools.map((l) => ({ ...l, active: false })), { href: link("/markets/"), label: "Markets", active: false }].map((l) => (
 							<li>
 								<a href={l.href} aria-current={l.active ? "page" : undefined}

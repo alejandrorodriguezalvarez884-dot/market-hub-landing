@@ -203,7 +203,7 @@ function intro(ctx, t) {
 function today(ctx, t) {
   faded(ctx, span(t, T.today + 0.3, T.today + 0.8, T.markets - 0.6, T.markets - 0.2), () => text(ctx, "Today", LEFT, 144, { size: 36, color: C.muted }));
   title(ctx, t, "Every move of the day, on one scale.", T.today + 0.3, T.lede - 0.1);
-  title(ctx, t, "And the day, in one sentence.", T.lede + 0.1, T.markets - 0.2);
+  title(ctx, t, "And where the market is, right now.", T.lede + 0.1, T.markets - 0.2);
 
   faded(ctx, 1 - prog(t, T.lede - 0.5, T.lede - 0.1), () => {
     leadMark(ctx, t);
@@ -227,28 +227,66 @@ function today(ctx, t) {
   });
 }
 
-// The sentence the Today page opens with. A word is [text, style]: figures are set in mono.
-const LEDE = [
-  [["US"], ["stocks"], ["are"], ["higher."], ["The"], ["S&P"], ["500"], ["is"]],
-  [["up"], ["0.87%", "up"], ["at"], ["5,712.40.", "fig"], ["Gold"], ["is"], ["up"], ["0.65%,", "up"]],
-  [["and"], ["crude"], ["oil"], ["is"], ["down"], ["1.80%.", "down"]],
+// Where the market is in its day, as the Today page opens: a 24-hour dial with the logo at its
+// centre, its stem reaching a dot on the rim at the hour of New York. The film runs a whole day
+// through it. [from, to, hour at `from`, state, the line for it]
+const DAY = [
+  [12.0, 12.8, 6.5, "Pre-market", "Engines warming up."],
+  [12.8, 13.9, 9.5, "Open", "It's on. Stay sharp."],
+  [13.9, 14.6, 16, "After hours", "Time to reflect."],
+  [14.6, 15.3, 20, "Closed", "Silence. The market is asleep."],
 ];
-const LEDE_START = 12.1, LEDE_STEP = 0.085;
+const DIAL = { x: 420, y: 650, r: 200, pre: 4, open: 9.5, close: 16, after: 20, end: 23 };
+const rim = (hour, r = DIAL.r) => {
+  const a = ((hour - 12) / 24) * Math.PI * 2;  // noon at the top, clockwise
+  return [DIAL.x + r * Math.sin(a), DIAL.y - r * Math.cos(a)];
+};
+const hourAt = (t) => {
+  const i = Math.max(0, DAY.findLastIndex(([at]) => t >= at));
+  const [a, b, hour] = DAY[i];
+  return lerp(hour, i + 1 < DAY.length ? DAY[i + 1][2] : DIAL.end, prog(t, a, b));
+};
 
-function lede(ctx, t) {
-  faded(ctx, 1 - prog(t, T.markets - 0.6, T.markets - 0.2), () => {
-    let n = 0;
-    LEDE.forEach((words, row) => {
-      let x = LEFT;
-      const y = 480 + row * 124;
-      for (const [word, style] of words) {
-        const at = LEDE_START + n++ * LEDE_STEP;
-        const o = style ? { size: 76, mono: true, color: style === "fig" ? C.strong : C[style] } : { size: 88, weight: 500, color: C.ink };
-        const a = prog(t, at, at + 0.2);
-        faded(ctx, a, () => text(ctx, word, x, y + (1 - out3(a)) * 16, o));
-        x += width(ctx, word, o) + 24;
-      }
-      if (row === LEDE.length - 1) TRAVELS[0][1] = [x + 14, y - 26];  // the dot leaves from the full stop
+function session(ctx, t) {
+  faded(ctx, span(t, T.lede + 0.1, T.lede + 0.5, T.markets - 0.6, T.markets - 0.2), () => {
+    const arc = (a, b, color, w) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(DIAL.x, DIAL.y, DIAL.r, ((a - 12) / 24) * Math.PI * 2 - Math.PI / 2, ((b - 12) / 24) * Math.PI * 2 - Math.PI / 2);
+      ctx.stroke();
+    };
+    const drawn = out3(prog(t, T.lede + 0.1, T.lede + 0.9));  // the ring draws itself, from midnight round
+    arc(0, 24 * drawn, C.lineStrong, 5);
+    faded(ctx, prog(t, T.lede + 0.5, T.lede + 0.9), () => {
+      arc(DIAL.pre, DIAL.open, C.muted, 9);
+      arc(DIAL.close, DIAL.after, C.muted, 9);
+      arc(DIAL.open, DIAL.close, C.strong, 17);
+      for (const hour of [0, 6, 12, 18]) seg(ctx, ...rim(hour, DIAL.r + 22), ...rim(hour, DIAL.r + 36), C.faint, 5);
+    });
+    const hour = hourAt(t);
+    const i = Math.max(0, DAY.findLastIndex(([at]) => t >= at));
+    const [since, , , state, line] = DAY[i];
+    const color = state === "Open" ? C.strong : state === "Closed" ? C.muted : C.ink;
+    // The logo: its line at the centre, and its stem out to the dot.
+    const [x, y] = rim(hour);
+    seg(ctx, DIAL.x, DIAL.y - 46, DIAL.x, DIAL.y + 46, color, 13);
+    seg(ctx, DIAL.x, DIAL.y, x, y, color, 13);
+    if (state === "Open" || state === "Pre-market") {
+      const beat = (t * 1.4) % 1;
+      faded(ctx, 0.5 * (1 - beat), () => dot(ctx, x, y, 23 + beat * 46, color));
+    }
+    dot(ctx, x, y, 23, color);
+    TRAVELS[0][1] = [x, y];  // the dot leaves from where the day ended
+
+    if (t < DAY[0][0]) return;
+    const a = prog(t, since, since + 0.22);
+    faded(ctx, a, () => {
+      const w = text(ctx, "US stock market", 760, 560, { size: 38, color: C.muted });
+      text(ctx, "·", 760 + w + 16, 560, { size: 38, color: C.muted });
+      text(ctx, state, 760 + w + 44, 560, { size: 38, color: C.strong });
+      text(ctx, line, 760, 690 + (1 - out3(a)) * 16, { size: 92, weight: 500, color: C.strong, ...(width(ctx, line, { size: 92, weight: 500 }) > RIGHT - 760 ? { size: 76 } : {}) });
     });
   });
 }
@@ -680,7 +718,7 @@ export function draw(ctx, t) {
   ctx.save();
   ctx.globalAlpha = span(t, 0, 0.3, T.end - 0.7, T.end - 0.05);
   if (t < T.today) leadMark(ctx, t), intro(ctx, t);
-  else if (t < T.markets) today(ctx, t), t >= T.lede && lede(ctx, t);
+  else if (t < T.markets) today(ctx, t), t >= T.lede && session(ctx, t);
   if (t >= T.markets - 0.1 && t < T.news) markets(ctx, t);
   if (t >= T.news - 0.1 && t < T.hub) news(ctx, t);
   if (t >= T.hub - 0.1 && t < T.tools) hub(ctx, t);
@@ -705,7 +743,9 @@ export const EVENTS = (() => {
   // Today: a note per row, higher for a rise and lower for a fall.
   RULER.forEach(([, , v], i) => i && e.push({ t: rowTime(i) + 0.1, kind: "pluck", step: 4 + Math.round(clamp(v / SCALE, -1, 1) * 4), pan: pan(ZERO_X + rulerPx(v)), gain: 0.85 }));
   e.push({ t: T.lede + 0.2, kind: "pluck", step: 3, gain: 0.6 });
-  LEDE.flat().forEach(([, style], n) => e.push({ t: LEDE_START + n * LEDE_STEP, kind: style ? "pluck" : "tick", step: style === "down" ? 1 : 6, gain: style ? 0.65 : 0.5 }));
+  // The day on the dial: the hand sweeping, and a note as it enters each part of the day.
+  e.push({ t: DAY[0][0], kind: "glide", from: 1, to: 6, length: DAY[1][1] - DAY[0][0] - 0.3 });
+  DAY.forEach(([at], i) => e.push({ t: at, kind: "pluck", step: [3, 7, 5, 1][i], gain: 0.9, pan: 0.2 }, { t: at + 0.02, kind: "tick", gain: 0.7 }));
   for (const [at] of TRAVELS) e.push({ t: at - 0.35, kind: "whoosh", length: 0.9 });
   // Markets: the chart is played as it is drawn, a note every fifth candle, at the height of its close.
   for (let j = 100; j < 150; j += 5) {

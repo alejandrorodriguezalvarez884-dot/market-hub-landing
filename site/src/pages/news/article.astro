@@ -1,0 +1,58 @@
+---
+// One news item on its own page: its article, the instruments it is about and, at the end, the
+// way to its source. The headlines of the portal lead here, not out of the portal.
+import Site from "../../components/Site.astro";
+import { link } from "../../lib/site";
+---
+
+<Site title="News" description="A news item of Market Hub, with the link to its source.">
+	<article class="mx-auto max-w-[44rem]">
+		<a href={link("/news/")} class="text-[13px] text-muted hover:text-ink-strong"><span aria-hidden="true">←</span> News</a>
+		<div id="item" class="mt-8"><div class="skeleton h-5 w-56"></div><div class="skeleton mt-4 h-24"></div><div class="skeleton mt-8 h-64"></div></div>
+	</article>
+</Site>
+
+<script>
+	import { ApiError } from "../../lib/api";
+	import { add, h, linkTo } from "../../lib/dom";
+	import { newsItem, type NewsItem } from "../../lib/market";
+	import { byline, tickers } from "../../lib/news";
+	import { link } from "../../lib/site";
+
+	const root = document.getElementById("item")!;
+
+	// Where the item comes from: its document, or the page of the portal its figures are on.
+	function source(n: NewsItem): HTMLElement | null {
+		const url = n.url ?? "";
+		const own = url.startsWith("/");
+		if (!own && !/^https?:\/\//.test(url)) return null;
+		const a = linkTo(own ? link(url) : url, "link", own ? "See the figures on Market Hub" : `Open the original at ${new URL(url).hostname.replace(/^www\./, "")}`);
+		if (!own) {
+			a.target = "_blank";
+			a.rel = "noopener";
+		}
+		return add(h("footer", "sec mt-12"),
+			add(h("div", "sec-head"), h("h2", "sec-title", "Source")),
+			add(h("p", "text-sm text-ink"), `${n.source}. `, a, own ? " →" : " ↗"));
+	}
+
+	function draw(n: NewsItem) {
+		document.title = `${n.title} — Market Hub`;
+		const paragraphs = (n.article ?? "").split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p && p !== n.summary);
+		root.replaceChildren();
+		add(root,
+			byline(n),
+			h("h1", "mt-3 text-[2rem] font-medium leading-[1.15] tracking-tight text-ink-strong sm:text-[2.4rem]", n.title),
+			n.summary ? h("p", "mt-5 text-lg leading-relaxed text-ink-strong", n.summary) : null,
+			add(h("div", "mt-6 space-y-5 text-[17px] leading-relaxed text-ink"), ...paragraphs.map((p) => h("p", "", p))),
+			tickers(n),
+			source(n));
+	}
+
+	const id = new URLSearchParams(location.search).get("id") ?? "";
+	newsItem(id)
+		.then(draw)
+		.catch((e) => root.replaceChildren(
+			h("p", "text-ink", e instanceof ApiError && e.status === 404 ? "This news item is no longer here." : "This news item is not available right now."),
+			add(h("p", "mt-4"), linkTo(link("/news/"), "link", "All the news"))));
+</script>

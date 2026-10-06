@@ -15,6 +15,7 @@
     GET    /api/public/chart        ?symbol=&range=  price bars for the charts
     GET    /api/public/quote        ?t=  a stock's figures and its own news
     GET    /api/public/news         ?category=&ticker=  the news, and whether it is stale
+    GET    /api/public/news/item    ?id=  one item, with its article
     POST   /api/public/news/refresh read the news sources, if the news is stale
     GET    /api/news/mine           the news about the user's own stocks
 
@@ -307,6 +308,14 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                     limit: int = Query(20, ge=1, le=100)) -> dict:
         t = symbol(ticker) if ticker else None
         return news.news(category=category, tickers={t} if t else None, limit=limit, name=company_name(t) if t else None)
+
+    @app.get("/api/public/news/item")
+    def public_news_item(id_: str = Query(alias="id", max_length=80)) -> dict:
+        """One item with its article. The page links to the source from there."""
+        found = news.item(id_)
+        if not found:
+            raise HTTPException(404, "No such news item.")
+        return found
 
     @app.post("/api/public/news/refresh")
     def refresh_news(request: Request) -> dict:

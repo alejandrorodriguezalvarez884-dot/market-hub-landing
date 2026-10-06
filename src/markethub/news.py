@@ -2,7 +2,8 @@
 
 Three kinds of item:
 - official documents (newsfeeds.py), written by the model from the document when there is a key
-  (newswriter.py), else titled by code;
+  (newswriter.py): a title, a summary, an article, how the news reads (bullish, bearish or
+  neutral) and the sector it touches, or "Macro". Without a key they are titled by code;
 - the day's market, written by code from the figures the portal already shows;
 - headlines from the press, as links.
 
@@ -33,13 +34,14 @@ from . import sample
 from .config import (DATA_DIR, FIRESTORE_DATABASE, NEWS_BUDGET_SECONDS, NEWS_FIRST_RUN_HOURS, NEWS_FRONT_ITEMS,
                      NEWS_LOCK_SECONDS, NEWS_PRESS_ITEMS, NEWS_TTL_SECONDS)
 from .newsfeeds import SourceDown, default_sources, item, recent, utc
-from .newswriter import NewsWriter, default_writer
+from .newswriter import MACRO, NewsWriter, default_writer
 
 log = logging.getLogger("markethub.news")
 
 CATEGORIES = ["Markets", "Economy", "Companies", "Earnings"]
 NEW_YORK = ZoneInfo("America/New_York")
 FRONT_CACHE_SECONDS = 20  # the front document is kept in memory this long between reads
+ARTICLE_CACHE_SECONDS = 600  # and an article, once read from the archive, this long
 PRESS_DAYS = 3
 SEEN_IDS = 1000  # documents read and found not to be news: remembered so they are not read again
 
@@ -55,6 +57,10 @@ class NewsStore(Protocol):
     def front(self) -> dict | None: ...
     def save_front(self, doc: dict) -> None: ...
     def archive(self, items: list[dict]) -> None: ...
+    def item(self, id_: str) -> dict | None: ...
+
+
+ITEM_ID = re.compile(r"[A-Za-z0-9_\-]{1,80}")
 
 
 class MemoryNews:
@@ -70,6 +76,10 @@ class MemoryNews:
 
     def archive(self, items: list[dict]) -> None:
         self.items.update({i["id"]: dict(i) for i in items})
+
+    def item(self, id_: str) -> dict | None:
+        found = self.items.get(id_)
+        return dict(found) if found else None
 
 
 class FileNews:
@@ -96,8 +106,12 @@ class FileNews:
     def archive(self, items: list[dict]) -> None:
         with self._lock:
             for i in items:
-                if re.fullmatch(r"[A-Za-z0-9_\-]{1,80}", i["id"]):
+                if ITEM_ID.fullmatch(i["id"]):
                     self._write(self.root / "items" / f"{i['id']}.json", i)
+
+    def item(self, id_: str) -> dict | None:
+        path = self.root / "items" / f"{id_}.json"
+        return json.loads(path.read_text(encoding="utf-8")) if ITEM_ID.fullmatch(id_) and path.exists() else None
 
 
 class FirestoreNews:
@@ -121,6 +135,10 @@ class FirestoreNews:
             for i in items[start:start + 400]:
                 batch.set(self.items.document(i["id"]), i)
             batch.commit()
+
+    def item(self, id_: str) -> dict | None:
+        snap = self.items.document(id_).get()
+        return snap.to_dict() if snap.exists else None
 
 
 # --- The day's market, in words ----------------------------------------------------------------
@@ -167,9 +185,10 @@ def market_items(overview: dict) -> list[dict]:
     day = market_day(as_of).isoformat()
     source, out = "Market Hub, from the day's figures", []
 
-    def add(kind: str, title: str, summary: str, url: str, tickers: list[str] | None = None) -> None:
+    def add(kind: str, title: str, summary: str, url: str, tickers: list[str] | None = None, sentiment: str = "neutral") -> None:
+        # The article of a market item is its summary: the figures are all there is to say.
         out.append(item(f"mkt-{day}-{kind}", "market", "Markets", title, source, url, as_of, summary=summary,
-                        tickers=tickers, written_by="code"))
+                        tickers=tickers, written_by="code") | {"sentiment": sentiment, "scope": MACRO, "article": summary})
 
     indices = {s["symbol"]: s for s in _moved(overview.get("indices") or [])}
     spx = indices.get("SPX")
@@ -180,15 +199,18 @@ def market_items(overview: dict) -> list[dict]:
         vix = indices.get("VIX")
         if vix and vix.get("price"):
             summary = f"{summary} The VIX is at {vix['price']:.2f}.".strip()
+        # Up or down by more than a tenth of a percent is the day's tone; less is neither.
+        tone = "bullish" if spx["change_pct"] > 0.001 else "bearish" if spx["change_pct"] < -0.001 else "neutral"
         add("indices", f"S&P 500 {_move(spx['change_pct'])} at {spx['price']:,.2f}", summary, "/today/",
-            [s for s in ("SPX", "NDX", "DJI", "RUT") if s in indices])
+            [s for s in ("SPX", "NDX", "DJI", "RUT") if s in indices], tone)
 
     sectors = sorted(_moved(overview.get("sectors") or []), key=lambda s: s["change_pct"], reverse=True)
     if len(sectors) >= 2 and "sectors" not in skip:
         top, last = sectors[0], sectors[-1]
         higher = sum(1 for s in sectors if s["change_pct"] > 0)
+        breadth = "bullish" if higher >= len(sectors) * 0.75 else "bearish" if higher <= len(sectors) * 0.25 else "neutral"
         add("sectors", f"{top['name']} leads the US sectors, {_move(top['change_pct'])}; {last['name']} is last, {_move(last['change_pct'])}",
-            f"{higher} of {len(sectors)} sectors are higher on the day, by the average move of each sector's stocks.", "/today/")
+            f"{higher} of {len(sectors)} sectors are higher on the day, by the average move of each sector's stocks.", "/today/", None, breadth)
 
     movers = overview.get("movers") or {}
     gainers, losers = _moved(movers.get("gainers") or [])[:3], _moved(movers.get("losers") or [])[:3]
@@ -214,6 +236,7 @@ class NewsDesk:
         self.ttl, self.budget = ttl, budget
         self.now = now or (lambda: datetime.now(timezone.utc))
         self._cached: tuple[float, dict] | None = None
+        self._articles: dict[str, tuple[float, dict]] = {}
         self._running = threading.Lock()
 
     def _front(self) -> dict:
@@ -240,6 +263,24 @@ class NewsDesk:
         return {"sample": False, "categories": CATEGORIES, "items": items[:limit],
                 "press": [] if tickers or category else front.get("press", [])[:20],
                 "refreshed_utc": front.get("refreshed_utc"), "stale": self._stale(front, self.now())}
+
+    def item(self, id_: str) -> dict | None:
+        """One item whole, with its article, from the archive (kept in memory for a while). The
+        day's market items change through the day, so the front's copy of those is the one served."""
+        if not ITEM_ID.fullmatch(id_):
+            return None
+        on_front = next((i for i in self._front().get("items", []) if i["id"] == id_), None)
+        if on_front and on_front["layer"] == "market":
+            return on_front | {"article": on_front.get("summary", "")}
+        hit = self._articles.get(id_)
+        if hit and time.monotonic() - hit[0] < ARTICLE_CACHE_SECONDS:
+            return hit[1]
+        found = self.store.item(id_) or on_front
+        if found:
+            if len(self._articles) >= 300:
+                self._articles.clear()
+            self._articles[id_] = (time.monotonic(), found)
+        return found
 
     def refresh(self) -> dict:
         """Read the sources and save a new front, unless it is fresh or a refresh is running."""
@@ -283,10 +324,11 @@ class NewsDesk:
             if draft.get("_hidden"):
                 seen.append(i["id"])
             else:
-                (press if i["layer"] == "press" else items)[i["id"]] = i
+                # The article stays in the archive: the front is read on every visit and stays small.
+                (press if i["layer"] == "press" else items)[i["id"]] = {k: v for k, v in i.items() if k != "article"}
                 added.append(i)
         market = self._market()
-        items.update({i["id"]: i for i in market})  # the day's market items are rewritten in place
+        items.update({i["id"]: {k: v for k, v in i.items() if k != "article"} for i in market})  # rewritten in place
         self.store.archive(added + market)
         log.info("news refresh: %d new, %d left for the next one", len(added), len(left))
         newest = lambda rows: sorted(rows, key=lambda i: i["published_utc"], reverse=True)  # noqa: E731
@@ -329,7 +371,10 @@ class NewsDesk:
                 return draft | {"_hidden": True}  # read, and nothing in it: not shown, not read again
             if not written["title"]:
                 return draft
-            return draft | {"title": written["title"], "summary": written["summary"], "written_by": "model"}
+            # An agency's release is about the economy, whatever sector the model picked.
+            scope = written.get("scope") if draft["id"].startswith("sec-") else MACRO
+            return draft | {"title": written["title"], "summary": written["summary"], "article": written.get("article", ""),
+                            "sentiment": written.get("sentiment"), "scope": scope, "written_by": "model"}
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(one, reading))
@@ -361,6 +406,10 @@ class SampleNews:
                 out["items"] = [i for i in out["items"] if tickers.intersection(i["tickers"])]
             out["items"] = out["items"][:limit]
         return out | {"press": [], "refreshed_utc": None, "stale": False}
+
+    def item(self, id_: str) -> dict | None:
+        found = next((i for i in sample.news(limit=50)["items"] if i["id"] == id_), None)
+        return found | {"article": found["summary"]} if found else None
 
     def refresh(self) -> dict:
         return {"refreshed": False, "reason": "sample"}

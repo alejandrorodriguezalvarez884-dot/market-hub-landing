@@ -1,0 +1,98 @@
+---
+// Where the US stock market is in its day, at the top of a page: closed, pre-market, open or
+// after hours, with a line for the mood of the hour and the time to the next bell.
+//
+// Its emblem is a 24-hour dial with the site's own mark at its centre: the logo's line, and its
+// stem reaching a dot on the rim at the hour it is in New York, like the hand of a clock. Noon is
+// at the top, so the session runs over the top of the dial like the sun: the thick arc is the
+// open market, the thin ones on each side are the pre-market and the after hours, and the rest
+// of the ring is the night.
+---
+
+<div class="flex flex-col gap-x-10 gap-y-6 sm:flex-row sm:items-center">
+	<div id="session-dial" class="h-32 w-32 flex-none sm:h-40 sm:w-40" aria-hidden="true"></div>
+	<div class="min-w-0">
+		<p class="flex items-center gap-2 text-[13px] text-muted">
+			<span>US stock market</span><span aria-hidden="true">·</span><span id="session-label" class="text-ink-strong">&nbsp;</span>
+		</p>
+		<p id="session-line" class="lede mt-2 min-h-[1.2em] !text-ink-strong"><span class="skeleton block h-[1em] w-3/4"></span></p>
+		<p id="session-next" class="mt-3 text-[13px] text-muted">&nbsp;</p>
+	</div>
+</div>
+
+<style is:global>
+	/* The dot of the dial breathes out a ring while the market trades. */
+	.session-ripple {
+		transform-box: fill-box;
+		transform-origin: center;
+		animation: session-ripple 1.8s ease-out infinite;
+	}
+	.session-ripple.slow {
+		animation-duration: 3.4s;
+	}
+	@keyframes session-ripple {
+		from { transform: scale(1); opacity: 0.55; }
+		to { transform: scale(3.4); opacity: 0; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.session-ripple { animation: none; opacity: 0; }
+	}
+</style>
+
+<script>
+	import { svg } from "../lib/dom";
+	import { status, type Status } from "../lib/session";
+
+	const C = 60, R = 46; // the dial's centre and radius, in a 120-unit box
+	// A point on the rim at an hour of the day: noon at the top, clockwise.
+	function rim(hour: number, r = R): [number, number] {
+		const a = ((hour - 12) / 24) * Math.PI * 2;
+		return [C + r * Math.sin(a), C - r * Math.cos(a)];
+	}
+	function arc(from: number, to: number, cls: string, width: number) {
+		const [x0, y0] = rim(from), [x1, y1] = rim(to);
+		return svg("path", { d: `M${x0} ${y0}A${R} ${R} 0 ${to - from > 12 ? 1 : 0} 1 ${x1} ${y1}`, class: cls, stroke: "currentColor", "stroke-width": width, "stroke-linecap": "round", fill: "none" });
+	}
+
+	function dial(s: Status): SVGSVGElement {
+		const el = svg("svg", { viewBox: "0 0 120 120", class: "h-full w-full overflow-visible" });
+		el.append(svg("circle", { cx: C, cy: C, r: R, class: "text-line-strong", stroke: "currentColor", "stroke-width": 2, fill: "none" }));
+		// Midnight, six, noon and eighteen, marked outside the ring.
+		for (const hour of [0, 6, 12, 18]) {
+			const [x0, y0] = rim(hour, R + 6), [x1, y1] = rim(hour, R + 10);
+			el.append(svg("line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "text-faint", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round" }));
+		}
+		if (s.hours) {
+			el.append(arc(s.hours.pre, s.hours.open, "text-muted", 3), arc(s.hours.close, s.hours.after, "text-muted", 3),
+				arc(s.hours.open, s.hours.close, "text-ink-strong", 5.5));
+		}
+		// The hand: the stem and the dot of the logo. It is bright while the market trades.
+		const tone = s.session === "open" ? "text-ink-strong" : s.session === "closed" ? "text-muted" : "text-ink";
+		const [x, y] = rim(s.hour);
+		const hand = svg("g", { class: tone });
+		if (s.session === "open" || s.session === "pre")
+			hand.append(svg("circle", { cx: x, cy: y, r: 7.5, class: `session-ripple ${s.session === "pre" ? "slow" : ""}`, fill: "currentColor" }));
+		hand.append(
+			svg("line", { x1: C, y1: C - 15, x2: C, y2: C + 15, stroke: "currentColor", "stroke-width": 4, "stroke-linecap": "round" }),
+			svg("line", { x1: C, y1: C, x2: x, y2: y, stroke: "currentColor", "stroke-width": 4, "stroke-linecap": "round" }),
+			svg("circle", { cx: x, cy: y, r: 7.5, fill: "currentColor" }));
+		el.append(hand);
+		return el;
+	}
+
+	const $ = (id: string) => document.getElementById(id)!;
+	let drawn = "";
+	function show() {
+		const s = status();
+		$("session-next").textContent = `${s.next} · ${s.wait}`;
+		// The dial moves a quarter of a degree a minute: redrawn when the minute or the session changes.
+		const key = `${s.session} ${Math.floor(s.hour * 60)} ${s.line}`;
+		if (key === drawn) return;
+		drawn = key;
+		$("session-label").textContent = s.label;
+		$("session-line").textContent = s.line;
+		$("session-dial").replaceChildren(dial(s));
+	}
+	show();
+	setInterval(show, 20_000);
+</script>
