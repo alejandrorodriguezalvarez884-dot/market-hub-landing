@@ -128,7 +128,7 @@ El usuario pidió que las herramientas no parezcan páginas aparte. Hecho en los
 - 45 tests en verde. Comprobado en producción: las páginas responden, el vídeo se sirve con
   peticiones por rangos y las capturas cargan.
 
-### Noticias, y las herramientas fuera de la cabecera pública (2026-10-06; en local, sin desplegar)
+### Noticias, y las herramientas fuera de la cabecera pública (2026-10-06; desplegado como `market-hub-00010-s6d`)
 
 El usuario pidió quitar las herramientas de la cabecera pública y añadir noticias que se actualicen
 solas; la sección de opinión vendrá después y saldrá de las noticias.
@@ -149,13 +149,20 @@ solas; la sección de opinión vendrá después y saldrá de las noticias.
      titular, medio y enlace; nunca el texto. Se descartan los titulares que suenan a consejo
      (precios objetivo, "stocks to buy", subidas y bajadas de recomendación).
 - **Quién escribe** (`newswriter.py`): con `ANTHROPIC_API_KEY`, Claude Haiku 4.5 escribe titular y
-  resumen de cada 8-K (lee la nota de prensa, EX-99.1, o el propio formulario) y de los comunicados
-  de política monetaria, solo con lo que dice el documento. Puede marcar un 8-K como "no es
-  noticia" y entonces no se muestra ni se vuelve a leer. Sin clave, o si la respuesta falla o suena
-  a consejo, queda el titular que escribe el código ("Apple Inc. published results"). Las noticias
-  escritas por el modelo lo dicen en la web. **Sin tope de gasto, por decisión del usuario** (el
-  tope es el crédito de la cuenta); cada llamada deja en el log tokens y coste (`news written …`).
-  Unos 0,5 céntimos por 8-K. Si la API rechaza la clave o la cuenta, no se llama durante 15 minutos.
+  resumen de cada 8-K y de los comunicados de política monetaria, solo con lo que dice el
+  documento. De un 8-K lee el formulario desde su primer "Item" (ahí la empresa cuenta qué pasó) y
+  después el primer anexo 99 (la nota de prensa, con las cifras); en total, los primeros 16.000
+  caracteres. Solo puede descartar como "no es noticia" un 8-K que no tenga más que los apartados
+  comodín 7.01 y 8.01; ese no se muestra ni se vuelve a leer. Sin clave, o si la respuesta falla o
+  suena a consejo, queda el titular que escribe el código ("Apple Inc. published results").
+  **Sin tope de gasto, por decisión del usuario** (el tope es el crédito de la cuenta); cada
+  llamada deja en el log tokens y coste (`news written …`). Medido en producción: entre 0,2 y 0,4
+  céntimos por 8-K. Si la API rechaza la clave o la cuenta, no se llama durante 15 minutos.
+- **La web no dice cómo está hecha, por decisión del usuario (2026-10-06)**: pidió quitar de
+  `/news/` la sección "How this page is made", la nota bajo "In the press" y la etiqueta "AI summary
+  of the document" de cada noticia. La API sigue diciendo quién escribió cada una (`written_by`).
+  Queda avisado de que el Reglamento europeo de IA (art. 50) pide señalar el texto generado por IA
+  que informa al público salvo que una persona lo revise y asuma la responsabilidad editorial.
 - **Actualización sin nada programado**: la portada de noticias es un documento (`news_state/front`
   en Firestore; `data/news/front.json` en local) y cada noticia se archiva además en `news/{id}`.
   `GET /api/public/news` lo sirve con `stale: true` si tiene más de `NEWS_TTL_SECONDS` (15 min). La
@@ -166,17 +173,30 @@ solas; la sección de opinión vendrá después y saldrá de las noticias.
 - **Dónde salen**: `/news/` (por día, con filtro por tipo y la prensa al lado), bloque "Latest
   news" en `/today/`, "From its filings" en la ficha de valor, y "News on your stocks" en My Hub
   (`GET /api/news/mine`, las de las empresas de la cartera y los favoritos; no guarda nada nuevo).
-- **Despliegue**: `scripts/deploy-cloudrun.sh` sube `ANTHROPIC_API_KEY` como secreto
-  `market-hub-anthropic-api-key` si está en `.env`; si no, avisa y despliega sin modelo.
-- 68 tests en verde (`tests/test_news.py`, sin red), `astro check` y build en verde. Probado en
-  local contra las fuentes reales **sin clave de Anthropic**: el refresco tarda unos 3 s y la
-  página, Today y la ficha pintan bien a 375 px.
+- **Despliegue**: la clave de Anthropic sale de Secret Manager. `ANTHROPIC_SECRET` nombra el
+  secreto; en producción es `ANTHROPIC_API_KEY`, el mismo que usa Fundamentals Lab, así que las
+  noticias gastan de esa misma cuenta. Una clave puesta en `.env` se guarda antes en ese secreto.
+- 69 tests en verde (`tests/test_news.py`, sin red), `astro check` y build en verde.
+- **Comprobado en producción**: el primer refresco tardó 10 s y los siguientes 7 s (Cloud Run
+  corta a los 60 s); Firestore guarda `news_state/front`; el `POST` sin cuerpo que hace el
+  navegador pasa (con `curl -X POST` sin `-d ''` el frontal de Google contesta 411); `/news/`
+  pinta las noticias escritas por el modelo. Las dos herramientas se redesplegaron con el enlace
+  `News` (`fundamentals-lab-00005-7vw`, `earnings-radar-hub-00003-w8t`) y su configuración y sus
+  topes quedaron idénticos; `earningsradar.app` no se tocó.
+- **Dos fallos del modelo vistos el primer día, ya corregidos**: descartó un 8-K de AbbVie que
+  rebajaba previsiones (solo había leído el anexo, una tabla; de ahí que ahora lea también el
+  formulario y que no pueda descartar resultados) y deshizo mal la sigla "IPR&D" (ahora se le pide
+  dejar siglas y términos como los escribe el documento). Conviene repasar de vez en cuando lo que
+  escribe.
+- En el equipo local del usuario (Windows) los `.env` de los tres repos se reconstruyeron desde la
+  configuración de los servicios y Secret Manager. `uv` necesita ahí `UV_LINK_MODE=copy`, y el
+  `launch.json` del workspace no arranca porque su bash no encuentra `uv`.
 
 Pendiente:
-- **Probar el redactor con una clave real** (no había `.env` en el equipo): solo está probado con
-  un cliente falso. Mirar en el log el coste real por noticia.
-- **Desplegar** (`make deploy`) y comprobar en producción que el refresco cabe en la petición
-  (Cloud Run corta a los 60 s) y que Firestore guarda `news_state/front`.
+- **Las noticias del mercado del día no han salido aún en producción**: la cuota de FMP estaba
+  agotada (429) y con cifras de ejemplo no se escriben. Mirarlo un día con cuota.
+- "News on your stocks" de My Hub no se ha visto en el navegador (pide login de Google); su API
+  está testeada.
 - **Licencia de la prensa**: los feeds de CNBC son para uso personal según sus condiciones. Se
   muestra solo titular y enlace, pero conviene revisarlo antes de dar a conocer el portal, igual
   que la licencia de FMP. `NEWS_PRESS_FEEDS=` vacío los apaga.
