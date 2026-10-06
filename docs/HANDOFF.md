@@ -333,6 +333,43 @@ grabación con Playwright descrita más arriba.
   el sonido se activa en los controles. La nota pasa de "No sound" a "With sound".
 - `film/` no se sube a Cloud Run (`.gcloudignore`, `.dockerignore`).
 
+### Login propio: email y contraseña (2026-10-06)
+
+El usuario pidió poder entrar sin Google, con un login gestionado por nosotros.
+
+- **`src/markethub/accounts.py`**: registro (email, nombre, contraseña), entrada y cambio de
+  contraseña. De la contraseña se guarda solo un hash scrypt con sal y con su coste escrito
+  (`scrypt$15$8$3$sal$hash`: 32 MB y un cuarto de segundo, el tercer ajuste de OWASP); un hash hecho
+  a un coste anterior se rehace en la siguiente entrada. Colección `logins` en Firestore, con la
+  clave `sha256(email en minúsculas)`: el email no va en el nombre del documento y `Ana@x` y
+  `ana@x` son la misma cuenta. El id del usuario se genera aquí (`mh_...`), nunca es el email.
+- **API**: `POST /api/auth/register`, `POST /api/auth/password`, `PUT /api/auth/password`. La sesión
+  es la misma cookie firmada, con `"provider": "password"` (las de Google llevan `"google"`; una
+  sesión antigua sin el campo es de Google). Las herramientas no cambian: solo miran que haya
+  sesión. `MARKETHUB_PASSWORD_LOGIN=0` lo apaga y deja Google como única entrada.
+- **Frenos**: contraseña de 10 a 200 caracteres, fuera las más comunes y la que es el propio email;
+  8 contraseñas malas por email en 15 minutos y esa dirección espera (aunque llegue la buena); 30
+  intentos y 5 cuentas nuevas por IP y hora. La respuesta a un email que no existe y a una
+  contraseña mala es la misma, y tarda lo mismo. Los contadores son en memoria, por instancia.
+- **Lo que no hace, y hay que saber**:
+  - **No envía correo, así que el email no se verifica**: quien lo registra primero se lo queda.
+    Por eso un email de cuenta propia no da ningún derecho: `Opinion.can_moderate` solo vale para
+    cuentas de Google (hay test: registrar el email del dueño no te hace moderador), y una cuenta
+    propia es otra cuenta distinta de la de Google con el mismo email.
+  - **No hay "he olvidado mi contraseña"**. La página lo dice antes de elegirla. Para tenerlo hace
+    falta un proveedor de correo (clave y coste nuevos): decisión del usuario.
+  - **Cambiar la contraseña no cierra las otras sesiones**: la sesión es una cookie firmada sin
+    estado; dura hasta 30 días.
+  - **Sin captcha**: crear cuentas se puede automatizar dentro del límite por IP, y cada cuenta
+    abre las herramientas, que gastan con las claves del dueño (tienen sus propios topes). Si se
+    ve abuso: Cloudflare Turnstile en el registro, o `MARKETHUB_PASSWORD_LOGIN=0`.
+- **Web**: `/signin/` tiene, bajo el botón de Google, un formulario que sirve para entrar y para
+  crear la cuenta; `/account/` dice cómo entra la cuenta y deja cambiar la contraseña; `/privacy/`
+  dice qué se guarda. Borrar la cuenta borra también su entrada en `logins`.
+- **Tests**: 133 en verde (27 nuevos en `tests/test_accounts.py`). Probado en local en el
+  navegador: crear cuenta, contraseña débil, cambiarla, salir, entrar con la vieja (no) y con la
+  nueva (sí), mismo email otra vez (no), borrar.
+
 ### My Hub a fondo: análisis de cartera, frases con IA, comunidad (2026-10-06)
 
 El usuario pidió mejorar mucho My Hub: mucha más información de la cartera (aunque hubiera que

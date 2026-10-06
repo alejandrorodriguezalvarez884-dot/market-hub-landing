@@ -8,6 +8,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from markethub.accounts import MemoryLogins
 from markethub.api import create_app
 from markethub.community import MemoryCommunity
 from markethub.market import Company, Directory
@@ -100,6 +101,11 @@ def opinion():
 
 
 @pytest.fixture
+def logins():
+    return MemoryLogins()
+
+
+@pytest.fixture
 def shared():
     return MemoryCommunity()
 
@@ -121,10 +127,10 @@ def writer():
 
 
 @pytest.fixture
-def client(users, market, directory, opinion, shared, writer):
+def client(users, market, directory, opinion, shared, writer, logins):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
-                     community_store=shared, insight_writer=writer)
+                     community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1))
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

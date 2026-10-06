@@ -17,7 +17,10 @@ Reglas que no se negocian:
   la identidad, el número de acciones, los costes ni los importes. Cualquier dato nuevo que se
   guarde se añade antes a la página de privacidad y a la de cuenta.
 - **El login se verifica en el servidor.** Nunca se confía en un email o un id que mande el
-  navegador; solo en el ID token verificado y en la cookie firmada. Las escrituras pasan el
+  navegador; solo en el ID token verificado (Google) o en la contraseña comprobada contra su hash
+  (cuenta propia, `accounts.py`), y en la cookie firmada. De una contraseña solo se guarda el hash
+  scrypt; nunca va a un log. El email de una cuenta propia no está verificado: no da ningún
+  derecho (moderar, ser admin) ni se une a una cuenta de Google. Las escrituras pasan el
   control de `Origin`.
 - **Claves solo en `.env` o en el entorno.** Nunca en el repo, en logs ni en commits.
 - **Nada programado y nada en GitHub Actions.** Todo se lanza a mano desde el `Makefile`.

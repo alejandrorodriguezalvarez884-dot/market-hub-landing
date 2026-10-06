@@ -9,7 +9,10 @@ import { link } from "../lib/site";
 		<p>Market Hub keeps the least it needs to show you your private dashboard and to let you comment. The public pages (markets, quotes, news, opinion) need no account and keep nothing about you.</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">What we keep</h2>
 		<ul class="list-disc space-y-1 pl-5">
-			<li>From your Google account, when you sign in: your account id, name, email address and profile picture.</li>
+			<li>From your Google account, when you sign in with it: your account id, name, email address and profile picture.</li>
+			<li>If you make an account with an email and a password instead: the email address and the name you give, and a scrambled
+				form of the password (a salted scrypt hash) from which it cannot be read back. We never keep the password as you typed
+				it. We do not check that the address is yours, and we cannot send you a new password if you forget it.</li>
 			<li>What you add: the tickers you hold with their number of shares and average cost, and the tickers you follow.</li>
 			<li>If you choose to share your portfolio, and only then: the name you pick to be shown under, the tickers you hold with each
 				one's share of the portfolio in percent, and the returns of those holdings. Signed-in members see that on the Community

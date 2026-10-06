@@ -42,7 +42,7 @@ const parts = [
 const promises = [
 	["It describes. It does not advise.", "No buy or sell calls, no price targets, no predictions. The site says what the numbers and the filings show, and stops there."],
 	["The numbers come from code.", "Prices, statements and ratios are computed the same way for every company. The AI comments on them and invents none."],
-	["What you add is yours.", "My Hub keeps your Google name, email and picture and the stocks you add. Nothing else, and you can delete all of it at any time."],
+	["What you add is yours.", "My Hub keeps your name and email and the stocks you add. Never your password as you typed it, and you can delete all of it at any time."],
 ];
 ---
 
@@ -99,9 +99,9 @@ const promises = [
 			<div>
 				<p class="text-[13px] text-muted">My Hub</p>
 				<h2 id="hub-title" class="mt-2 max-w-xl text-[1.75rem] font-medium leading-tight tracking-tight text-ink-strong">Your own stocks, on a private page</h2>
-				<p id="hub-text" class="mt-4 max-w-xl text-ink">Keep a portfolio or a watchlist and see its value, today's move and your gain against what you paid. You sign in with Google, there is no password to remember, and only you see it.</p>
+				<p id="hub-text" class="mt-4 max-w-xl text-ink">Keep a portfolio or a watchlist and see its value, today's move and your gain against what you paid. You sign in with Google or with an email and a password, and only you see it.</p>
 			</div>
-			<div><a id="hub-link" href={link("/signin/")} class="btn btn-primary">Sign in with Google</a></div>
+			<div><a id="hub-link" href={link("/signin/")} class="btn btn-primary">Sign in or create an account</a></div>
 		</div>
 	</section>
 

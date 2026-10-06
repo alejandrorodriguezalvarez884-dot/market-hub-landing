@@ -209,7 +209,9 @@ class Opinion:
         return found
 
     def can_moderate(self, user: dict | None) -> bool:
-        return bool(user and str(user.get("email", "")).lower() in self.admins)
+        """The owner, by an address Google has verified. An account with a password of ours can
+        be made with any address, so its email proves nothing."""
+        return bool(user and user.get("provider", "google") == "google" and str(user.get("email", "")).lower() in self.admins)
 
     def _view(self, c: dict, user: dict | None) -> dict:
         """A comment as readers get it: never the author's account id."""

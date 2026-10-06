@@ -52,6 +52,10 @@ QUOTA_PAUSE_SECONDS = 15 * 60
 
 # Requests per address per hour on the endpoints that call the data provider.
 PER_IP_PER_HOUR = 240
+# Sign-ins with a password, right or wrong, that one address can try in an hour, and the accounts
+# it can make. Each wrong password for one email is also counted on its own (accounts.py).
+PASSWORD_TRIES_PER_IP_PER_HOUR = 30
+REGISTRATIONS_PER_IP_PER_HOUR = 5
 # Comments a signed-in reader can leave in an hour.
 COMMENTS_PER_USER_PER_HOUR = 20
 

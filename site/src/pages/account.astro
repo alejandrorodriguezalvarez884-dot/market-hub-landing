@@ -22,10 +22,12 @@ import App from "../components/App.astro";
 		const p = await api<Portfolio>("/api/portfolio");
 		const mine = await api<{ comments: { slug: string; text: string; created_utc: string }[] }>("/api/opinion/mine").catch(() => ({ comments: [] }));
 		const shared = await api<Sharing>("/api/sharing").catch(() => ({ enabled: false, handle: "", since_utc: null }));
+		const own = who.user.provider === "password";
 		const info = card("What we keep", "Everything stored about you, as saved now");
 		add(info.body, add(h("dl", "grid grid-cols-[8rem_1fr] gap-y-2 text-[13px]"),
 			h("dt", "text-muted", "Name"), h("dd", "text-ink-strong", who.user.name),
 			h("dt", "text-muted", "Email"), h("dd", "text-ink-strong", who.user.email),
+			h("dt", "text-muted", "Sign-in"), h("dd", "text-ink-strong", own ? "With this email and a password. We keep the password scrambled, never as you typed it." : "With Google. We keep no password."),
 			h("dt", "text-muted", "Positions"), h("dd", "text-ink-strong", p.positions.map((x) => `${x.ticker} (${x.shares})`).join(", ") || "None"),
 			h("dt", "text-muted", "Watchlist"), h("dd", "text-ink-strong", p.watchlist.join(", ") || "None"),
 			h("dt", "text-muted", "Shared portfolio"), add(h("dd", "text-ink-strong"), shared.enabled ? `Shared as "${shared.handle}": your tickers and their weights, to signed-in members. ` : "Not shared. ",
@@ -49,6 +51,36 @@ import App from "../components/App.astro";
 		});
 		info.body.append(download);
 
+		// An account of ours can change its password: it takes the one it has now.
+		const secret = card("Change your password", "It takes your current one. We cannot send you a new one if you forget it.");
+		const field = (label: string, complete: string) => {
+			const input = h("input", "field mt-1 w-full");
+			Object.assign(input, { type: "password", autocomplete: complete, maxLength: 200, required: true });
+			input.setAttribute("aria-label", label);
+			return { row: add(h("label", "block"), h("span", "label", label), input), input };
+		};
+		const [now, next] = [field("Current password", "current-password"), field("New password, at least 10 characters", "new-password")];
+		const change = h("button", "btn btn-ghost", "Change password");
+		change.type = "submit";
+		const said = h("p", "text-[13px]");
+		said.setAttribute("role", "status");
+		const form = add(h("form", "max-w-xs space-y-3"), now.row, next.row, change, said);
+		form.addEventListener("submit", async (e) => {
+			e.preventDefault();
+			change.disabled = true;
+			try {
+				await api("/api/auth/password", { method: "PUT", body: JSON.stringify({ current: now.input.value, new: next.input.value }) });
+				form.reset();
+				said.className = "text-[13px] text-up";
+				said.textContent = "Changed. Other devices stay signed in until their session ends.";
+			} catch (err) {
+				said.className = "text-[13px] text-down";
+				said.textContent = err instanceof Error ? err.message : "That did not work.";
+			}
+			change.disabled = false;
+		});
+		secret.body.append(form);
+
 		const danger = card("Delete your account", "Removes your positions, watchlist and profile from our database at once, takes your portfolio off the community board and empties the comments you wrote. Signing in again later starts from zero.");
 		const del = h("button", "btn btn-danger", "Delete my account");
 		del.type = "button";
@@ -66,7 +98,7 @@ import App from "../components/App.astro";
 			}
 		});
 		add(danger.body, del, status);
-		root.replaceChildren(info.el, danger.el);
+		root.replaceChildren(...(own ? [info.el, secret.el, danger.el] : [info.el, danger.el]));
 	}
 	start().catch(() => {});
 </script>

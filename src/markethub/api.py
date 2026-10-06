@@ -8,6 +8,9 @@
     DELETE /api/me                  delete the account and everything saved
     GET    /api/portfolio           positions and watchlist
     PUT    /api/portfolio           replace them
+    POST   /api/auth/register       {email, password, name}: an account of ours, and its session
+    POST   /api/auth/password       {email, password}: sign in to one
+    PUT    /api/auth/password       {current, new}: change its password
     GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
     GET    /api/sharing             whether the portfolio is shared, and under what name
     PUT    /api/sharing             {enabled, handle}: share it, rename it or stop
@@ -53,7 +56,9 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+from . import accounts as accounts_
 from . import dashboard
+from .accounts import Accounts, LoginStore, default_logins
 from .community import PERIODS as BOARD_PERIODS
 from .community import Community, CommunityStore, default_community
 from .community import Refused as SharingRefused
@@ -63,7 +68,8 @@ from .live import default_markets
 from .news import default_news
 from .opinion import Opinion, Refused, default_opinion
 from .auth import InvalidToken, Verifier, google_verifier, verify
-from .config import (COMMENTS_PER_USER_PER_HOUR, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
+from .config import (PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
+                     COMMENTS_PER_USER_PER_HOUR, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
 from .market import Directory, Fmp, MarketUnavailable
 from .users import InvalidPortfolio, UserStore, clean, default_users, empty, touch
@@ -127,7 +133,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                session_secret: str | None = None, secure_cookies: bool | None = None,
                static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN, markets=None,
                news=None, opinion: Opinion | None = None, community_store: CommunityStore | None = None,
-               insight_writer="default") -> FastAPI:
+               insight_writer="default", logins: LoginStore | None = None,
+               password_cost: tuple[int, int, int] = accounts_.COST) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -141,6 +148,9 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     markets = markets or default_markets(market)
     news = news or default_news(markets, directory)
     opinion = opinion or Opinion(default_opinion())
+    # The accounts with a password of ours. MARKETHUB_PASSWORD_LOGIN=0 leaves Google as the only way in.
+    accounts = Accounts(logins or default_logins(), password_cost)
+    password_login = os.environ.get("MARKETHUB_PASSWORD_LOGIN", "1").strip() != "0"
     writer = default_writer() if insight_writer == "default" else insight_writer
     # What answers for the provider when it does not: sample figures, said to be so.
     stand_in = SampleData(lambda ticker: company_name(ticker))
@@ -162,6 +172,10 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     secure = SECURE_COOKIES if secure_cookies is None else secure_cookies
     limiter = RateLimiter(PER_IP_PER_HOUR)
     commenting = RateLimiter(COMMENTS_PER_USER_PER_HOUR)
+    # Checking a password is slow on purpose, and an account costs nothing to ask for: both are
+    # counted per address they come from.
+    signing = RateLimiter(PASSWORD_TRIES_PER_IP_PER_HOUR)
+    registering = RateLimiter(REGISTRATIONS_PER_IP_PER_HOUR)
 
     origins = [o.strip() for o in os.environ.get("MARKETHUB_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
@@ -192,7 +206,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True,
                            allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["content-type"])
 
-    def current(request: Request) -> dict:
+    def current_user(request: Request) -> dict:
         user = request.session.get("user")
         if not user:
             raise HTTPException(401, "Sign in first.")
@@ -217,6 +231,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         return {
             "google_client_id": client_id,
             "domain": cookie_domain,
+            "password_login": password_login,
             "tools": {
                 "earnings_radar": EARNINGS_RADAR_URL or None,
                 "fundamentals_lab": FUNDAMENTALS_LAB_URL or None,
@@ -238,10 +253,65 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         # Profile fields are refreshed on every sign-in; they are only shown back to the user.
         users.put(g.id, touch(doc, email=g.email, name=g.name, picture=g.picture))
         request.session.clear()
-        request.session["user"] = {"id": g.id, "email": g.email, "name": g.name, "picture": g.picture}
+        request.session["user"] = {"id": g.id, "email": g.email, "name": g.name, "picture": g.picture, "provider": "google"}
         log.info("sign-in ok new=%s", new)
         return {"user": request.session["user"], "new": new,
                 "has_data": bool(doc.get("positions") or doc.get("watchlist"))}
+
+    def enter(request: Request, user: dict, new: bool) -> dict:
+        """Open the session of an account of ours, and keep its profile with its document."""
+        doc = users.get(user["id"]) or empty(user["id"])
+        users.put(user["id"], touch(doc, email=user["email"], name=user["name"], picture="", provider="password"))
+        request.session.clear()
+        request.session["user"] = user
+        return {"user": user, "new": new, "has_data": bool(doc.get("positions") or doc.get("watchlist"))}
+
+    def by_password(request: Request, limiter: RateLimiter, sorry: str) -> None:
+        if not password_login:
+            raise HTTPException(404, "Signing in with a password is not on.")
+        if not limiter.allow(_client_address(request)):
+            raise HTTPException(429, sorry)
+
+    @app.post("/api/auth/register")
+    def register(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000),
+                 name: str = Body(embed=True, max_length=200)) -> dict:
+        by_password(request, registering, "Too many accounts were made from this address. Try again later.")
+        try:
+            user = accounts.register(email, password, name)
+        except accounts_.Refused as exc:
+            raise HTTPException(400, str(exc)) from None
+        log.info("account made")
+        return enter(request, user, new=True)
+
+    @app.post("/api/auth/password")
+    def sign_in_password(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000)) -> dict:
+        by_password(request, signing, "Too many attempts from this address. Try again later.")
+        try:
+            user = accounts.sign_in(email, password)
+        except accounts_.Wrong:
+            # The same words whether the address is unknown or the password is not its own.
+            raise HTTPException(401, "That email and password do not match an account.") from None
+        except accounts_.TooMany:
+            raise HTTPException(429, "Too many wrong passwords for that email. Wait a few minutes and try again.") from None
+        log.info("password sign-in ok")
+        return enter(request, user, new=False)
+
+    @app.put("/api/auth/password")
+    def change_password(request: Request, current: str = Body(embed=True, max_length=1000), new: str = Body(embed=True, max_length=1000)) -> dict:
+        user = current_user(request)
+        if user.get("provider") != "password":
+            raise HTTPException(400, "This account signs in with Google: it has no password here.")
+        by_password(request, signing, "Too many attempts from this address. Try again later.")
+        try:
+            accounts.change_password(user["email"], current, new)
+        except accounts_.Wrong:
+            raise HTTPException(401, "That is not your current password.") from None
+        except accounts_.TooMany:
+            raise HTTPException(429, "Too many wrong passwords. Wait a few minutes and try again.") from None
+        except accounts_.Refused as exc:
+            raise HTTPException(400, str(exc)) from None
+        log.info("password changed")
+        return {"changed": True}
 
     @app.post("/api/auth/logout")
     def sign_out(request: Request) -> dict:
@@ -250,15 +320,16 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     @app.get("/api/me")
     def me(request: Request) -> dict:
-        user = current(request)
+        user = current_user(request)
         doc = load(user)
         return {"user": user, "has_data": bool(doc.get("positions") or doc.get("watchlist"))}
 
     @app.delete("/api/me")
     def delete_me(request: Request) -> dict:
-        user = current(request)
+        user = current_user(request)
         opinion.forget(user["id"])  # the comments go with the account
         community.stop(user["id"])  # and so does the shared portfolio
+        accounts.forget(user)  # and its password, if it had one of ours
         users.delete(user["id"])
         request.session.clear()
         log.info("account deleted")
@@ -266,13 +337,13 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     @app.get("/api/portfolio")
     def portfolio(request: Request) -> dict:
-        doc = load(current(request))
+        doc = load(current_user(request))
         return {"positions": doc.get("positions", []), "watchlist": doc.get("watchlist", []),
                 "updated_utc": doc.get("updated_utc")}
 
     @app.put("/api/portfolio")
     def save_portfolio(request: Request, positions: list = Body(default=[]), watchlist: list = Body(default=[])) -> dict:
-        user = current(request)
+        user = current_user(request)
         try:
             pos, watch = clean(positions, watchlist, known=directory.known)
         except InvalidPortfolio as exc:
@@ -292,7 +363,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     @app.get("/api/dashboard")
     def dash(request: Request) -> dict:
-        user = current(request)
+        user = current_user(request)
         allow(request)
         doc = load(user)
         try:
@@ -307,7 +378,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def insights(request: Request) -> dict:
         """The portfolio read back in a few sentences: the model's when it answers, the code's
         otherwise. What the model is sent is in insights.facts: no amounts, nothing of the user."""
-        user = current(request)
+        user = current_user(request)
         allow(request)
         doc = load(user)
         try:
@@ -318,11 +389,11 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     @app.get("/api/sharing")
     def sharing(request: Request) -> dict:
-        return community.status(current(request)["id"])
+        return community.status(current_user(request)["id"])
 
     @app.put("/api/sharing")
     def set_sharing(request: Request, enabled: bool = Body(embed=True), handle: str = Body("", embed=True, max_length=40)) -> dict:
-        user = current(request)
+        user = current_user(request)
         allow(request)
         doc = load(user)
         if not enabled:
@@ -340,7 +411,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     @app.get("/api/community")
     def board(request: Request) -> dict:
-        user = current(request)
+        user = current_user(request)
         allow(request)
         try:
             d = figures(load(user))
@@ -423,7 +494,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.get("/api/news/mine")
     def my_news(request: Request) -> dict:
         """The news about the companies the user holds or follows."""
-        doc = load(current(request))
+        doc = load(current_user(request))
         tickers = {p["ticker"] for p in doc.get("positions", [])} | set(doc.get("watchlist", []))
         if not tickers:
             return news.news(limit=1) | {"items": []}
@@ -458,7 +529,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.post("/api/opinion/comments")
     def comment(request: Request, slug: str = Body(max_length=100), text: str = Body(max_length=8000),
                 parent_id: str | None = Body(None, max_length=40)) -> dict:
-        user = current(request)
+        user = current_user(request)
         if not commenting.allow(user["id"]):
             raise HTTPException(429, "That is a lot of comments in an hour. Try again later.")
         try:
@@ -469,11 +540,11 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.get("/api/opinion/mine")
     def my_comments(request: Request) -> dict:
         """What the account page shows as kept: the user's own comments."""
-        return {"comments": opinion.mine(current(request)["id"])}
+        return {"comments": opinion.mine(current_user(request)["id"])}
 
     @app.delete("/api/opinion/comments/{comment_id}")
     def remove_comment(request: Request, comment_id: str) -> dict:
-        user = current(request)
+        user = current_user(request)
         try:
             return {"deleted": opinion.remove(user, comment_id)}
         except PermissionError:
