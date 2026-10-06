@@ -288,7 +288,7 @@ a qué sector afecta, o si es macro.
 - **My Hub** tiene un botón "Back to the home page" al pie de la barra lateral ("← Home" en la
   barra de pantallas estrechas), también en los `HubNav.astro` de las dos herramientas.
 
-### Media (2026-10-06; en `main`, sin desplegar)
+### Media (2026-10-06; desplegada como `market-hub-00016-gjv`)
 
 El usuario pidió una pestaña Media con tres secciones grandes: YouTube (por listas de
 reproducción, dejando claro que vendrán más), Instagram y X (las dos, para cuentas que dará más
@@ -313,6 +313,19 @@ adelante).
   que decidirlo con el usuario cuando dé las cuentas, y añadirlo a `/privacy/`.
 - **Navegación**: "Media" en la cabecera pública (`Site.astro`), en "Explore" de la barra de My
   Hub (`App.astro`) y en los `HubNav.astro` de `fundamentals-lab` y `decision-signal-lab`.
+- **Desplegado el 2026-10-06** con el visto bueno del usuario: el portal (`market-hub-00016-gjv`)
+  y Fundamentals Lab (`fundamentals-lab-00010-pnk`), desde el Mac del usuario. Comprobado en
+  producción: `/media/` responde con sus tres secciones, la portada enlaza a ella, las carátulas
+  se sirven, `/api/config` sigue dando `registration: captcha`, y los dos servicios conservan
+  las mismas variables, topes y escalado que antes.
+- **El radar del hub (`earnings-radar-hub`) no se desplegó**: sigue sin el enlace a Media en su
+  barra lateral. La clave de Perplexity del `.env` de ese Mac no es la que hay en Secret Manager,
+  y `make deploy-hub` la habría sustituido. Lo decide el usuario: cuál de las dos es la buena.
+- **Antes de desplegar desde otra máquina, comparar su `.env` con el servicio**: el script pone
+  todas las variables a partir del `.env` local. En ese Mac faltaban `MARKETHUB_ADMINS` y
+  `ANTHROPIC_SECRET=ANTHROPIC_API_KEY`; sin ellas el despliegue habría dejado el portal sin
+  moderadores y sin el redactor de noticias. Se copiaron del servicio a su `.env` antes de
+  desplegar.
 - **Comprobado en local** (`hub-sample`): la página a 1366 y 375 px sin desbordes, la pestaña
   marcada, y que al elegir un vídeo el reproductor pide su dirección de `youtube-nocookie.com`
   (las dos responden 200). Que el vídeo se reproduzca dentro de la página no se pudo ver en el
