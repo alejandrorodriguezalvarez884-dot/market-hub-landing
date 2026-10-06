@@ -4,14 +4,11 @@
 import Site from "../components/Site.astro";
 ---
 
-<Site title="News" description="What US companies filed with the SEC, what the Federal Reserve and the statistics agencies published, and what the market did. Written from the documents, each with its source. No advice.">
+<Site title="News" description="What US companies filed with the SEC, what the Federal Reserve and the statistics agencies published, and what the market did. No advice.">
 	<section class="grid gap-x-14 gap-y-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:items-end">
 		<div>
 			<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">News</h1>
-			<p class="mt-2 max-w-xl text-ink">
-				What companies filed, what the agencies published and what the market did. Written from the documents, and every
-				item links to its source.
-			</p>
+			<p class="mt-2 max-w-xl text-ink">What companies filed, what the agencies published and what the market did.</p>
 		</div>
 		<p id="news-status" class="text-[13px] text-muted lg:text-right" aria-live="polite">&nbsp;</p>
 	</section>
@@ -24,27 +21,8 @@ import Site from "../components/Site.astro";
 
 		<aside class="min-w-0 space-y-12">
 			<section id="press" class="sec" aria-labelledby="press-title" hidden>
-				<div class="sec-head">
-					<h2 id="press-title" class="sec-title">In the press</h2>
-					<span class="sec-note">Headlines only. Each opens at its publisher</span>
-				</div>
+				<div class="sec-head"><h2 id="press-title" class="sec-title">In the press</h2></div>
 				<div id="press-list"></div>
-			</section>
-
-			<section class="sec" aria-labelledby="how-title">
-				<div class="sec-head"><h2 id="how-title" class="sec-title">How this page is made</h2></div>
-				<div class="space-y-3 text-sm text-muted">
-					<p>
-						Company items come from the Form 8-K filings of the largest US-listed companies, the form a company files
-						with the SEC when something material happens. Economy items come from the Federal Reserve, the Bureau of Labor
-						Statistics and the Bureau of Economic Analysis.
-					</p>
-					<p>
-						An AI model writes the title and the summary of a filing from the document itself, and the item links to it.
-						Those items say so. Market items are written by code from the day's figures.
-					</p>
-					<p>Market Hub describes. Nothing here is a recommendation to buy or sell anything.</p>
-				</div>
 			</section>
 		</aside>
 	</div>
@@ -63,7 +41,7 @@ import Site from "../components/Site.astro";
 	function list(n: News, refreshing: boolean) {
 		const items = chosen ? n.items.filter((i) => i.category === chosen) : n.items;
 		if (items.length) return $("news-list").replaceChildren(...byDay(items));
-		failed($("news-list"), refreshing ? "Reading the sources. This takes a few seconds the first time."
+		failed($("news-list"), refreshing ? "Loading the news…"
 			: chosen ? `No ${chosen.toLowerCase()} items in the last days.` : "No news to show yet.");
 	}
 
@@ -86,7 +64,7 @@ import Site from "../components/Site.astro";
 		if (n.sample) {
 			el.replaceChildren(add(h("span", "text-warn"), "Sample headlines: placeholders, not news"));
 		} else {
-			el.textContent = refreshing ? "Reading the sources…" : n.refreshed_utc ? `Sources read ${timeAgo(n.refreshed_utc)}` : "";
+			el.textContent = refreshing ? "Updating…" : n.refreshed_utc ? `Updated ${timeAgo(n.refreshed_utc)}` : "";
 		}
 	}
 

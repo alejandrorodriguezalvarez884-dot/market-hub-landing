@@ -38,6 +38,8 @@ do something else.
 institution and says what happened. No clickbait, no questions, no exclamation marks.
 - Summary: two or three sentences with the most material facts and their figures, each with its \
 unit, its period and the comparison the document gives. Write large amounts as $1.2B or $350M.
+- Keep names, abbreviations and defined terms as the document writes them. Do not spell out an \
+abbreviation the document does not spell out.
 - Always write the title and the summary. Set "newsworthy" to false only when the document \
 reports no event at all, such as slides for a conference or boilerplate. Results, a change to \
 guidance, a deal, a financing or a change of executives is always newsworthy, however short the \

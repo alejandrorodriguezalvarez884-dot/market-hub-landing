@@ -17,17 +17,13 @@ function linked(n: NewsItem, cls: string): HTMLElement {
   return a;
 }
 
-// Who is behind the words: the source, and a note when the AI model wrote them from the document.
+// When it was published and where it comes from. The owner chose not to say on the page how an
+// item was written.
 function byline(n: NewsItem): HTMLElement {
   const el = add(h("p", "flex flex-wrap items-baseline gap-x-2 text-[12.5px] text-muted"),
     h("time", "num", timeAgo(n.published_utc)), h("span", "", n.source));
   (el.firstChild as HTMLTimeElement).dateTime = n.published_utc;
   (el.firstChild as HTMLElement).title = new Date(n.published_utc).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-  if (n.written_by === "model") {
-    const ai = h("span", "text-faint", "AI summary of the document");
-    ai.title = "An AI model wrote this title and summary from the linked document. Check the document for anything that matters to you.";
-    el.append(ai);
-  }
   return el;
 }
 
