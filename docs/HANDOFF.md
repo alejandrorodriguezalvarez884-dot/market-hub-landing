@@ -203,7 +203,7 @@ Pendiente:
 - GDELT se descartó: devolvió 429 en todas las pruebas. El feed de notas del Tesoro no responde.
 - La landing no tiene bloque ni captura de News (el vídeo nuevo sí la enseña).
 
-### Opinión, con comentarios (2026-10-06; en local, sin commit, sin publicar y sin desplegar)
+### Opinión, con comentarios (2026-10-06; desplegado como `market-hub-00013-4pm`)
 
 El usuario pidió una pestaña de opinión: artículos generados con IA a partir de las noticias y de
 otras fuentes, en un repo aparte, que se actualizan con una skill de Claude Code cuando él lo pide
@@ -231,12 +231,14 @@ otras fuentes, en un repo aparte, que se actualizan con una skill de Claude Code
 - 76 tests en verde (`tests/test_opinion.py`). Probado en local con capturas; el flujo de comentar
   con sesión real de Google no se ha probado en el navegador.
 
+- Desplegado y comprobado en producción: los seis artículos iniciales están publicados, la lista
+  y los artículos se leen sin cuenta, y comentar sin sesión devuelve 401. `MARKETHUB_ADMINS` es
+  el correo de Google del usuario. El repo `market-hub-opinion` está en GitHub y es un submódulo
+  del workspace.
+
 Pendiente:
-- **Crear el repo `market-hub-opinion` en GitHub** (lo tiene que hacer el usuario: la cuenta con
-  sesión en el equipo no puede crear repos en la suya) y añadirlo como submódulo del workspace.
-- **Desplegar** portal y herramientas (enlace `Opinion` en su navegación) y **publicar** los seis
-  artículos iniciales (`make publish` en `market-hub-opinion`).
-- Poner `MARKETHUB_ADMINS` en `.env` antes de desplegar, o nadie podrá moderar.
+- **Comentar con una sesión real de Google** no se ha probado en el navegador (el agente no puede
+  iniciar sesión): que el usuario escriba un comentario, lo responda y lo borre.
 - La landing y la película no enseñan Opinión.
 
 ### Artículos de noticias, con su tono y su sector (2026-10-06; desplegado como `market-hub-00012-w8l`)
