@@ -5,7 +5,8 @@ owner's keys. So a registration carries a token the page got from Turnstile's wi
 server asks Cloudflare whether it is good before it does anything else.
 
 Two keys, from the Turnstile page of the Cloudflare dashboard: the site key goes to the browser
-(TURNSTILE_SITE_KEY), the secret stays here (TURNSTILE_SECRET_KEY). Without both there is no
+(TURNSTILE_SITE_KEY), the secret stays here (TURNSTILE_SECRET_KEY). Both are kept in Secret
+Manager and reach the service as its environment; neither is in .env. Without both there is no
 check, and then no accounts are made either, unless MARKETHUB_OPEN_REGISTRATION=1 says they may
 be made without one (for a developer's machine).
 

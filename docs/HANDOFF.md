@@ -366,13 +366,13 @@ El usuario pidió poder entrar sin Google, con un login gestionado por nosotros.
   no contesta, cuenta como fallo. Entrar no pide captcha (tiene sus propios frenos). Estados que
   da `/api/config` en `registration`: `captcha` (hay claves), `closed` (no hay: no se crean
   cuentas; Google sigue igual) y `open` (solo con `MARKETHUB_OPEN_REGISTRATION=1`, para una
-  máquina de desarrollo). `make deploy` sube `TURNSTILE_SECRET_KEY` a Secret Manager
-  (`market-hub-turnstile-secret`) y pasa `TURNSTILE_SITE_KEY` al servicio; sin las dos claves en
-  `.env` despliega con el registro cerrado y lo avisa. Probado en local con las claves de prueba
-  públicas de Cloudflare (las que siempre pasan), nunca con un reto real.
-  **Falta que el dueño cree el widget** (panel de Cloudflare, Turnstile, Add widget, con
-  `themarkethub.app`) y ponga las dos claves en `.env`: hasta entonces nadie puede crear cuenta
-  con contraseña.
+  máquina de desarrollo). **Las dos claves viven solo en Secret Manager**
+  (`market-hub-turnstile-site-key` y `market-hub-turnstile-secret`, guardadas el 2026-10-06; el
+  dueño pidió que no estén en `.env`): `make deploy` no las copia, apunta el servicio a ellas con
+  `--set-secrets`, y si faltan despliega con el registro cerrado y lo avisa. Para cambiar una:
+  `printf '%s' '<clave>' | gcloud secrets versions add market-hub-turnstile-secret --data-file=-`
+  y volver a desplegar. Probado en local con las claves de prueba públicas de Cloudflare (las que
+  siempre pasan), nunca con un reto real.
 - **Web**: `/signin/` tiene, bajo el botón de Google, un formulario que sirve para entrar y para
   crear la cuenta; `/account/` dice cómo entra la cuenta y deja cambiar la contraseña; `/privacy/`
   dice qué se guarda. Borrar la cuenta borra también su entrada en `logins`.

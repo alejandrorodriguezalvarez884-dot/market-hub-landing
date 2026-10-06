@@ -10,9 +10,11 @@
 # ANTHROPIC_API_KEY is stored there first; with no key and no secret the news items keep the
 # titles the code writes.
 #
-# Accounts with an email and a password are made behind a captcha (Cloudflare Turnstile): with
-# TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY in .env the secret goes to Secret Manager and the
-# site key to the service; without them nobody can make such an account (Google still works).
+# Accounts with an email and a password are made behind a captcha (Cloudflare Turnstile). Its two
+# keys are not in .env: they live in Secret Manager (market-hub-turnstile-site-key and
+# market-hub-turnstile-secret) and the service reads them from there. Without them nobody can
+# make such an account (Google still works). To store or change one:
+#   printf '%s' '<key>' | gcloud secrets versions add market-hub-turnstile-secret --data-file=-
 #
 # Optional overrides: GCP_PROJECT, GCP_REGION, SERVICE_NAME, MAX_INSTANCES, FIRESTORE_LOCATION,
 # FIRESTORE_DATABASE.
@@ -52,8 +54,6 @@ EARNINGS_RADAR_URL="$(env_value EARNINGS_RADAR_URL)"
 FUNDAMENTALS_LAB_URL="$(env_value FUNDAMENTALS_LAB_URL)"
 COOKIE_DOMAIN="$(env_value MARKETHUB_COOKIE_DOMAIN)"
 ADMINS="$(env_value MARKETHUB_ADMINS)"
-TURNSTILE_SITE_KEY="$(env_value TURNSTILE_SITE_KEY)"
-TURNSTILE_SECRET="$(env_value TURNSTILE_SECRET_KEY)"
 PASSWORD_LOGIN="$(env_value MARKETHUB_PASSWORD_LOGIN)"
 [[ "$GOOGLE_CLIENT_ID" == *.apps.googleusercontent.com ]] || fail "GOOGLE_CLIENT_ID in $ENV_FILE is not an OAuth client id."
 [[ ${#SESSION_SECRET} -ge 32 ]] || fail "SESSION_SECRET in $ENV_FILE must be at least 32 characters."
@@ -109,13 +109,16 @@ else
   echo "note: no Anthropic key anywhere: news items will keep the titles the code writes."
 fi
 
-if [[ -n "$TURNSTILE_SITE_KEY" && -n "$TURNSTILE_SECRET" ]]; then
-  put_secret market-hub-turnstile-secret "$TURNSTILE_SECRET"
-  SECRETS="$SECRETS,TURNSTILE_SECRET_KEY=market-hub-turnstile-secret:latest"
-  echo "→ Accounts with a password: on, behind the captcha"
+# The captcha's keys are only ever in Secret Manager: the service is pointed at them, nothing is copied.
+if gcp secrets describe market-hub-turnstile-site-key >/dev/null 2>&1 && gcp secrets describe market-hub-turnstile-secret >/dev/null 2>&1; then
+  for name in market-hub-turnstile-site-key market-hub-turnstile-secret; do
+    gcp secrets add-iam-policy-binding "$name" \
+      --member "serviceAccount:$SERVICE_ACCOUNT" --role roles/secretmanager.secretAccessor >/dev/null
+  done
+  SECRETS="$SECRETS,TURNSTILE_SITE_KEY=market-hub-turnstile-site-key:latest,TURNSTILE_SECRET_KEY=market-hub-turnstile-secret:latest"
+  echo "→ Accounts with a password: on, behind the captcha (keys from Secret Manager)"
 else
-  TURNSTILE_SITE_KEY=""
-  echo "note: no Turnstile keys in $ENV_FILE: nobody can make an account with a password (Google sign-in is not affected)."
+  echo "note: no Turnstile keys in Secret Manager: nobody can make an account with a password (Google sign-in is not affected)."
 fi
 
 echo "→ Building with Cloud Build and deploying '$SERVICE_NAME' to $GCP_REGION (a few minutes)"
@@ -130,7 +133,7 @@ gcp run deploy "$SERVICE_NAME" \
   --max-instances "$MAX_INSTANCES" \
   --timeout 60 \
   --set-secrets "$SECRETS" \
-  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL|MARKETHUB_COOKIE_DOMAIN=$COOKIE_DOMAIN|MARKETHUB_ADMINS=$ADMINS|TURNSTILE_SITE_KEY=$TURNSTILE_SITE_KEY|MARKETHUB_PASSWORD_LOGIN=${PASSWORD_LOGIN:-1}"
+  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL|MARKETHUB_COOKIE_DOMAIN=$COOKIE_DOMAIN|MARKETHUB_ADMINS=$ADMINS|MARKETHUB_PASSWORD_LOGIN=${PASSWORD_LOGIN:-1}"
 
 URL="$(gcp run services describe "$SERVICE_NAME" --region "$GCP_REGION" --format 'value(status.url)')"
 if curl -fsS "$URL/api/health" >/dev/null; then
