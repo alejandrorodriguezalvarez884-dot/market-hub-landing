@@ -94,6 +94,9 @@ export function sectorRuler(sectors: Sector[]): HTMLElement {
     ...sorted.map((s) => rulerRow({ name: s.name, move: s.change_pct }, scale)));
 }
 
+// What a sector's move is the move of: the provider says how it measures it.
+export const sectorsNote = (o: Overview) => (o.sectors_by === "funds" ? "Each sector by the move of its SPDR fund" : "Average move of each sector's stocks");
+
 // --- Tables ------------------------------------------------------------------------------------
 
 // A table of instruments: level, the day's move on the ruler, and returns over several periods.

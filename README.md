@@ -37,7 +37,7 @@ Web Astro en `site/`, API FastAPI en `src/markethub/`, un contenedor en Cloud Ru
 
 ```bash
 make install             # dependencias, y crea .env con GOOGLE_CLIENT_ID y un SESSION_SECRET nuevo
-                         # (a mano solo quedan FMP_API_KEY y SEC_USER_AGENT)
+                         # (a mano solo queda SEC_USER_AGENT; FMP_API_KEY es opcional)
 make test
 make api                 # API en :8000
 make dev                 # web en :4321 (en otra terminal)
@@ -49,5 +49,6 @@ application*, con `http://localhost:4321`, `http://localhost:8080` y la URL púb
 
 ## Despliegue
 
-`make deploy`: activa Firestore (europe-west1) si no existe, guarda el secreto de sesión y la
-clave de FMP en Secret Manager y despliega en Cloud Run. Nada está programado ni en GitHub Actions.
+`make deploy`: activa Firestore (europe-west1) si no existe, guarda el secreto de sesión (y la
+clave de FMP, si hay) en Secret Manager y despliega en Cloud Run. Los precios salen de Yahoo Finance
+(`yfinance`, sin clave); con clave de FMP, FMP queda detrás por si Yahoo no responde. Nada está programado ni en GitHub Actions.

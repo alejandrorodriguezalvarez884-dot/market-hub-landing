@@ -2,7 +2,7 @@
 
 For every instrument a user holds or follows, the private area needs its quote, its daily closes
 and a few facts about it (sector, country, size, beta, dividend). They come from the provider
-(``market.Fmp``). When it does not answer (no key, the quota used up), a whole answer is built
+(``yahoo.Yahoo``, or ``market.Fmp``). When it does not answer, a whole answer is built
 from the sample data instead and is marked as such, so the pages can say so. It is never a mix:
 a real price over an invented history would be worse than either.
 """
@@ -60,8 +60,9 @@ COUNTRY_NAMES = {
 
 
 def country_name(code: str | None) -> str:
-    code = (code or "").strip().upper()
-    return COUNTRY_NAMES.get(code, code) if code else "Unknown"
+    """A country by its name. Providers give its two-letter code or the name itself."""
+    code = (code or "").strip()
+    return COUNTRY_NAMES.get(code.upper(), code) if code else "Unknown"
 
 
 class SampleData:

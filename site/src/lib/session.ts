@@ -21,6 +21,7 @@ const HOLIDAYS = new Set([
 ]);
 const EARLY = new Set(["2026-11-27", "2026-12-24", "2027-11-26"]);
 
+// The lines of each mood, written by hand. The page picks among them by the clock; nothing writes them anew.
 const LINES: Record<string, string[]> = {
   closed: [
     "The thrill is gone. It's going to be a long wait.",
@@ -28,31 +29,151 @@ const LINES: Record<string, string[]> = {
     "Nothing moves until the bell. Breathe.",
     "The floor is empty. See you at the open.",
     "Silence. The market is asleep.",
+    "The screens are dark. The numbers can wait.",
+    "Even tickers need their sleep.",
+    "No bids, no asks, no noise.",
+    "The market clocked out. Fair enough.",
+    "Somewhere, a trader is finally having dinner.",
+    "Closed. The charts will still be there tomorrow.",
+    "The bell is resting. So is everything else.",
+    "Quiet hours. Prices are holding their breath.",
+    "Nothing to see here until the morning.",
+    "The tape stopped. The world did not.",
+    "Night shift: nobody. Next shift: 4 AM.",
+    "The order book is shut for the night.",
+    "Asleep at the exchange. Do not disturb.",
+    "All quiet on Wall Street.",
+    "The closing bell had the last word.",
+    "Out of office until the pre-market.",
+    "The market is off the clock.",
+    "Stillness. Yesterday's prices, frozen in place.",
+    "The numbers are parked for the night.",
   ],
-  weekend: ["It's the weekend. Even the market rests.", "Two days without a bell. You will survive.", "No bell today. Go outside."],
-  holiday: ["A holiday. The bell stays silent today.", "The market took the day off. So can you."],
+  weekend: [
+    "It's the weekend. Even the market rests.",
+    "Two days without a bell. You will survive.",
+    "No bell today. Go outside.",
+    "Weekend rules: no ticks, no tape.",
+    "The market is away until its next session.",
+    "Closed for the weekend. The charts will keep.",
+    "No opening bell today. Enjoy the silence.",
+    "Wall Street is out. Back after the weekend.",
+    "A weekend is one long candle with no wicks.",
+    "The tape is on a break. Take one too.",
+    "Nothing trades today. Something else can happen.",
+    "The next bell will come soon enough.",
+    "Prices are frozen until the next bell.",
+    "The exchange is dark. The sun is not.",
+  ],
+  holiday: [
+    "A holiday. The bell stays silent today.",
+    "The market took the day off. So can you.",
+    "Holiday hours: none.",
+    "No session today. The calendar says rest.",
+    "Closed for the holiday. Back next session.",
+    "The exchanges are celebrating. Nothing trades.",
+    "A day off for the tape.",
+    "Today the bell gets a holiday too.",
+  ],
   pre: [
     "Engines warming up.",
     "Hold on tight, it's about to begin.",
     "Coffee first. The bell is close.",
     "The early birds are already at it.",
     "Stretching before the bell.",
+    "The first orders are trickling in.",
+    "Lights on. The floor is filling up.",
+    "Thin trading, big anticipation.",
+    "The overture before the opening bell.",
+    "Screens on, sleeves up.",
+    "The day is loading.",
+    "Early prints. The real show starts at the bell.",
+    "The market is clearing its throat.",
+    "Pre-market: the rehearsal before the play.",
+    "Quiet moves before the loud ones.",
+    "The countdown to the bell is on.",
+    "Somewhere, a second coffee is being poured.",
+    "Warming up. Volume comes later.",
+    "The tape is awake, barely.",
+    "Dawn on Wall Street.",
+    "A few early trades are testing the water.",
+    "Almost time. Almost.",
+    "The bell is tuning up.",
+    "Headlines first, prices next.",
   ],
-  opening: ["And they're off."],
+  opening: [
+    "And they're off.",
+    "The bell just rang. Here we go.",
+    "Open. The first minutes are always loud.",
+    "The opening rush is on.",
+    "Doors open. Everybody in at once.",
+    "First prints of the day.",
+    "The session has begun.",
+    "Out of the gate.",
+  ],
   open: [
     "The bell has rung. Eyes on the tape.",
     "It's on. Stay sharp.",
     "Every tick counts now.",
     "Full focus. The market is talking.",
     "Heads down. These are the hours that matter.",
+    "The tape is running at full speed.",
+    "Buyers and sellers, hard at work.",
+    "Prices are being made right now.",
+    "The session is in full swing.",
+    "Live from the floor: everything.",
+    "The tape never idles.",
+    "Millions of orders, one price at a time.",
+    "The market is thinking out loud.",
+    "This is the part with all the moving numbers.",
+    "Open for business.",
+    "The numbers are alive.",
+    "Nothing is settled until the close.",
+    "The crowd is in. The tape is busy.",
+    "Tick by tick, the day takes shape.",
+    "The ticker has a lot to say today.",
+    "Bids up, offers down, repeat.",
+    "The floor is humming.",
+    "Somewhere a chart is being redrawn.",
+    "In session. The story is still being written.",
   ],
-  closing: ["Last hour. This is where days are decided.", "The final stretch. Nobody blinks now."],
+  closing: [
+    "Last hour. This is where days are decided.",
+    "The final stretch. Nobody blinks now.",
+    "Closing time is coming.",
+    "The last hour. Volume is back.",
+    "One hour to go. The tape speeds up.",
+    "The day is running out of minutes.",
+    "The closing bell is warming up.",
+    "Final laps.",
+    "The home stretch of the session.",
+    "Whatever today was, it's almost written.",
+  ],
   after: [
     "Time to reflect.",
     "Time to think through tomorrow's move.",
     "The bell rang. Now, the replay.",
     "The noise fades. What did today say?",
     "Deep breath. Tomorrow starts tonight.",
+    "The closing bell has spoken.",
+    "After hours: the encore nobody asked for.",
+    "The crowd went home. A few stayed.",
+    "Earnings season lives in these hours.",
+    "Thin trading, long shadows.",
+    "The day is in the books.",
+    "The score is in. The talk begins.",
+    "Lights dimming on the floor.",
+    "The session is over. The tape is not, quite.",
+    "A quieter market, still awake.",
+    "The close is behind us. The numbers are settling.",
+    "Late prints for the night owls.",
+    "Today's candle is closed.",
+    "The bell rang. The story continues in small print.",
+    "Evening on Wall Street.",
+    "Winding down, one trade at a time.",
+    "What moved today has moved.",
+    "The day's final answer is in.",
+    "Stragglers only from here.",
   ],
 };
 const LABEL: Record<Session, string> = { closed: "Closed", pre: "Pre-market", open: "Open", after: "After hours" };
@@ -80,11 +201,18 @@ function waitFor(hours: number): string {
   return `in ${d ? `${d}d ${h}h` : h ? `${h}h ${String(min).padStart(2, "0")}m` : `${min}m`}`;
 }
 
-// The same line for the whole hour, and another one the next: picked from the day and the hour.
-function pick(lines: string[], seed: string): string {
-  let n = 0;
-  for (const c of seed) n = (n * 31 + c.charCodeAt(0)) >>> 0;
-  return lines[n % lines.length];
+// A line holds for twenty minutes and then gives way to another: picked from the day and the time,
+// so everybody reads the same one, and never the one that was just up.
+const TURNS_AN_HOUR = 3;
+function pick(lines: string[], day: string, hour: number, mood: string): string {
+  const at = (turn: number) => {
+    let n = 0;
+    for (const c of `${day} ${turn} ${mood}`) n = (n * 31 + c.charCodeAt(0)) >>> 0;
+    return n % lines.length;
+  };
+  const turn = Math.floor(hour * TURNS_AN_HOUR);
+  const i = at(turn);
+  return lines[lines.length > 1 && i === at(turn - 1) ? (i + 1) % lines.length : i];
 }
 
 export function status(at = new Date()): Status {
@@ -111,5 +239,5 @@ export function status(at = new Date()): Status {
     [next, wait] = [`Opens ${days === 0 ? "today" : days === 1 ? "tomorrow" : weekday} at ${oclock(open)} New York time`, days * 24 + open - now.hour];
     mood = hours ? "closed" : HOLIDAYS.has(now.day) ? "holiday" : "weekend";
   }
-  return { session, label: LABEL[session], line: pick(LINES[mood], `${now.day} ${Math.floor(now.hour)} ${mood}`), next, wait: waitFor(wait), hour: now.hour, hours };
+  return { session, label: LABEL[session], line: pick(LINES[mood], now.day, now.hour, mood), next, wait: waitFor(wait), hour: now.hour, hours };
 }

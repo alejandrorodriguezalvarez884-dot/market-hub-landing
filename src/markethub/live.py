@@ -91,6 +91,8 @@ def _ret(closes: list[float], back: int) -> float | None:
 
 
 class LiveMarkets:
+    SOURCE = "FMP"  # the provider's name, as the answers carry it
+
     def __init__(self, fmp: Fmp, ttl: float = OVERVIEW_TTL, today=None):
         self.fmp, self.ttl = fmp, ttl
         self.today = today or (lambda: datetime.now(timezone.utc).date())
@@ -181,11 +183,14 @@ class LiveMarkets:
         except MarketUnavailable:
             return [], []
 
-    def _rates(self) -> list[dict]:
+    def _rate_rows(self) -> list[dict]:
+        """The Treasury's daily yields of the last two weeks: a date and a figure per maturity."""
         today = self.today()
-        rows = sorted(_rows(self.fmp.cached("treasury-rates", self.ttl, **{"from": (today - timedelta(days=14)).isoformat(),
-                                                                         "to": today.isoformat()})),
-                      key=lambda r: r.get("date", ""), reverse=True)
+        return _rows(self.fmp.cached("treasury-rates", self.ttl, **{"from": (today - timedelta(days=14)).isoformat(),
+                                                                  "to": today.isoformat()}))
+
+    def _rates(self) -> list[dict]:
+        rows = sorted(self._rate_rows(), key=lambda r: r.get("date", ""), reverse=True)
         out = []
         for symbol, (column, name) in RATES.items():
             vals = [_num(r.get(column)) for r in rows if _num(r.get(column)) is not None]
@@ -247,7 +252,7 @@ class LiveMarkets:
         # The oldest live part dates the page: a cached answer keeps the time it was read.
         built = [t for k, t in self._built.items() if k not in samples]
         as_of = min(built) if built else datetime.now(timezone.utc)
-        return {"sample": len(samples) == len(SECTIONS), "sample_sections": sorted(samples), "source": "FMP",
+        return {"sample": len(samples) == len(SECTIONS), "sample_sections": sorted(samples), "source": self.SOURCE,
                 "as_of": as_of.replace(microsecond=0).isoformat(), "intraday": self._has_intraday, **out}
 
     # --- charts ---------------------------------------------------------------------------
@@ -316,7 +321,7 @@ class LiveMarkets:
                     bars = daily[-{"1M": 22, "6M": 126, "1Y": 252}[rng]:]
                 interval = "1D"
             prev_close = daily[-2]["close"]
-        return {"sample": False, "source": "FMP", "symbol": symbol, "name": known or name or symbol, "kind": kind,
+        return {"sample": False, "source": self.SOURCE, "symbol": symbol, "name": known or name or symbol, "kind": kind,
                 "range": rng, "interval": interval, "prev_close": prev_close, "bars": bars}
 
     # --- quote ----------------------------------------------------------------------------
@@ -352,10 +357,12 @@ class LiveMarkets:
             if profile.get("is_etf"):
                 kind = "etf"
         price = q["price"]
+        # A market value kept with the company's facts ages with them: its share count does not.
+        cap = q.get("market_cap") or (price * profile["shares"] if profile.get("shares") and price else profile.get("market_cap"))
         last_dividend = profile.get("last_dividend")
         volumes = [b["volume"] for b in daily[-63:] if b["volume"]]
         return {
-            "sample": False, "source": "FMP",
+            "sample": False, "source": self.SOURCE,
             "symbol": ticker, "name": known or q.get("name") or profile.get("name") or name or ticker, "kind": kind,
             "price": price, "change": q.get("change"), "change_pct": _pct(q.get("change_pct")),
             "exchange": profile.get("exchange") or q.get("exchange") or "", "sector": profile.get("sector") or "—",
@@ -364,8 +371,8 @@ class LiveMarkets:
             "year_low": q.get("year_low"), "year_high": q.get("year_high"),
             "volume": q.get("volume"),
             "avg_volume": profile.get("average_volume") or (sum(volumes) / len(volumes) if volumes else None),
-            "market_cap": q.get("market_cap") if kind in ("stock", "etf") else None,
-            "pe": None, "eps": None,
+            "market_cap": cap if kind in ("stock", "etf") else None,
+            "pe": profile.get("pe"), "eps": profile.get("eps"),
             "dividend_yield": last_dividend / price if last_dividend and price else None,
             "beta": profile.get("beta"),
             "return_1m": _ret(closes, 21), "return_6m": _ret(closes, 126),
@@ -396,7 +403,16 @@ class SampleMarkets:
         return sample.quote(ticker, name=name)
 
 
-def default_markets(fmp) -> LiveMarkets | SampleMarkets:
-    if os.environ.get("MARKETHUB_SAMPLE_MARKETS") == "1" or not getattr(fmp, "api_key", ""):
+def default_markets(market) -> LiveMarkets | SampleMarkets:
+    """The public pages' figures, from the same provider as My Hub's: Yahoo when it is there,
+    else FMP when it has a key, else the sample data."""
+    from .yahoo import Yahoo, YahooMarkets  # here, not at the top: yahoo.py builds on this module
+
+    if os.environ.get("MARKETHUB_SAMPLE_MARKETS") == "1":
         return SampleMarkets()
-    return LiveMarkets(fmp)
+    yahoo = next((s for s in [market, *getattr(market, "sources", [])] if isinstance(s, Yahoo)), None)
+    if yahoo:
+        return YahooMarkets(yahoo)
+    if not getattr(market, "api_key", ""):
+        return SampleMarkets()
+    return LiveMarkets(market)

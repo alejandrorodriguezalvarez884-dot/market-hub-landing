@@ -19,13 +19,13 @@ import { link } from "../lib/site";
 				<a id="chart-link" class="sec-note hover:text-ink-strong" hidden>Full page →</a>
 			</div>
 			<div id="chart-figure" class="mb-4 min-h-[44px]"><span class="skeleton block h-9 w-56"></span></div>
-			<div id="main-chart" class="min-h-[440px]"></div>
+			<div id="main-chart" class="min-h-[480px]"></div>
 		</section>
 
 		<section class="sec order-3" aria-labelledby="sectors-title">
 			<div class="sec-head">
 				<h2 id="sectors-title" class="sec-title">US sectors</h2>
-				<span class="sec-note">Average move of each sector's stocks</span>
+				<span id="sectors-note" class="sec-note">&nbsp;</span>
 			</div>
 			<div id="sectors" style="--track: 240px"><div class="skeleton h-72"></div></div>
 		</section>
@@ -54,16 +54,16 @@ import { link } from "../lib/site";
 <script>
 	import { add, h } from "../lib/dom";
 	import { change, level, signedPct, toneClass } from "../lib/format";
-	import { priceChart, type PriceChart } from "../lib/lwc";
-	import { news, overview, watchNews, type Overview, type Snapshot } from "../lib/market";
+	import { news, overview, watchNews, type Snapshot } from "../lib/market";
 	import { newsLine } from "../lib/news";
-	import { failed, flagSample, quoteHref, rateItem, rulerAxis, rulerGroup, rulerRow, rulerScale, sectorRuler, snapshotItem } from "../lib/widgets";
+	import { tvChart, type Chart } from "../lib/tv";
+	import { failed, flagSample, quoteHref, rateItem, rulerAxis, rulerGroup, rulerRow, rulerScale, sectorRuler, sectorsNote, snapshotItem } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
-	let chart: PriceChart | null = null;
+	let chart: Chart | null = null;
 
 	// The instrument in the chart: its name, level and move above it, its row marked on the ruler.
-	function pick(s: Snapshot, o: Overview) {
+	function pick(s: Snapshot) {
 		$("chart-title").textContent = s.name;
 		$("chart-figure").replaceChildren(add(h("div", "flex flex-wrap items-baseline gap-x-4"),
 			h("span", "num text-[2rem] leading-none text-ink-strong", level(s.price, s.kind)),
@@ -74,7 +74,7 @@ import { link } from "../lib/site";
 		a.hidden = false;
 		document.querySelectorAll<HTMLElement>("#ruler [data-key]").forEach((r) => r.setAttribute("aria-pressed", String(r.dataset.key === s.symbol)));
 		if (chart) chart.setSymbol(s.symbol);
-		else chart = priceChart($("main-chart"), { symbol: s.symbol, range: "1D", height: 400, intraday: o.intraday !== false });
+		else chart = tvChart($("main-chart"), { symbol: s.symbol, range: "1D", height: 480 });
 	}
 
 	// The newest items, when there are any that are not placeholders. The block stays out otherwise.
@@ -85,7 +85,7 @@ import { link } from "../lib/site";
 
 	overview()
 		.then((o) => {
-			const onPick = (s: Snapshot) => pick(s, o);
+			const onPick = (s: Snapshot) => pick(s);
 
 			const charted = [...o.indices, ...o.commodities, ...o.currencies, ...o.crypto];
 			const scale = rulerScale(charted.map((s) => s.change_pct));
@@ -98,7 +98,8 @@ import { link } from "../lib/site";
 				...rulerGroup("Currencies", rows(o.currencies)),
 				...rulerGroup("Crypto", rows(o.crypto)));
 			$("sectors").replaceChildren(sectorRuler(o.sectors));
-			pick(o.indices.find((s) => s.symbol === "SPX") ?? charted[0], o);
+			pick(o.indices.find((s) => s.symbol === "SPX") ?? charted[0]);
+			$("sectors-note").textContent = sectorsNote(o);
 
 			flagSample(o, ["indices", "rates", "commodities", "currencies", "crypto"], $("ruler-title"));
 			flagSample(o, ["sectors"], $("sectors-title"));

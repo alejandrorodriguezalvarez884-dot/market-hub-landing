@@ -12,6 +12,7 @@ import Site from "../components/Site.astro";
 		</div>
 		<nav class="tabs" aria-label="Sections">
 			<a class="tab-btn" href="#indices">Indices</a>
+			<a class="tab-btn" href="#map">Map</a>
 			<a class="tab-btn" href="#sectors">Sectors</a>
 			<a class="tab-btn" href="#rates">Rates</a>
 			<a class="tab-btn" href="#commodities">Commodities</a>
@@ -26,8 +27,13 @@ import Site from "../components/Site.astro";
 			<div id="t-indices"><div class="skeleton h-72"></div></div>
 		</section>
 
+		<section id="map" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">The S&amp;P 500, company by company</h2><span class="sec-note">Sized by market value, coloured by today's move</span></div>
+			<div id="t-map" class="min-h-[560px]"></div>
+		</section>
+
 		<section id="sectors" class="sec scroll-mt-20">
-			<div class="sec-head"><h2 class="sec-title">US sectors</h2><span class="sec-note">Average move of each sector's stocks today</span></div>
+			<div class="sec-head"><h2 class="sec-title">US sectors</h2><span id="sectors-note" class="sec-note">&nbsp;</span></div>
 			<div id="t-sectors" class="max-w-3xl" style="--track: 280px"><div class="skeleton h-72"></div></div>
 		</section>
 
@@ -60,9 +66,11 @@ import Site from "../components/Site.astro";
 
 <script>
 	import { overview } from "../lib/market";
-	import { failed, flagSample, moversTable, quoteTable, sectorRuler } from "../lib/widgets";
+	import { tvHeatmap } from "../lib/tv";
+	import { failed, flagSample, moversTable, quoteTable, sectorRuler, sectorsNote } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
+	tvHeatmap($("t-map"));
 	overview(true)
 		.then((o) => {
 			const title = (id: string) => document.querySelector(`#${id} .sec-title`);
@@ -75,6 +83,7 @@ import Site from "../components/Site.astro";
 			$("as-of").textContent = `Figures read ${new Date(o.as_of).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}. They can be delayed.`;
 			$("t-indices").replaceChildren(quoteTable(o.indices));
 			$("t-sectors").replaceChildren(sectorRuler(o.sectors));
+			$("sectors-note").textContent = `${sectorsNote(o)} today`;
 			$("t-gainers").replaceChildren(moversTable(o.movers.gainers));
 			$("t-losers").replaceChildren(moversTable(o.movers.losers));
 			$("t-active").replaceChildren(moversTable(o.movers.active));

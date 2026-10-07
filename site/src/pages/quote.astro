@@ -24,7 +24,7 @@ import { link } from "../lib/site";
 
 		<div class="grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
 			<div class="min-w-0 space-y-12">
-				<section class="sec"><div class="sec-head"><h2 class="sec-title">Price</h2></div><div id="q-chart" class="min-h-[460px]"></div></section>
+				<section class="sec"><div class="sec-head"><h2 class="sec-title">Price</h2></div><div id="q-chart" class="min-h-[520px]"></div></section>
 				<section class="sec">
 					<div class="sec-head"><h2 class="sec-title">Past returns</h2><span class="sec-note">Price only, without dividends</span></div>
 					<div id="q-perf" class="grid grid-cols-3 gap-y-5 sm:grid-cols-6"></div>
@@ -48,14 +48,16 @@ import { link } from "../lib/site";
 	import { api, ApiError, signedIn, type Portfolio } from "../lib/api";
 	import { add, h, linkTo } from "../lib/dom";
 	import { change, compact, level, money, signedPct, toneClass } from "../lib/format";
-	import { priceChart } from "../lib/lwc";
 	import { isEquity, quote, type Quote } from "../lib/market";
 	import { newsLine } from "../lib/news";
 	import { fundamentalsUrl, link, radarUrl, tidyName } from "../lib/site";
+	import { fromTv, tvChart } from "../lib/tv";
 	import { failed } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
-	const ticker = (new URLSearchParams(location.search).get("t") ?? "").trim().toUpperCase();
+	// The ticker in the address; a block of TradingView's map arrives with it in TradingView's own writing.
+	const asked = new URLSearchParams(location.search);
+	const ticker = (asked.get("t") ?? "").trim().toUpperCase() || fromTv(asked.get("tvwidgetsymbol") ?? "");
 
 	function head(q: Quote) {
 		const kindLabel: Record<string, string> = { index: "Index", rate: "Yield", commodity: "Commodity", fx: "Currency", crypto: "Crypto", etf: "ETF" };
@@ -158,7 +160,7 @@ import { link } from "../lib/site";
 	async function start() {
 		if (!ticker) return void ($("empty").hidden = false);
 		$("quote").hidden = false;
-		priceChart($("q-chart"), { symbol: ticker, range: "1Y", height: 420 });
+		tvChart($("q-chart"), { symbol: ticker, range: "12M", height: 520 });
 		try {
 			const q = await quote(ticker);
 			head(q);

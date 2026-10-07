@@ -82,6 +82,7 @@ from .config import (PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HO
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
 from .market import Directory, Fmp, MarketUnavailable
+from .yahoo import default_market
 from .users import InvalidPortfolio, UserStore, clean, default_users, empty, touch
 
 log = logging.getLogger("markethub.api")
@@ -149,12 +150,12 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
-    # key out of the logs.
-    for noisy in ("httpx", "httpcore"):
+    # key out of the logs. yfinance prints what Yahoo answers when it has no such symbol.
+    for noisy in ("httpx", "httpcore", "yfinance"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     app = FastAPI(title="Market Hub", docs_url=None, redoc_url=None, openapi_url=None)
     users = users or default_users()
-    market = market or Fmp()
+    market = market or default_market()
     directory = directory or Directory()
     markets = markets or default_markets(market)
     news = news or default_news(markets, directory)

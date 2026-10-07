@@ -35,6 +35,45 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
+### Widgets de TradingView y precios de Yahoo (2026-10-07; en `main`, sin desplegar)
+
+El usuario decidió dejar de depender de FMP (cuota de 250 llamadas al día y licencia de uso
+personal; FMP no contestó a su petición de licencia): gráficos con los widgets gratuitos de
+TradingView y, para todo lo que necesita el número en el servidor, "yfinance o la mejor opción gratis".
+
+- **Proveedor por defecto: Yahoo Finance, con la librería `yfinance`** (`src/markethub/yahoo.py`).
+  Sin clave y sin cuota diaria. `Yahoo` responde lo mismo que `market.Fmp` (`quotes`, `history`,
+  `profile`) y `YahooMarkets` es `live.LiveMarkets` leyendo de él: índices, materias primas (futuros
+  `GC=F`…), divisas, cripto, movers (las listas del día de Yahoo) y sectores (**por su fondo SPDR**,
+  no por la media de sus acciones; la web lo dice, `sectors_by`). Un símbolo se lee en una sola
+  petición (5 años de barras diarias, que traen la cotización), se guarda en memoria y sirve a la
+  cotización, al histórico y al gráfico. Tras un rechazo de Yahoo no se pregunta en 5 minutos (1
+  minuto tras cualquier otro fallo). La ficha gana PER y BPA.
+- **Tipos del Tesoro: del propio Tesoro** (CSV diario de `home.treasury.gov`), no de Yahoo.
+- **`MARKET_DATA`** elige el proveedor: `yahoo` (por defecto; si hay `FMP_API_KEY`, FMP queda detrás
+  para My Hub con `yahoo.Fallback`) o `fmp` (todo como antes). `make deploy` ya no exige la clave de FMP.
+- **Avisado al usuario, que decidió seguir**: yfinance no es una API oficial y las condiciones de
+  Yahoo son de uso personal (la misma pega de licencia que el plan Starter de FMP); y Yahoo puede
+  rechazar las IP de un centro de datos. **Sin comprobar desde Cloud Run**: si allí Yahoo no
+  responde, el resumen público cae a cifras de ejemplo marcadas y My Hub a FMP (si hay clave) o a
+  ejemplo. Entonces: `MARKET_DATA=fmp` y redesplegar. Comprobado contra Yahoo desde el equipo
+  Windows: resumen completo en frío en unos 12 s, ficha en 1 s, cartera de 3 valores en 1 s.
+- **Memoria**: `yfinance` trae pandas y numpy. El servicio sigue con 512 Mi; vigilar que no se quede corto.
+- **Widgets de TradingView** (`site/src/lib/tv.ts`): el gráfico de `/today/` y el de la ficha son el
+  widget "Advanced Chart"; `/markets/` gana el mapa del S&P 500 ("Stock Heatmap"), cuyos bloques
+  abren la ficha de aquí (`?tvwidgetsymbol=`). Los widgets **no dan los índices oficiales** ni los
+  futuros: cada índice se dibuja con el contrato que lo sigue (`FOREXCOM:SPXUSD`…, tabla `SYMBOLS`),
+  y el gráfico lo dice debajo. Las acciones salen **marcadas como retrasadas ("D")**. Los tipos no
+  tienen widget y conservan el gráfico propio (`lwc.ts`), que también sigue en My Hub. Se evitaron
+  a propósito los widgets de análisis técnico y de brokers (recomiendan). `/privacy/` lo cuenta.
+- **Frases del estado del mercado** (`site/src/lib/session.ts`): nunca usaron IA; eran unas 5 por
+  momento. Ahora son 136 escritas a mano y cambian cada 20 minutos, sin repetir la anterior.
+- Las cifras de `/today/` (la regla) y de la ficha salen de Yahoo; el gráfico, de TradingView: pueden
+  diferir un poco, sobre todo en los índices.
+- 173 tests en verde (`tests/test_yahoo.py`, sin red), `astro check` y build en verde. Los widgets
+  se comprobaron en local cargando con datos; el lienzo no se pudo ver pintado (la vista previa
+  estaba en segundo plano). **Revisar en el navegador antes de desplegar.**
+
 ### Desplegado todo el 2026-10-07 (`market-hub-00018-n9s`)
 
 A petición del usuario se desplegaron a la vez los cuatro servicios, desde el equipo Windows y
