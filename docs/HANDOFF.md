@@ -35,6 +35,20 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
+### Condiciones de uso, y el canal de YouTube en la página de privacidad (2026-10-07)
+
+Para la auditoría de la API de YouTube (`the-market-hub-media/docs/youtube-audit.md`), que pide
+una política de privacidad que hable del uso de la API y unas condiciones de uso:
+
+- `/privacy/` dice ahora que los vídeos se suben al canal propio con una herramienta que usa
+  YouTube API Services, que solo la usa el dueño del canal, que no lee ni guarda nada de nadie,
+  cómo se le retira el acceso, y enlaza las condiciones de YouTube y la política de privacidad
+  de Google. No se guarda ningún dato nuevo.
+- Página nueva `/terms/` (`site/src/pages/terms.astro`), enlazada en el pie junto a Privacy: nada
+  es asesoramiento, la cuenta, los comentarios, lo que viene de otros proveedores, YouTube, el
+  sitio tal cual y cómo escribir al autor. Los textos los aprobó el usuario sobre una propuesta;
+  no los ha revisado un abogado, y no dicen qué ley los rige.
+
 ### La app de móvil entra con un token (2026-10-07; **desplegado**, revisión `market-hub-00023-q6q`)
 
 El usuario quiere My Hub como app de iPhone y Android (repo `market-hub-mobile`, Expo). Una app

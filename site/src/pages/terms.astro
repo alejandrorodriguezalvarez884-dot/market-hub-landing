@@ -1,0 +1,42 @@
+---
+import Site from "../components/Site.astro";
+import { AUTHOR_URL, link } from "../lib/site";
+---
+
+<Site title="Terms" description="The terms Market Hub is offered under.">
+	<div class="max-w-3xl space-y-5 text-[14px] leading-relaxed text-ink">
+		<h1 class="text-2xl font-bold text-ink-strong">Terms</h1>
+		<p>Market Hub is a free site that describes markets, companies and personal finance. It is made and run by one person,
+			<a href={AUTHOR_URL} class="link" rel="noopener">Alejandro Rodríguez Álvarez</a>, from Spain. By using it you agree to
+			what this page says. What we keep about you, and why, is on the <a href={link("/privacy/")} class="link">Privacy</a> page.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">Nothing here is advice</h2>
+		<p>Market Hub describes; it does not recommend. Nothing on the site, in its articles or in its videos is investment
+			advice, or a recommendation to buy, sell or hold anything. Prices can be delayed, figures come from other
+			providers and can be wrong, and past returns say nothing about future ones. What you do with your money is your
+			decision and your responsibility.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">Your account</h2>
+		<p>The public pages need no account. If you make one, give a name and an address that are yours, keep your password to
+			yourself, and use the site as a person would: no automated access that loads it down, and no attempt to reach what
+			belongs to somebody else. You can delete your account, and everything kept with it, at any time on
+			<a href={link("/account/")} class="link">Account and data</a>.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">What you write</h2>
+		<p>Your comments are yours and you answer for them. Do not post spam, abuse, anything unlawful, or advice to others
+			about what to do with their money. We may remove a comment, or close an account, that does.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">What comes from others</h2>
+		<p>Prices, charts, filings and news on the site come from other providers, and each is under its own terms. We
+			show them as they arrive and cannot promise they are complete, current or right.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">YouTube</h2>
+		<p>Market Hub's videos are on YouTube, and we upload them to our own channel with a tool that uses YouTube API
+			Services. By watching them, here or there, you agree to be bound by the
+			<a href="https://www.youtube.com/t/terms" class="link" rel="noopener">YouTube Terms of Service</a>. What Google does
+			with what it learns when you watch is in the
+			<a href="https://policies.google.com/privacy" class="link" rel="noopener">Google Privacy Policy</a>.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">The site as it is</h2>
+		<p>Market Hub is offered as it is, free of charge and with no promise that it will always be there, always work or stay
+			the same. To the extent the law allows, we are not liable for a loss that comes from using it or from relying on
+			what it shows.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">Changes, and how to reach us</h2>
+		<p>If these terms change, the new ones are published on this page. Last changed on 7 October 2026. To ask anything
+			about them, write to the author through <a href={AUTHOR_URL} class="link" rel="noopener">his site</a>.</p>
+	</div>
+</Site>
