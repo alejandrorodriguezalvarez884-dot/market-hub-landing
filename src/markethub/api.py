@@ -13,6 +13,9 @@
     PUT    /api/auth/password       {current, new}: change its password
     POST   /api/app/auth/password   {email, password}: the phone app signs in, and gets a token
     POST   /api/app/auth/renew      the app's token, for a new one that lasts from today
+    GET    /api/app/auth/google/start     ?redirect=&challenge=  the app's browser, sent on to Google
+    POST   /api/app/auth/google/callback  where Google posts the ID token; back to the app with a code
+    POST   /api/app/auth/google/finish    {code, verifier}: the app's token (appsignin.py)
     GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
     GET    /api/watchlist           the stocks the user follows and holds, each read from its prices
     GET    /api/watchlist/stock     ?t=  any one stock, read the same way
@@ -64,12 +67,13 @@ import re
 import secrets
 import threading
 import time
+from urllib.parse import parse_qs
 from collections import defaultdict, deque
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -88,8 +92,9 @@ from .watch import Watch, default_reader
 from .live import default_markets
 from .news import default_news
 from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
+from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
-from .config import (PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
+from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, WATCH_PER_IP_PER_HOUR)
 from .market import Directory, Fmp, MarketUnavailable
@@ -158,7 +163,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                news=None, opinion: Opinion | None = None, community_store: CommunityStore | None = None,
                insight_writer="default", logins: LoginStore | None = None,
                password_cost: tuple[int, int, int] = accounts_.COST, captcha="default",
-               competition_store: CompetitionStore | None = None, clock=None, stock_reader="default") -> FastAPI:
+               competition_store: CompetitionStore | None = None, clock=None, stock_reader="default",
+               app_redirects: str | None = None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -215,6 +221,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     signing = RateLimiter(PASSWORD_TRIES_PER_IP_PER_HOUR)
     registering = RateLimiter(REGISTRATIONS_PER_IP_PER_HOUR)
     tokens = AppTokens(secret, SESSION_DAYS * 86400)
+    google_flow = GoogleFlow(secret)
+    redirects = AppRedirects(APP_REDIRECTS if app_redirects is None else app_redirects)
 
     def app_token(request: Request) -> str | None:
         return bearer(request.headers.get("authorization"))
@@ -304,16 +312,21 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         except InvalidToken as exc:
             log.info("sign-in refused: %s", exc)
             raise HTTPException(401, "Google sign-in could not be verified.") from None
+        said = google_welcome(g)
+        request.session.clear()
+        request.session["user"] = said["user"]
+        log.info("sign-in ok new=%s", said["new"])
+        return said
+
+    def google_welcome(g) -> dict:
+        """Keep the profile Google gave with the user's document, and say what the account has."""
         doc = users.get(g.id)
         new = doc is None
         if new:
             doc = empty(g.id)
         # Profile fields are refreshed on every sign-in; they are only shown back to the user.
         users.put(g.id, touch(doc, email=g.email, name=g.name, picture=g.picture))
-        request.session.clear()
-        request.session["user"] = {"id": g.id, "email": g.email, "name": g.name, "picture": g.picture, "provider": "google"}
-        log.info("sign-in ok new=%s", new)
-        return {"user": request.session["user"], "new": new,
+        return {"user": {"id": g.id, "email": g.email, "name": g.name, "picture": g.picture, "provider": "google"}, "new": new,
                 "has_data": bool(doc.get("positions") or doc.get("watchlist"))}
 
     def welcome(user: dict, new: bool) -> dict:
@@ -406,6 +419,69 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def sign_out(request: Request) -> dict:
         request.session.clear()
         return {"ok": True}
+
+    def public_address(request: Request) -> str:
+        """This service as a browser reaches it: Google sends the ID token back there."""
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+        local = host.split(":")[0] in ("localhost", "127.0.0.1", "testserver")
+        return f"{'http' if local else 'https'}://{host}"
+
+    @app.get("/api/app/auth/google/start")
+    def app_google_start(request: Request, redirect: str = Query(max_length=300), challenge: str = Query(max_length=64)) -> Response:
+        """The app's browser, on its way to Google. Only an address of the app is taken as the
+        way back, and only with the challenge that will tie the code to the app that asked."""
+        allow(request)
+        if not client_id:
+            raise HTTPException(404, "Signing in with Google is not on.")
+        if not redirects.allowed(redirect) or not CHALLENGE.fullmatch(challenge):
+            raise HTTPException(400, "This is not the Market Hub app asking.")
+        state, nonce = google_flow.begin(redirect, challenge)
+        return RedirectResponse(google_address(client_id, f"{public_address(request)}/api/app/auth/google/callback", state, nonce), 302)
+
+    @app.post("/api/app/auth/google/callback")
+    async def app_google_callback(request: Request) -> Response:
+        """Google posts here what the user did. The ID token is checked as the site's is, and
+        must carry the nonce of the sign-in the state belongs to. No cookie is read or set."""
+        allow(request)
+        form = parse_qs((await request.body())[:16384].decode("utf-8", "replace"))
+        field = lambda name: (form.get(name) or [""])[0]  # noqa: E731
+        began = google_flow.came_back(field("state"))
+        if not began or not redirects.allowed(began["r"]):
+            return HTMLResponse(leaving_page(None, "This sign-in took too long. Go back to the app and try again."), 400)
+
+        def leave(words: str, **said: str) -> Response:
+            return HTMLResponse(leaving_page(back_to_app(began["r"], **said), words))
+
+        if not field("id_token"):  # the user said no to Google, or Google said no
+            return leave("Sign-in was not completed. Returning to Market Hub…", error="cancelled")
+        seen: dict = {}
+
+        def checking(token: str, audience: str) -> dict:
+            seen.update(verifier(token, audience))
+            return seen
+
+        try:
+            g = verify(field("id_token"), client_id, checking)
+            if not secrets.compare_digest(str(seen.get("nonce") or ""), began["n"]):
+                raise InvalidToken("wrong nonce")
+        except InvalidToken as exc:
+            log.info("sign-in refused (app): %s", exc)
+            return leave("Google sign-in could not be verified. Returning to Market Hub…", error="refused")
+        said = google_welcome(g)
+        log.info("sign-in ok (app) new=%s", said["new"])
+        return leave("Signed in. Returning to Market Hub…", code=google_flow.code(g.id, began["c"], said["new"]))
+
+    @app.post("/api/app/auth/google/finish")
+    def app_google_finish(request: Request, code: str = Body(embed=True, max_length=2048), verifier_: str = Body(embed=True, alias="verifier", max_length=200)) -> dict:
+        """The code for the app's token: only for whoever holds the secret the sign-in began with."""
+        allow(request)
+        found = google_flow.redeem(code, verifier_)
+        doc = users.get(found["i"]) if found else None
+        if not doc:
+            raise HTTPException(401, "That sign-in could not be completed. Try again.")
+        user = {"id": found["i"], "email": doc.get("email", ""), "name": doc.get("name", ""), "picture": doc.get("picture", ""), "provider": "google"}
+        return {"user": user, "new": bool(found.get("n")), "has_data": bool(doc.get("positions") or doc.get("watchlist")),
+                "token": tokens.issue(user)}
 
     @app.get("/api/me")
     def me(request: Request) -> dict:

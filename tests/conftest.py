@@ -58,9 +58,10 @@ def google_claims(sub="1001", email="ana@gmail.com", **over):
 
 
 def fake_verifier(token: str, client_id: str) -> dict:
-    """Tokens look like 'ok:<sub>' or 'bad'; anything else fails as google-auth would."""
+    """Tokens look like 'ok:<sub>', 'ok:<sub>:<nonce>' or 'bad'; anything else fails as google-auth would."""
     if token.startswith("ok:"):
-        return google_claims(sub=token[3:], email=f"user{token[3:]}@gmail.com")
+        sub, _, nonce = token[3:].partition(":")
+        return google_claims(sub=sub, email=f"user{sub}@gmail.com", **({"nonce": nonce} if nonce else {}))
     if token == "unverified":
         return google_claims(email_verified=False)
     if token == "other-aud":

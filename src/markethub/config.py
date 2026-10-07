@@ -25,6 +25,11 @@ SESSION_DAYS = 30
 # (radar.<domain>, fundamentals.<domain>) see the same sign-in. Empty: the cookie stays on the
 # host that set it. It is only applied to requests that arrive through that domain.
 COOKIE_DOMAIN = os.environ.get("MARKETHUB_COOKIE_DOMAIN", "").strip().lstrip(".") or None
+# Where the phone app's sign-in with Google may send its code, besides the installed app's own
+# address (markethub://auth): addresses of the app run from a developer's machine, separated by
+# commas, each written whole, with * for a run of letters and digits. Empty in a service nobody
+# is developing the app against. See appsignin.py.
+APP_REDIRECTS = os.environ.get("MARKETHUB_APP_REDIRECTS", "").strip()
 # Cookies marked Secure (HTTPS only). Off only for http://localhost.
 SECURE_COOKIES = os.environ.get("MARKETHUB_INSECURE_COOKIES", "") != "1"
 
