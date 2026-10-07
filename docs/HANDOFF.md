@@ -35,7 +35,7 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
-### Condiciones de uso, y el canal de YouTube en la página de privacidad (2026-10-07)
+### Condiciones de uso, y el canal de YouTube en la página de privacidad (2026-10-07; desplegado como `market-hub-00024-z7k`)
 
 Para la auditoría de la API de YouTube (`the-market-hub-media/docs/youtube-audit.md`), que pide
 una política de privacidad que hable del uso de la API y unas condiciones de uso:
