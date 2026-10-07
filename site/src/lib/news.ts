@@ -94,6 +94,13 @@ export function dayLabel(iso: string, now = new Date()): string {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
+// The day an item belongs to, in the reader's own time zone, as YYYY-MM-DD: what the day filter
+// of the news page compares.
+export function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // Items under a heading per day, newest day first (they arrive newest first).
 export function byDay(items: NewsItem[]): HTMLElement[] {
   const out: HTMLElement[] = [];

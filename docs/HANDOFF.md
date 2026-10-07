@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-10-06.
+Última actualización: 2026-10-07.
 
 ## Qué se pidió
 
@@ -170,7 +170,7 @@ solas; la sección de opinión vendrá después y saldrá de las noticias.
   las fuentes dentro de esa petición (tope de 30 s para empezar documentos; lo que quede se lee en
   el siguiente refresco) y vuelve a pintar. Sin visitas no hay refresco. Un refresco en marcha en
   otra instancia se respeta 3 minutos (`started_utc`).
-- **Dónde salen**: `/news/` (por día, con filtro por tipo y la prensa al lado), bloque "Latest
+- **Dónde salen**: `/news/` (por día, con filtro por tipo, sector, sentimiento y día, y la prensa al lado), bloque "Latest
   news" en `/today/`, "From its filings" en la ficha de valor, y "News on your stocks" en My Hub
   (`GET /api/news/mine`, las de las empresas de la cartera y los favoritos; no guarda nada nuevo).
 - **Despliegue**: la clave de Anthropic sale de Secret Manager. `ANTHROPIC_SECRET` nombra el
@@ -190,7 +190,8 @@ solas; la sección de opinión vendrá después y saldrá de las noticias.
   escribe.
 - En el equipo local del usuario (Windows) los `.env` de los tres repos se reconstruyeron desde la
   configuración de los servicios y Secret Manager. `uv` necesita ahí `UV_LINK_MODE=copy`, y el
-  `launch.json` del workspace no arranca porque su bash no encuentra `uv`.
+  `launch.json` del workspace no arranca porque su `bash` es el de WSL (ver los filtros de
+  noticias, 2026-10-07: hay una configuración aparte para Windows).
 
 Pendiente:
 - **Las noticias del mercado del día no han salido aún en producción**: la cuota de FMP estaba
@@ -267,6 +268,33 @@ a qué sector afecta, o si es macro.
   izquierda (rojo) o sobre ella.
 - Coste: cada documento pide ahora unos 500 tokens de salida más; del orden de medio céntimo a un
   céntimo por noticia.
+
+### Filtros de noticias: sector, sentimiento y día (2026-10-07; en `main`, sin desplegar)
+
+El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
+
+- **`/news/`** (`pages/news.astro`) tiene, bajo las pestañas de tipo, tres desplegables: `Any sector`
+  (los sectores que tienen alguna noticia, y `Macro` al final), `Any sentiment` (Bullish, Bearish,
+  Neutral) y `Any day` (los días que hay, en la hora del lector). Se combinan entre sí y con las
+  pestañas. Con algún filtro puesto salen "Clear filters" y la cuenta ("3 of 25"); sin resultados,
+  "No news matches these filters.".
+- **Se filtra en el navegador**, sobre lo que ya se había pedido: no hay llamadas nuevas ni gasto.
+  La página pide ahora la portada entera (`limit=200`, que es `NEWS_FRONT_ITEMS`; el tope de
+  `/api/public/news` sube de 100 a 200). **Lo que ya salió de la portada (más de 200 noticias
+  atrás) no se puede filtrar**: está en el archivo (`news/{id}`), que la página no lee. Buscar ahí
+  por fecha pediría consultas a Firestore y sus índices.
+- **Lo elegido va en la dirección** (`?kind=&sector=&sentiment=&day=2026-10-06`), así que volver de
+  un artículo o compartir la página lo conserva. Un valor de la dirección que ya no existe se queda
+  en su desplegable y la lista sale vacía, con el botón de limpiar.
+- Una noticia sin tono ni sector (las que el modelo no escribió) no entra en esos dos filtros. Los
+  titulares de prensa no se filtran.
+- 136 tests, `astro check` y build en verde. Probado en local a 1366 y 375 px con una copia de las
+  noticias públicas de producción: combinaciones, limpiar, abrir con filtros en la dirección, sin
+  desbordes.
+- **Arrancar en local en Windows**: en ese equipo `bash` es el de WSL, no Git Bash; por eso el
+  `launch.json` del workspace no arrancaba. Hay una configuración `hub-sample-windows` que llama a
+  Git Bash por su ruta. **No lanzar `uv` desde WSL en esta carpeta**: rehace `.venv` para Linux y
+  rompe el de Windows (se arregla con `UV_LINK_MODE=copy uv sync --reinstall`).
 
 ### Estado del mercado en Today y vuelta a la portada desde My Hub (2026-10-06; desplegado)
 

@@ -15,7 +15,8 @@ import Site from "../components/Site.astro";
 
 	<div class="mt-10 grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:items-start">
 		<section class="sec" aria-label="News">
-			<nav id="news-tabs" class="tabs mb-5" aria-label="Kind of news"></nav>
+			<nav id="news-tabs" class="tabs" aria-label="Kind of news"></nav>
+			<div id="news-filters" class="mb-5 mt-3 flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-2" role="group" aria-label="Filter the news"></div>
 			<div id="news-list"><div class="skeleton h-24"></div><div class="skeleton mt-4 h-24"></div><div class="skeleton mt-4 h-24"></div></div>
 		</section>
 
@@ -31,32 +32,88 @@ import Site from "../components/Site.astro";
 <script>
 	import { add, h } from "../lib/dom";
 	import { timeAgo } from "../lib/format";
-	import { news, watchNews, type News } from "../lib/market";
-	import { byDay, newsLine } from "../lib/news";
+	import { news, watchNews, type News, type NewsItem } from "../lib/market";
+	import { byDay, dayKey, dayLabel, newsLine } from "../lib/news";
 	import { failed } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
-	let chosen = "";
+
+	// What the reader chose: the kind of news (the tabs), the sector it touches, how it reads and
+	// its day. Empty is "any". The choice lives in the address, so coming back from an article, or
+	// sharing the page, keeps it. An item nobody gave a sector or a reading is in no such filter.
+	const KEYS = ["kind", "sector", "sentiment", "day"] as const;
+	type Key = (typeof KEYS)[number];
+	const SENTIMENTS = [["bullish", "Bullish"], ["bearish", "Bearish"], ["neutral", "Neutral"]];
+	const valid: Record<Key, (v: string) => boolean> = {
+		kind: (v) => v.length <= 30,
+		sector: (v) => v.length <= 40,
+		sentiment: (v) => SENTIMENTS.some(([s]) => s === v),
+		day: (v) => /^\d{4}-\d{2}-\d{2}$/.test(v),
+	};
+	const valueOf: Record<Key, (i: NewsItem) => string> = {
+		kind: (i) => i.category,
+		sector: (i) => i.scope ?? "",
+		sentiment: (i) => i.sentiment ?? "",
+		day: (i) => dayKey(i.published_utc),
+	};
+	const asked = new URLSearchParams(location.search);
+	const chosen = Object.fromEntries(KEYS.map((k) => [k, valid[k](asked.get(k) ?? "") ? asked.get(k)! : ""])) as Record<Key, string>;
+	const filtering = () => KEYS.some((k) => chosen[k]);
+
+	function remember() {
+		const q = new URLSearchParams(KEYS.filter((k) => chosen[k]).map((k) => [k, chosen[k]])).toString();
+		history.replaceState(null, "", location.pathname + (q ? `?${q}` : ""));
+	}
+
+	function choose(n: News, refreshing: boolean, changes: Partial<Record<Key, string>>) {
+		Object.assign(chosen, changes);
+		remember();
+		tabs(n, refreshing);
+		filters(n, refreshing);
+		list(n, refreshing);
+	}
+
+	const shown = (n: News) => n.items.filter((i) => KEYS.every((k) => !chosen[k] || valueOf[k](i) === chosen[k]));
 
 	function list(n: News, refreshing: boolean) {
-		const items = chosen ? n.items.filter((i) => i.category === chosen) : n.items;
+		const items = shown(n);
 		if (items.length) return $("news-list").replaceChildren(...byDay(items));
-		failed($("news-list"), refreshing ? "Loading the news…"
-			: chosen ? `No ${chosen.toLowerCase()} items in the last days.` : "No news to show yet.");
+		failed($("news-list"), refreshing ? "Loading the news…" : filtering() ? "No news matches these filters." : "No news to show yet.");
 	}
 
 	function tabs(n: News, refreshing: boolean) {
+		if (!n.categories.includes(chosen.kind)) chosen.kind = "";
 		$("news-tabs").replaceChildren(...["", ...n.categories].map((c) => {
 			const b = h("button", "tab-btn", c || "All");
 			b.type = "button";
-			b.setAttribute("aria-selected", String(c === chosen));
-			b.addEventListener("click", () => {
-				chosen = c;
-				tabs(n, refreshing);
-				list(n, refreshing);
-			});
+			b.setAttribute("aria-selected", String(c === chosen.kind));
+			b.addEventListener("click", () => choose(n, refreshing, { kind: c }));
 			return b;
 		}));
+	}
+
+	// One select per filter. A sector or a day is offered when some item has it; one asked for in
+	// the address and no longer there stays in its list, so the reader sees what is filtering.
+	function filters(n: News, refreshing: boolean) {
+		const present = (k: Key) => [...new Set([...n.items.map(valueOf[k]), chosen[k]].filter(Boolean))];
+		const select = (k: Key, label: string, options: string[][]) => {
+			const s = h("select", "field !w-auto max-w-full cursor-pointer !px-2 !py-1 !text-[13px]");
+			s.setAttribute("aria-label", label);
+			s.append(new Option(`Any ${label.toLowerCase()}`, ""), ...options.map(([value, text]) => new Option(text, value)));
+			s.value = chosen[k];
+			if (!chosen[k]) s.classList.add("!text-muted");
+			s.addEventListener("change", () => choose(n, refreshing, { [k]: s.value }));
+			return s;
+		};
+		const clear = h("button", "tab-btn ml-1", "Clear filters");
+		clear.type = "button";
+		clear.addEventListener("click", () => choose(n, refreshing, { kind: "", sector: "", sentiment: "", day: "" }));
+		$("news-filters").replaceChildren(
+			select("sector", "Sector", present("sector").sort((a, b) => Number(a === "Macro") - Number(b === "Macro") || a.localeCompare(b)).map((v) => [v, v])),
+			select("sentiment", "Sentiment", SENTIMENTS),
+			select("day", "Day", present("day").sort().reverse().map((v) => [v, dayLabel(`${v}T12:00:00`)])),
+			...(filtering() ? [clear, h("span", "num ml-auto text-[12.5px] text-muted", `${shown(n).length} of ${n.items.length}`)] : []),
+		);
 	}
 
 	function status(n: News, refreshing: boolean) {
@@ -71,10 +128,11 @@ import Site from "../components/Site.astro";
 	function draw(n: News, refreshing: boolean) {
 		status(n, refreshing);
 		tabs(n, refreshing);
+		filters(n, refreshing);
 		list(n, refreshing);
 		$("press").hidden = !n.press.length;
 		$("press-list").replaceChildren(...n.press.slice(0, 14).map(newsLine));
 	}
 
-	watchNews(() => news({ limit: 100 }), draw).catch(() => failed($("news-list"), "The news is not available right now."));
+	watchNews(() => news({ limit: 200 }), draw).catch(() => failed($("news-list"), "The news is not available right now."));
 </script>

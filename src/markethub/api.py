@@ -485,7 +485,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     @app.get("/api/public/news")
     def public_news(category: str | None = Query(None, max_length=30), ticker: str | None = Query(None, max_length=12),
-                    limit: int = Query(20, ge=1, le=100)) -> dict:
+                    limit: int = Query(20, ge=1, le=200)) -> dict:  # up to the whole front (NEWS_FRONT_ITEMS)
         t = symbol(ticker) if ticker else None
         return news.news(category=category, tickers={t} if t else None, limit=limit, name=company_name(t) if t else None)
 

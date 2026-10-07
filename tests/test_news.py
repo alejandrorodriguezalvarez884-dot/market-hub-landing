@@ -464,8 +464,9 @@ def test_news_api_refreshes_on_request(live_client):
     assert c.post("/api/public/news/refresh", headers={"origin": "https://evil.example"}).status_code == 403
     assert c.post("/api/public/news/refresh").json() == {"refreshed": True}
     assert c.post("/api/public/news/refresh").json() == {"refreshed": False, "reason": "fresh"}
-    got = c.get("/api/public/news", params={"limit": 100}).json()
+    got = c.get("/api/public/news", params={"limit": 200}).json()  # the whole front: the news page filters it
     assert len(got["items"]) == 7 and got["press"] and got["stale"] is False
+    assert c.get("/api/public/news", params={"limit": 201}).status_code == 422
     assert [i["id"] for i in c.get("/api/public/news", params={"ticker": "AAPL"}).json()["items"]] == ["sec-0000320193-26-000070"]
     assert [i["id"] for i in c.get("/api/public/quote", params={"t": "AAPL"}).json()["news"]] == ["sec-0000320193-26-000070"]
     # One item, for its own page: whole, with the link to its source. The list does not carry articles.
