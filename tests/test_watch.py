@@ -225,6 +225,14 @@ def test_a_stock_is_read_once_a_day_for_everybody_and_what_advises_is_left_out()
     assert reader.read("u2", figures("AAPL")) and len(api.calls) == 3
     assert reader.read("u3", figures("MSFT")) is None and len(api.calls) == 3
     assert reader.read("u3", figures("KO"))  # what was read today is still handed out
+    # Without limits (the default), nobody is turned away.
+    free = watch.StockReader(client=FakeAnthropic(GOOD))
+    assert free.per_user is None and free.per_day is None
+    assert all(free.read("u1", figures(t)) for t in ("NVDA", "KO", "AAPL", "MSFT")) and len(free.client.calls) == 4
+    call = free.client.calls[0]
+    assert call["model"] == "claude-sonnet-5-5" and call["output_config"]["effort"] == "low"
+    haiku = FakeAnthropic(GOOD)  # a model that takes no effort is not sent one
+    assert watch.StockReader(client=haiku, model="claude-haiku-4-5").read("u", figures()) and "effort" not in haiku.calls[0]["output_config"]
 
 
 def test_an_answer_that_cannot_be_shown_is_dropped():

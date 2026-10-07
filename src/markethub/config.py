@@ -94,7 +94,7 @@ NEWS_PRESS_FEEDS = os.environ.get("NEWS_PRESS_FEEDS", ",".join((
 NEWS_MODEL = os.environ.get("NEWS_MODEL", "claude-haiku-4-5")
 NEWS_DOC_CHARS = 16000  # of a document, what the model reads: the narrative comes first
 # USD per million tokens (input, output), to log what each item cost.
-MODEL_PRICES = {"claude-haiku-4-5": (1.00, 5.00)}
+MODEL_PRICES = {"claude-haiku-4-5": (1.00, 5.00), "claude-sonnet-5-5": (2.00, 10.00)}
 
 # --- My Hub ------------------------------------------------------------------------------------
 
@@ -104,11 +104,12 @@ MODEL_PRICES = {"claude-haiku-4-5": (1.00, 5.00)}
 INSIGHTS_MODEL = os.environ.get("INSIGHTS_MODEL", "claude-haiku-4-5")
 INSIGHTS_PER_USER_PER_DAY = int(os.environ.get("INSIGHTS_PER_USER_PER_DAY", "6"))
 # The watchlist page (watch.py). The model that reads one stock's figures back, with the same key.
-# A stock is read once a day for everybody; a user can have this many stocks read in a day, and
-# the service as a whole this many. Without a key the page keeps the sentences the code writes.
-WATCH_MODEL = os.environ.get("WATCH_MODEL", "claude-haiku-4-5")
-WATCH_READS_PER_USER_PER_DAY = int(os.environ.get("WATCH_READS_PER_USER_PER_DAY", "40"))
-WATCH_READS_PER_DAY = int(os.environ.get("WATCH_READS_PER_DAY", "300"))
+# A stock is read once a day for everybody. Spend has no cap here either (the owner's choice, like
+# the news): the two variables set one, on the stocks a user can have read in a day and on those
+# of the service as a whole. Without a key the page keeps the sentences the code writes.
+WATCH_MODEL = os.environ.get("WATCH_MODEL", "claude-sonnet-5-5")
+WATCH_READS_PER_USER_PER_DAY = int(os.environ.get("WATCH_READS_PER_USER_PER_DAY") or 0) or None
+WATCH_READS_PER_DAY = int(os.environ.get("WATCH_READS_PER_DAY") or 0) or None
 # Requests per address per hour on the watchlist's endpoints: a wall of charts asks for many at once.
 WATCH_PER_IP_PER_HOUR = 1500
 # Portfolios their owners chose to share, shown on the community board.

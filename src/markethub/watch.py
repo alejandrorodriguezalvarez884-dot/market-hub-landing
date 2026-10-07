@@ -428,6 +428,7 @@ TRADE = re.compile(r"\b(overbought|oversold|opportunit\w+|entry|entries|exit|buy
 PAUSE_SECONDS = 15 * 60
 KEPT = 800  # readings held in memory
 TEXT_MAX = 280  # characters of a sentence
+MAX_TOKENS = 4000  # of an answer: the thinking counts too, and the reading itself is about 400
 
 
 def unfit(text: str) -> bool:
@@ -440,7 +441,7 @@ def _today() -> str:
 
 class StockReader:
     def __init__(self, client: anthropic.Anthropic | None = None, model: str = WATCH_MODEL,
-                 per_user: int = WATCH_READS_PER_USER_PER_DAY, per_day: int = WATCH_READS_PER_DAY):
+                 per_user: int | None = WATCH_READS_PER_USER_PER_DAY, per_day: int | None = WATCH_READS_PER_DAY):
         # The base URL is pinned so a stray ANTHROPIC_BASE_URL in the shell never receives the key.
         self.client = client or anthropic.Anthropic(base_url="https://api.anthropic.com", timeout=25.0, max_retries=1)
         self.model, self.per_user, self.per_day = model, per_user, per_day
@@ -451,8 +452,9 @@ class StockReader:
 
     def read(self, user_id: str, figures: dict) -> dict | None:
         """The model's reading of a stock as it stands today, or None when it was not asked (the
-        day's readings used up, the API not answering) or its answer cannot be shown. A stock is
-        read once a day, for whoever asks first; everybody after gets the same reading."""
+        day's readings used up, where there is a limit; the API not answering) or its answer cannot
+        be shown. A stock is read once a day, for whoever asks first; everybody after gets the same
+        reading."""
         day = _today()
         key = (figures["ticker"], day)
         with self._lock:
@@ -462,7 +464,7 @@ class StockReader:
                 return None
             self._asked = {k: v for k, v in self._asked.items() if k[1] == day}
             mine, everybody = self._asked.get((user_id, day), 0), self._asked.get(("", day), 0)
-            if mine >= self.per_user or everybody >= self.per_day:
+            if (self.per_user is not None and mine >= self.per_user) or (self.per_day is not None and everybody >= self.per_day):
                 return None
             self._asked[(user_id, day)], self._asked[("", day)] = mine + 1, everybody + 1
         written = self._write(figures)
@@ -474,10 +476,13 @@ class StockReader:
         return written
 
     def _write(self, figures: dict) -> dict | None:
+        output: dict = {"format": {"type": "json_schema", "schema": SCHEMA}}
+        if not self.model.startswith("claude-haiku"):
+            # A model that thinks before it answers: briefly, for a few sentences. Haiku takes no effort.
+            output["effort"] = "low"
         try:
             response = self.client.messages.create(
-                model=self.model, max_tokens=800, system=SYSTEM,
-                output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
+                model=self.model, max_tokens=MAX_TOKENS, system=SYSTEM, output_config=output,
                 messages=[{"role": "user", "content": json.dumps(figures)}],
             )
         except (anthropic.AuthenticationError, anthropic.PermissionDeniedError, anthropic.BadRequestError) as exc:
