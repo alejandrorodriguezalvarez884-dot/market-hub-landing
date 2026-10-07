@@ -553,7 +553,9 @@ grabación con Playwright descrita más arriba.
 - En la landing el vídeo sigue arrancando solo y en silencio (los navegadores no dejan otra cosa);
   el sonido se activa en los controles. La nota pasa de "No sound" a "With sound".
 - `film/` no se sube a Cloud Run (`.gcloudignore`, `.dockerignore`).
-- **Prueba con otra música (2026-10-07; sin publicar)**: el usuario pidió probar la película con
+- **Prueba con otra música (2026-10-07; descartada: el usuario se queda con la película actual)**.
+  Vio las dos pruebas y dijo "me quedo con el que tengo ahora". El código de la prueba sigue en
+  `film/` por si se retoma; no afecta a la web ni a `make film`. Lo que se probó: el usuario pidió probar la película con
   una música que motive y suene a progreso en vez de la actual (que oye como relajante), y que los
   movimientos la acompañen. Es un segundo montaje, **sin tocar el primero**:
   `make film CUT=progress` lo deja en `film/out/film-progress.{webm,mp4}` (no en la web).
