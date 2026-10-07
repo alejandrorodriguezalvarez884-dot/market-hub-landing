@@ -80,7 +80,7 @@ saber quién pregunta, sin tocar la de la web:
   existe la app y qué guarda en el teléfono, antes de publicarla. Fundamentals Lab y el Earnings
   Radar no entienden el token: siguen yendo con la cookie.
 
-### La app de móvil entra con Google, por el navegador del teléfono (2026-10-07; en `main`, **sin desplegar**)
+### La app de móvil entra con Google, por el navegador del teléfono (2026-10-07; **desplegado**, revisión `market-hub-00025-gj8`)
 
 El usuario pidió poder entrar con Google también desde la app. Google no deja iniciar sesión en
 una página incrustada en una app, y el botón nativo no funciona en Expo Go, así que el viaje va por
@@ -103,11 +103,16 @@ el navegador del teléfono y lo lleva el portal (`src/markethub/appsignin.py`, q
   de su propia cuenta de Expo (el `*` son solo letras y cifras). **Cada dirección ahí es un sitio
   más al que se puede mandar un inicio de sesión: se vacía y se despliega antes de publicar la
   app en tiendas.** Decisión del agente, avisada al usuario.
-- **Hace falta en Google Cloud** (lo hace el usuario): en el cliente OAuth de la web, añadir
-  `https://themarkethub.app/api/app/auth/google/callback` a "Authorised redirect URIs". Sin eso
-  Google responde `redirect_uri_mismatch`.
+- **En Google Cloud** el usuario añadió `https://themarkethub.app/api/app/auth/google/callback` a
+  "Authorised redirect URIs" del cliente OAuth de la web (2026-10-07). Sin eso Google responde
+  `redirect_uri_mismatch`.
+- **Comprobado en https://themarkethub.app tras desplegar**: `start` con la dirección del túnel del
+  dueño o con `markethub://auth` manda a Google con la vuelta a
+  `https://themarkethub.app/api/app/auth/google/callback`, y Google abre su página de elegir cuenta
+  (acepta esa vuelta); con una dirección de red local, del túnel de otro usuario o de otra web,
+  400; `finish` con un código inventado, 401.
 - 20 tests nuevos en `tests/test_app_google.py` (Google simulado); 239 en verde.
-- **Sin probar**: con Google de verdad y en un teléfono.
+- **Sin probar**: elegir una cuenta de Google de verdad y volver a la app, en un teléfono.
 
 ### Watchlist: muro de gráficas, lectura de cada acción y mapa (2026-10-07; desplegado como `market-hub-00022-l94`)
 
