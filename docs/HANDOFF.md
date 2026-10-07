@@ -35,7 +35,7 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
-### Premarket y after hours en la ficha (2026-10-07; en `main`, sin desplegar)
+### Premarket y after hours en la ficha (2026-10-07; desplegado como `market-hub-00021-fx4`)
 
 El usuario preguntó si el gráfico de TradingView podía incluir el premarket. **El widget gratuito
 no lo da** (sirve las acciones con un feed retrasado sin horario extendido: en pleno premarket su
@@ -50,6 +50,8 @@ barra no ofrece el botón ETH). Eligió la alternativa: **el dato, en pequeño, 
   ET" (o "After hours"), con el día de la semana si no es de hoy. Por la noche y el fin de semana
   sigue saliendo el último after hours, con su hora.
 - Comprobado en local contra Yahoo en pleno premarket (AAPL, SPY, KO) y visto en el navegador.
+  Desplegado ese día a petición del usuario (configuración y secretos como estaban) y comprobado
+  en producción en premarket: AAPL y SPY traen `extended`, el S&P 500 no.
   174 tests en verde. `.claude/launch.json` del workspace gana `hub-live-windows` (el portal con
   datos reales en el puerto 8081).
 
