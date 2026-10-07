@@ -35,7 +35,14 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
-### Widgets de TradingView y precios de Yahoo (2026-10-07; en `main`, sin desplegar)
+### Widgets de TradingView y precios de Yahoo (2026-10-07; desplegado como `market-hub-00020-fkm`)
+
+**Desplegado el 2026-10-07 a petición del usuario**, tras comparar `.env` con el servicio (ningún
+secreto recibió versión nueva; solo cambian `MARKET_DATA=yahoo` y la memoria, 1 Gi). **Yahoo
+responde desde Cloud Run**: `/api/public/overview` da `source: Yahoo Finance` sin ninguna parte de
+ejemplo (7 s en frío), la ficha de AAPL trae PER y BPA, y en los logs hay 34 lecturas de Yahoo
+correctas y ningún fallo. Sin comprobar: My Hub con una sesión real y los widgets pintados en un
+navegador (el agente no pudo ver el lienzo).
 
 El usuario decidió dejar de depender de FMP (cuota de 250 llamadas al día y licencia de uso
 personal; FMP no contestó a su petición de licencia): gráficos con los widgets gratuitos de
@@ -55,8 +62,7 @@ TradingView y, para todo lo que necesita el número en el servidor, "yfinance o 
   para My Hub con `yahoo.Fallback`) o `fmp` (todo como antes). `make deploy` ya no exige la clave de FMP.
 - **Avisado al usuario, que decidió seguir**: yfinance no es una API oficial y las condiciones de
   Yahoo son de uso personal (la misma pega de licencia que el plan Starter de FMP); y Yahoo puede
-  rechazar las IP de un centro de datos. **Sin comprobar desde Cloud Run**: si allí Yahoo no
-  responde, el resumen público cae a cifras de ejemplo marcadas y My Hub a FMP (si hay clave) o a
+  rechazar las IP de un centro de datos. Si un día Yahoo deja de responder desde Cloud Run, el resumen público cae a cifras de ejemplo marcadas y My Hub a FMP (si hay clave) o a
   ejemplo. Entonces: `MARKET_DATA=fmp` y redesplegar. Comprobado contra Yahoo desde el equipo
   Windows: resumen completo en frío en unos 12 s, ficha en 1 s, cartera de 3 valores en 1 s.
 - **Memoria**: `yfinance` trae pandas y numpy. El servicio pasa de 512 Mi a **1 Gi** a petición del
