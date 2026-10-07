@@ -35,7 +35,7 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
-### La app de móvil entra con un token (2026-10-07; en `main`, **sin desplegar**)
+### La app de móvil entra con un token (2026-10-07; **desplegado**, revisión `market-hub-00023-q6q`)
 
 El usuario quiere My Hub como app de iPhone y Android (repo `market-hub-mobile`, Expo). Una app
 nativa no tiene la cookie de sesión ni manda `Origin`, así que la API gana una segunda forma de
@@ -59,8 +59,10 @@ saber quién pregunta, sin tocar la de la web:
 - CORS deja pasar la cabecera `authorization`, solo para los orígenes de
   `MARKETHUB_ALLOWED_ORIGINS` (hace falta para ver la app en su vista de navegador en desarrollo).
 - 22 tests nuevos en `tests/test_app_tokens.py`; 219 en verde.
-- **Pendiente**: desplegar (hasta entonces la app solo habla con el portal en local);
-  `/api/app/auth/google` y el de Apple cuando la app tenga esos logins; decir en `/privacy/` que
+- **Comprobado en https://themarkethub.app tras desplegar**: `/api/app/auth/renew` sin token da 401,
+  `/api/app/auth/password` con una cuenta que no existe da 401 con el mensaje de siempre, y una
+  escritura sin `Origin` (sin token, o con uno inventado) sigue dando 403.
+- **Pendiente**: `/api/app/auth/google` y el de Apple cuando la app tenga esos logins; decir en `/privacy/` que
   existe la app y qué guarda en el teléfono, antes de publicarla. Fundamentals Lab y el Earnings
   Radar no entienden el token: siguen yendo con la cookie.
 
