@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 import httpx
 
 from .config import HISTORY_DAYS, HISTORY_TTL_SECONDS, PROFILE_TTL_SECONDS, QUOTE_TTL_SECONDS
-from .live import DAILY_TTL, INSTRUMENTS, INTRADAY_TTL, MOVERS_MIN_PRICE, LiveMarkets, _num, _pct, _ytd
+from .live import DAILY_TTL, INSTRUMENTS, INTRADAY_TTL, MOVERS_MIN_PRICE, LiveMarkets, _num, _pct, _ytd, provider_symbol
 from .market import Fmp, MarketUnavailable, TTLCache
 
 log = logging.getLogger("markethub.yahoo")
@@ -71,12 +71,29 @@ def _rows(frame):
         yield ts, float(o), float(h), float(lo), c, int(v) if isinstance(v, (int, float)) and v == v else 0
 
 
+def _late(frame, meta: dict) -> dict | None:
+    """The last trade of a day's minutes when it fell outside the regular session: before the
+    open ("pre") or after the close ("post"), set against the session's last price."""
+    rows = list(_rows(frame))
+    regular = (meta.get("currentTradingPeriod") or {}).get("regular") or {}
+    base = _num(meta.get("regularMarketPrice"))
+    opens, closes = regular.get("start"), regular.get("end")
+    if not rows or not base or not hasattr(opens, "time") or not hasattr(closes, "time"):
+        return None
+    at, price = rows[-1][0], rows[-1][4]
+    session = "pre" if at.time() < opens.time() else "post" if at.time() >= closes.time() else None
+    if not session:
+        return None  # the market is open: the quote is the price
+    return {"session": session, "price": price, "change": price - base, "change_pct": price / base - 1, "at": at.isoformat()}
+
+
 class Yahoo:
     def __init__(self, yf=None):
         self._yf = yf  # the yfinance module; tests pass a stand-in
         self._reads = TTLCache()  # symbol -> {"bars": daily bars, oldest first, "meta": the quote}
         self._facts = TTLCache()
         self._minutes = TTLCache()
+        self._lates = TTLCache()
         self._quiet_until = 0.0
         self._lock = threading.Lock()
 
@@ -216,6 +233,24 @@ class Yahoo:
         self._minutes.put(key, bars)
         return bars
 
+    def extended(self, symbol: str) -> dict | None:
+        """What a share last traded at before the open or after the close, while that is the
+        latest there is: its session, price, move from the regular session's last price, and when."""
+        key = symbol.upper()
+        hit = self._lates.get(key, QUOTE_TTL_SECONDS)
+        if hit is not None:
+            return hit or None
+
+        def ask(yf):
+            ticker = yf.Ticker(SYMBOLS.get(key, key))
+            frame = ticker.history(period="1d", interval="1m", prepost=True, auto_adjust=False, actions=False)
+            return frame, dict(getattr(ticker, "history_metadata", None) or {})
+
+        got = self._call(f"extended {key}", ask)
+        late = _late(*got) if got else None
+        self._lates.put(key, late or {})  # an empty answer is kept too: no trade out of hours
+        return late
+
     def listed(self, which: str) -> list[dict]:
         """One of Yahoo's lists of the day: "day_gainers", "day_losers" or "most_actives"."""
         got = self._call(f"list {which}", lambda yf: yf.screen(which, count=25)) or {}
@@ -351,6 +386,16 @@ class YahooMarkets(LiveMarkets):
             except MarketUnavailable:
                 pass
         return super().overview(detail)
+
+    def quote(self, ticker: str, name: str | None = None) -> dict:
+        q = super().quote(ticker, name)
+        late = None
+        if q["kind"] in ("stock", "etf"):  # the rest trade round the clock, or have no such hours
+            try:
+                late = self.yahoo.extended(provider_symbol(ticker)[0])
+            except MarketUnavailable:
+                late = None  # the page stands without it
+        return q | {"extended": late}
 
     def _daily(self, provider: str) -> list[dict]:
         bars = self.yahoo.daily(provider)

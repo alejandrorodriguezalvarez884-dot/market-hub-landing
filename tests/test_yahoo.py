@@ -32,7 +32,7 @@ class FakeTicker:
     def __init__(self, yf, symbol):
         self.yf, self.symbol = yf, symbol
 
-    def history(self, period, interval, auto_adjust, actions):
+    def history(self, period, interval, auto_adjust, actions, prepost=False):
         self.yf.calls.append(f"{self.symbol} {interval}")
         if self.yf.refusing:
             raise YFRateLimitError("Too Many Requests")
@@ -40,14 +40,18 @@ class FakeTicker:
             raise YFPricesMissingError(self.symbol)
         if interval == "1d":
             return frame(pd.bdate_range(end="2026-10-06", periods=300, tz="America/New_York"))
+        if prepost:  # a day's minutes with the hours around the session, up to the fake clock
+            return frame(pd.date_range("2026-10-07 04:00", self.yf.clock, freq="1min", tz="America/New_York"), start=402.0)
         minutes = pd.date_range("2026-10-05 09:30", periods=78, freq="5min", tz="America/New_York").append(
             pd.date_range("2026-10-06 09:30", periods=78, freq="5min", tz="America/New_York"))
         return frame(minutes, start=10.0)
 
     @property
     def history_metadata(self):
+        day = lambda clock: pd.Timestamp(f"2026-10-07 {clock}", tz="America/New_York")  # noqa: E731
         return {"regularMarketPrice": 400.5, "fiftyTwoWeekHigh": 410.0, "fiftyTwoWeekLow": 150.0, "longName": f"{self.symbol} Inc.",
-                "fullExchangeName": "NasdaqGS", "regularMarketVolume": 5000}
+                "fullExchangeName": "NasdaqGS", "regularMarketVolume": 5000,
+                "currentTradingPeriod": {"regular": {"start": day("09:30"), "end": day("16:00")}}}
 
     @property
     def info(self):
@@ -63,6 +67,7 @@ class FakeYf:
     def __init__(self, missing=()):
         self.calls: list[str] = []
         self.missing, self.refusing = set(missing), False
+        self.clock = "2026-10-07 04:09"  # New York's time: ten minutes into the pre-market
 
     def Ticker(self, symbol):  # noqa: N802 (yfinance's name)
         return FakeTicker(self, symbol)
@@ -153,6 +158,20 @@ def test_charts_and_a_quote_page_from_yahoo():
     q = m.quote("TSM")
     assert q["price"] == 400.5 and q["pe"] == 30.0 and q["eps"] == 13.3 and q["sector"] == "Technology"
     assert q["market_cap"] and q["dividend_yield"] == pytest.approx(3.77 / 400.5) and q["return_1m"] > 0
+
+
+def test_before_the_open_and_after_the_close_a_quote_says_what_the_share_last_traded_at():
+    yf = FakeYf()
+    m = markets(yf)
+    late = m.quote("AAPL")["extended"]
+    assert late["session"] == "pre" and late["price"] == 411.0 and late["at"] == "2026-10-07T04:09:00-04:00"
+    assert late["change"] == pytest.approx(10.5) and late["change_pct"] == pytest.approx(10.5 / 400.5)  # against the last session's price
+    assert m.quote("AAPL")["extended"] == late and yf.calls.count("AAPL 1m") == 1  # kept for a while
+    yf.clock = "2026-10-07 11:00"
+    assert markets(yf).quote("MSFT")["extended"] is None  # the market is open: the quote is the price
+    yf.clock = "2026-10-07 17:30"
+    assert markets(yf).quote("KO")["extended"]["session"] == "post"
+    assert markets(yf).quote("SPX")["extended"] is None  # an index has no such hours
 
 
 def test_a_part_yahoo_does_not_answer_is_sample_and_named():

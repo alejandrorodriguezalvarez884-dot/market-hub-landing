@@ -38,6 +38,8 @@ export type Quote = Snapshot & {
   year_low: number; year_high: number; volume: number; avg_volume: number; market_cap: number | null; pe: number | null;
   eps: number | null; dividend_yield: number | null; beta: number | null; return_6m: number | null; return_5y: number | null;
   news: NewsItem[];
+  // The last trade before the open or after the close, while it is newer than the session's price.
+  extended?: { session: "pre" | "post"; price: number; change: number; change_pct: number; at: string } | null;
 };
 
 export const RANGES = ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y"] as const;

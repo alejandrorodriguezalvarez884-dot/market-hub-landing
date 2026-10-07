@@ -62,13 +62,29 @@ import { link } from "../lib/site";
 	function head(q: Quote) {
 		const kindLabel: Record<string, string> = { index: "Index", rate: "Yield", commodity: "Commodity", fx: "Currency", crypto: "Crypto", etf: "ETF" };
 		document.title = `${q.symbol} ${level(q.price, q.kind)} — ${tidyName(q.name)} — Market Hub`;
+		const late = q.extended;
 		$("q-head").replaceChildren(
 			h("p", "text-[13px] text-muted", [q.symbol, isEquity(q.kind) ? q.exchange : kindLabel[q.kind], isEquity(q.kind) && q.sector !== "—" ? q.sector : null].filter(Boolean).join(" · ")),
 			h("h1", "mt-1 text-[2rem] font-medium leading-tight tracking-tight text-ink-strong", tidyName(q.name)),
 			add(h("div", "mt-4 flex flex-wrap items-baseline gap-x-4"),
 				h("span", "num text-[2.75rem] leading-none text-ink-strong", level(q.price, q.kind)),
 				h("span", `num text-lg ${toneClass(q.change_pct)}`, `${change(q.change, q.kind)} (${signedPct(q.change_pct, 2)})`),
-				h("span", "text-[13px] text-muted", "today")));
+				h("span", "text-[13px] text-muted", "today")),
+			// Before the open and after the close, what the share last traded at, small, under the price.
+			...(late ? [add(h("p", "mt-2 flex flex-wrap items-baseline gap-x-2 text-[13px] text-muted"),
+				h("span", "", late.session === "pre" ? "Pre-market" : "After hours"),
+				h("span", "num text-ink", level(late.price, q.kind)),
+				h("span", `num ${toneClass(late.change_pct)}`, `${change(late.change, q.kind)} (${signedPct(late.change_pct, 2)})`),
+				h("span", "", `· ${newYorkTime(late.at)}`))] : []));
+	}
+
+	// A moment as New York's clock reads it; with the day of the week when it was not today.
+	function newYorkTime(iso: string): string {
+		const at = new Date(iso);
+		const zone = { timeZone: "America/New_York" } as const;
+		const day = (d: Date) => d.toLocaleDateString("en-US", zone);
+		const time = at.toLocaleTimeString("en-US", { ...zone, hour: "numeric", minute: "2-digit" });
+		return `${day(at) === day(new Date()) ? "" : `${at.toLocaleDateString("en-US", { ...zone, weekday: "short" })} `}${time} ET`;
 	}
 
 	function row(label: string, value: string | HTMLElement) {
