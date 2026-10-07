@@ -33,7 +33,7 @@ import Site from "../components/Site.astro";
 	import { add, h } from "../lib/dom";
 	import { timeAgo } from "../lib/format";
 	import { news, watchNews, type News, type NewsItem } from "../lib/market";
-	import { byDay, dayKey, dayLabel, newsLine } from "../lib/news";
+	import { byDay, dayKey, dayLabel, newsLine, SENTIMENTS, toneMark, type Sentiment } from "../lib/news";
 	import { failed } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
@@ -43,11 +43,10 @@ import Site from "../components/Site.astro";
 	// sharing the page, keeps it. An item nobody gave a sector or a reading is in no such filter.
 	const KEYS = ["kind", "sector", "sentiment", "day"] as const;
 	type Key = (typeof KEYS)[number];
-	const SENTIMENTS = [["bullish", "Bullish"], ["bearish", "Bearish"], ["neutral", "Neutral"]];
 	const valid: Record<Key, (v: string) => boolean> = {
 		kind: (v) => v.length <= 30,
 		sector: (v) => v.length <= 40,
-		sentiment: (v) => SENTIMENTS.some(([s]) => s === v),
+		sentiment: (v) => SENTIMENTS.includes(v as Sentiment),
 		day: (v) => /^\d{4}-\d{2}-\d{2}$/.test(v),
 	};
 	const valueOf: Record<Key, (i: NewsItem) => string> = {
@@ -57,7 +56,7 @@ import Site from "../components/Site.astro";
 		day: (i) => dayKey(i.published_utc),
 	};
 	const asked = new URLSearchParams(location.search);
-	const chosen = Object.fromEntries(KEYS.map((k) => [k, valid[k](asked.get(k) ?? "") ? asked.get(k)! : ""])) as Record<Key, string>;
+	const chosen = Object.fromEntries(KEYS.map((k) => [k, asked.get(k) ?? ""]).map(([k, v]) => [k, valid[k as Key](v) ? v : ""])) as Record<Key, string>;
 	const filtering = () => KEYS.some((k) => chosen[k]);
 
 	function remember() {
@@ -92,8 +91,10 @@ import Site from "../components/Site.astro";
 		}));
 	}
 
-	// One select per filter. A sector or a day is offered when some item has it; one asked for in
-	// the address and no longer there stays in its list, so the reader sees what is filtering.
+	// How it reads is chosen by its own mark, the one each item carries: pressing one filters by
+	// it, pressing it again lets go. A sector and a day are a select each: one is offered when some
+	// item has it, and one asked for in the address and no longer there stays in its list, so the
+	// reader sees what is filtering.
 	function filters(n: News, refreshing: boolean) {
 		const present = (k: Key) => [...new Set([...n.items.map(valueOf[k]), chosen[k]].filter(Boolean))];
 		const select = (k: Key, label: string, options: string[][]) => {
@@ -105,12 +106,23 @@ import Site from "../components/Site.astro";
 			s.addEventListener("change", () => choose(n, refreshing, { [k]: s.value }));
 			return s;
 		};
+		const mark = (v: Sentiment) => {
+			const on = chosen.sentiment === v;
+			const b = add(h("button", `rounded-[3px] border px-2 py-1 text-[13px] ${on ? "border-ink-strong bg-raised" : "border-line-strong hover:border-muted"}`), toneMark(v));
+			b.type = "button";
+			b.setAttribute("aria-pressed", String(on));
+			b.addEventListener("click", () => choose(n, refreshing, { sentiment: on ? "" : v }));
+			return b;
+		};
+		const marks = add(h("div", "flex gap-1.5"), ...SENTIMENTS.map(mark));
+		marks.setAttribute("role", "group");
+		marks.setAttribute("aria-label", "Sentiment");
 		const clear = h("button", "tab-btn ml-1", "Clear filters");
 		clear.type = "button";
 		clear.addEventListener("click", () => choose(n, refreshing, { kind: "", sector: "", sentiment: "", day: "" }));
 		$("news-filters").replaceChildren(
+			marks,
 			select("sector", "Sector", present("sector").sort((a, b) => Number(a === "Macro") - Number(b === "Macro") || a.localeCompare(b)).map((v) => [v, v])),
-			select("sentiment", "Sentiment", SENTIMENTS),
 			select("day", "Day", present("day").sort().reverse().map((v) => [v, dayLabel(`${v}T12:00:00`)])),
 			...(filtering() ? [clear, h("span", "num ml-auto text-[12.5px] text-muted", `${shown(n).length} of ${n.items.length}`)] : []),
 		);

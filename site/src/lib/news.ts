@@ -41,10 +41,13 @@ export function picture(src: string, cls: string, alt = ""): HTMLImageElement {
 // How the news reads, drawn with the site's own mark: right of the line is bullish, left of it is
 // bearish, on it is neutral. Nothing when nobody has said.
 const TONES = { bullish: ["Bullish", "text-up", 1], bearish: ["Bearish", "text-down", -1], neutral: ["Neutral", "text-muted", 0] } as const;
-export function tone(n: NewsItem): HTMLElement | null {
-  const known = n.sentiment && TONES[n.sentiment];
-  if (!known) return null;
-  const [label, color, side] = known;
+export type Sentiment = keyof typeof TONES;
+export const SENTIMENTS = Object.keys(TONES) as Sentiment[];
+export const tone = (n: NewsItem): HTMLElement | null => (n.sentiment && TONES[n.sentiment] ? toneMark(n.sentiment) : null);
+
+// The mark and its word alone: what an item carries, and what the news page's filter is chosen by.
+export function toneMark(sentiment: Sentiment): HTMLElement {
+  const [label, color, side] = TONES[sentiment];
   const mark = svg("svg", { viewBox: "0 0 22 12", class: "h-3 w-[22px] flex-none", fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "aria-hidden": "true" });
   mark.append(svg("path", { d: `M11 1v10${side ? `M11 6h${side * 6}` : ""}` }), svg("circle", { cx: 11 + side * 7.5, cy: 6, r: 2.6, fill: "currentColor", stroke: "none" }));
   return add(h("span", `inline-flex items-center gap-1.5 font-medium ${color}`), mark, label);
