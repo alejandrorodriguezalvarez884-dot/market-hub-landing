@@ -4,8 +4,16 @@
 
 import { Muxer as Mp4Muxer, ArrayBufferTarget as Mp4Target } from "./node_modules/mp4-muxer/build/mp4-muxer.mjs";
 import { Muxer as WebmMuxer, ArrayBufferTarget as WebmTarget } from "./node_modules/webm-muxer/build/webm-muxer.mjs";
-import { RATE, levels, score } from "./audio.js";
-import { DURATION, FPS, H, W, draw } from "./film.js";
+import { RATE, levels, score as firstScore } from "./audio.js";
+import { DURATION, FPS, H, W, draw as firstDraw } from "./film.js";
+
+// Another cut of the film, asked for in the address (film.html?cut=adventure): the same pictures
+// to another score, each with its own drawing and its own sound.
+const CUTS = { adventure: ["./adventure.js", "./adventure-audio.js"] };
+const cut = CUTS[new URLSearchParams(location.search).get("cut") ?? ""];
+const [picture, cutSound] = cut ? await Promise.all(cut.map((file) => import(file))) : [null, null];
+const draw = picture?.draw ?? firstDraw;
+const score = cutSound?.score ?? firstScore;
 
 const canvas = document.getElementById("stage");
 const ctx = canvas.getContext("2d");
@@ -124,7 +132,8 @@ async function listen() {
   for (const ch of [0, 1]) for (const v of sound.getChannelData(ch)) peak = Math.max(peak, Math.abs(v));
   // The pad alone and the played notes alone, before the final gain: which one carries the mix.
   const [pad, played] = [await score({ pad: true }), await score({ played: true })];
-  return { seconds: sound.duration, peak: Math.round(peak * 1000) / 1000, rms: levels(sound), pad: levels(pad), played: levels(played) };
+  const heard = { seconds: sound.duration, peak: Math.round(peak * 1000) / 1000, rms: levels(sound), pad: levels(pad), played: levels(played) };
+  return cutSound?.balance ? { ...heard, balance: await cutSound.balance(sound) } : heard;
 }
 
 window.film = { ready, still, sheet, encode, listen };

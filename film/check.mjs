@@ -8,16 +8,20 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const site = join(here, "..", "site", "public");
+// `--cut=adventure` checks that cut's trial files in film/out/ instead of the site's.
+const cut = process.argv.find((a) => a.startsWith("--cut="))?.slice(6) ?? "";
+const site = cut ? join(here, "out") : join(here, "..", "site", "public");
+const film = cut ? `film-${cut}` : "film";
 const types = { webm: "video/webm", mp4: "video/mp4" };
 
 const server = createServer(async (req, res) => {
   const name = req.url.slice(1);
   if (name === "") return res.writeHead(200, { "content-type": "text/html" }).end("<!doctype html><title>check</title>");
   const type = types[name.split(".").pop()];
-  if (!type || !/^film\.\w+$/.test(name)) return res.writeHead(404).end();
+  if (!type || !/^film(-\w+)?\.\w+$/.test(name)) return res.writeHead(404).end();
   try {
-    res.writeHead(200, { "content-type": type }).end(await readFile(join(site, name)));
+    const bytes = await readFile(join(site, name));
+    res.writeHead(200, { "content-type": type }).end(bytes);
   } catch {
     res.writeHead(404).end();
   }
@@ -57,14 +61,14 @@ try {
         sound: { seconds: +sound.duration.toFixed(2), channels: sound.numberOfChannels, rate: sound.sampleRate, peak: +peak.toFixed(3), rmsDb: +(10 * Math.log10(sum / (sound.length * sound.numberOfChannels))).toFixed(1) },
         sheet: board.toDataURL("image/jpeg", 0.9),
       };
-    }, { url: `/film.${format}`, times: [3, 9.5, 14.5, 18, 22, 29, 34, 43, 50.5, 55, 58, 59.7] });
+    }, { url: `/${film}.${format}`, times: [3, 9.5, 14.5, 18, 22, 29, 34, 43, 50.5, 55, 58, 59.7] });
     if (!found) {
-      console.log(`film.${format}: not there`);
+      console.log(`${film}.${format}: not there`);
       continue;
     }
-    await writeFile(join(here, "out", `check-${format}.jpg`), Buffer.from(found.sheet.split(",")[1], "base64"));
+    await writeFile(join(here, "out", `check-${cut ? `${cut}-` : ""}${format}.jpg`), Buffer.from(found.sheet.split(",")[1], "base64"));
     delete found.sheet;
-    console.log(`film.${format}:`, JSON.stringify(found));
+    console.log(`${film}.${format}:`, JSON.stringify(found));
   }
 } finally {
   await browser.close();

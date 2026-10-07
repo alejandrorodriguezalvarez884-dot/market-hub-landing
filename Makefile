@@ -37,8 +37,8 @@ dev: ## Run the site at http://localhost:4321 with reload (it calls the API on p
 serve: env site ## Run site and API together at http://localhost:8080, as in production
 	MARKETHUB_STATIC_DIR=site/dist uv run uvicorn markethub.api:create_app --factory --port 8080
 
-film: ## Draw, score and encode the landing page's film into site/public (uses this machine's Chrome)
-	cd film && npm ci && node render.mjs && node check.mjs
+film: ## Draw, score and encode the landing page's film into site/public (uses this machine's Chrome); CUT=adventure for that cut, as a trial in film/out
+	cd film && npm ci && node render.mjs $(if $(CUT),--cut=$(CUT)) && node check.mjs $(if $(CUT),--cut=$(CUT))
 
 covers: ## Draw the library of news covers into site/public (uses this machine's Chrome); ONLY=Energy for one scope
 	cd covers && npm ci && node render.mjs --sheet $(if $(ONLY),--only "$(ONLY)") && node overview.mjs

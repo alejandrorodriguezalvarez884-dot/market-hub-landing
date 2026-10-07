@@ -21,7 +21,7 @@ const MONO = '"IBM Plex Mono", ui-monospace, monospace';
 const LEFT = 140, RIGHT = 1780;  // the margins everything sits between
 
 // When each part starts, in seconds.
-const T = { intro: 0, today: 6.5, lede: 11.6, markets: 15.5, news: 23.5, hub: 31, tools: 41.5, outro: 52.5, end: DURATION };
+export const T = { intro: 0, today: 6.5, lede: 11.6, markets: 15.5, news: 23.5, hub: 31, tools: 41.5, outro: 52.5, end: DURATION };
 
 // --- Time and number helpers -------------------------------------------------------------------
 
