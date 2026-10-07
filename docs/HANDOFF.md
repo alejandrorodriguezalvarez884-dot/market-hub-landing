@@ -65,7 +65,7 @@ TradingView y, para todo lo que necesita el número en el servidor, "yfinance o 
   widget "Advanced Chart"; `/markets/` gana el mapa del S&P 500 ("Stock Heatmap"), cuyos bloques
   abren la ficha de aquí (`?tvwidgetsymbol=`). Los widgets **no dan los índices oficiales** ni los
   futuros: cada índice se dibuja con el contrato que lo sigue (`FOREXCOM:SPXUSD`…, tabla `SYMBOLS`),
-  y el gráfico lo dice debajo. Las acciones salen **marcadas como retrasadas ("D")**. Los tipos no
+  y **la web no lo dice, por decisión del usuario** (bajo el gráfico solo va "Chart by TradingView"). Las acciones salen **marcadas como retrasadas ("D")**. Los tipos no
   tienen widget y conservan el gráfico propio (`lwc.ts`), que también sigue en My Hub. Se evitaron
   a propósito los widgets de análisis técnico y de brokers (recomiendan). `/privacy/` lo cuenta.
 - **Frases del estado del mercado** (`site/src/lib/session.ts`): nunca usaron IA; eran unas 5 por

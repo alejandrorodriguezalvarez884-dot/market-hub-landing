@@ -16,8 +16,6 @@ const SYMBOLS: Record<string, string> = {
   GOLD: "TVC:GOLD", SILVER: "TVC:SILVER", WTI: "TVC:USOIL", NATGAS: "CAPITALCOM:NATURALGAS", COPPER: "CAPITALCOM:COPPER",
   EURUSD: "FX:EURUSD", GBPUSD: "FX:GBPUSD", USDJPY: "FX:USDJPY", BTCUSD: "BITSTAMP:BTCUSD", ETHUSD: "BITSTAMP:ETHUSD",
 };
-// Charted by a contract and not by the thing itself: the chart says so under it.
-const PROXIES = new Set(["SPX", "NDX", "DJI", "RUT", "VIX", "SX5E", "UKX", "N225", "NATGAS", "COPPER"]);
 // TradingView's widgets have no chart for these: they keep the site's own.
 const NONE = new Set(["US10Y", "US2Y"]);
 
@@ -61,13 +59,12 @@ export function tvChart(host: HTMLElement, opts: { symbol: string; range?: "1D" 
     }
     own = null;
     host.style.height = `${opts.height ?? 460}px`;
-    const proxy = PROXIES.has(symbol.toUpperCase());
     host.replaceChildren(widget("advanced-chart", {
       autosize: true, symbol: tv, interval: range === "1D" ? "5" : "D", range, timezone: "America/New_York",
       theme: "dark", style: "1", locale: "en", backgroundColor: "#0b0c0d", gridColor: "rgba(242, 240, 234, 0.06)",
       hide_side_toolbar: true, hide_top_toolbar: false, allow_symbol_change: false, save_image: false,
       withdateranges: true, calendar: false, details: false, hotlist: false, support_host: "https://www.tradingview.com",
-    }, proxy ? "Charted through a contract that follows it, so the level can differ a little. Chart by" : "Chart by"));
+    }, "Chart by"));
   }
   show(opts.symbol);
   return { setSymbol: show };
