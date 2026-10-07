@@ -35,6 +35,21 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
+### Contar visitas: Cloudflare Web Analytics (2026-10-07; en `main`, sin desplegar)
+
+- Las webs no llevaban analítica. `site/src/layouts/Layout.astro` carga ahora el script de
+  Cloudflare Web Analytics (sin cookies), solo cuando el host es `themarkethub.app` o un
+  subdominio: en local y en `*.run.app` no se carga. El token va en el HTML, no es un secreto.
+  Un mismo token vale para todo el dominio, así que Fundamentals Lab y el radar del hub usan el
+  mismo sitio de Cloudflare ("the market hub"); `earningsradar.app` tiene el suyo.
+- El DNS está en Cloudflare en modo "solo DNS" (lo piden los mapeos de dominio de Cloud Run), por
+  eso la medición automática de Cloudflare daba 0 y hace falta el script.
+- `/privacy/` lo dice (qué recibe Cloudflare y qué no).
+- Se mira en Cloudflare, en el menú de la cuenta: Analytics & Logs → Web Analytics. No hay
+  histórico anterior al despliegue. Para lo anterior, los logs de peticiones de Cloud Run
+  (`run.googleapis.com/requests`, 30 días): entre el 5 y el 7 de octubre, unas 100 visitas de
+  navegador real al portal y unas 80 a `earningsradar.app`.
+
 ### Medido desde local (2026-10-05, tarde)
 
 - **Portada y `/markets/` revisadas en el navegador** a 1366 y 375 px: valores reales, ninguna
