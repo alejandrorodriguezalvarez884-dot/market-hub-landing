@@ -666,6 +666,9 @@ El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
 
 ### Media (2026-10-06; desplegada como `market-hub-00016-gjv`)
 
+Añadido el 2026-10-07: el episodio 2 de Money 101, la inflación (`gSV_7yoBPF0`), y su Short
+(`4LCtdOLN4DI`), con sus carátulas `inflation.jpg` e `inflation-short.jpg`.
+
 El usuario pidió una pestaña Media con tres secciones grandes: YouTube (por listas de
 reproducción, dejando claro que vendrán más), Instagram y X (las dos, para cuentas que dará más
 adelante).
