@@ -269,7 +269,7 @@ a qué sector afecta, o si es macro.
 - Coste: cada documento pide ahora unos 500 tokens de salida más; del orden de medio céntimo a un
   céntimo por noticia.
 
-### Filtros de noticias: sector, sentimiento y día (2026-10-07; en `main`, sin desplegar)
+### Filtros de noticias: sector, sentimiento y día (2026-10-07; desplegado como `market-hub-00017-bx9`)
 
 El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
 
@@ -292,6 +292,11 @@ El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
 - 136 tests, `astro check` y build en verde. Probado en local a 1366 y 375 px con una copia de las
   noticias públicas de producción: combinaciones, limpiar, abrir con filtros en la dirección, sin
   desbordes.
+- **Desplegado el 2026-10-07** desde el equipo Windows, tras comparar su `.env` con el servicio
+  (idénticos). Comprobado en producción: `/news/` sirve el script con los filtros,
+  `/api/public/news?limit=200` responde y con 201 da 422, `/api/config` sigue en
+  `registration: captcha`, y el servicio conserva variables, secretos, memoria y escalado. Los
+  filtros no se han pulsado en producción con un navegador, solo en local.
 - **Arrancar en local en Windows**: en ese equipo `bash` es el de WSL, no Git Bash; por eso el
   `launch.json` del workspace no arrancaba. Hay una configuración `hub-sample-windows` que llama a
   Git Bash por su ruta. **No lanzar `uv` desde WSL en esta carpeta**: rehace `.venv` para Linux y
