@@ -80,6 +80,35 @@ saber quién pregunta, sin tocar la de la web:
   existe la app y qué guarda en el teléfono, antes de publicarla. Fundamentals Lab y el Earnings
   Radar no entienden el token: siguen yendo con la cookie.
 
+### La app de móvil entra con Google, por el navegador del teléfono (2026-10-07; en `main`, **sin desplegar**)
+
+El usuario pidió poder entrar con Google también desde la app. Google no deja iniciar sesión en
+una página incrustada en una app, y el botón nativo no funciona en Expo Go, así que el viaje va por
+el navegador del teléfono y lo lleva el portal (`src/markethub/appsignin.py`, que lo explica):
+
+- **`GET /api/app/auth/google/start`** `?redirect=&challenge=`: manda el navegador a Google
+  pidiendo un ID token del **mismo cliente OAuth de la web** (`response_type=id_token`,
+  `form_post`: no hace falta el secreto del cliente), con un `nonce` y un `state` firmado.
+- **`POST /api/app/auth/google/callback`**: Google publica aquí el ID token. Se verifica como en
+  `/api/auth/google` (firma, audiencia, emisor, email verificado) **y además** que lleve el
+  `nonce` de ese inicio. Devuelve una página que lleva el navegador a la dirección de la app con
+  un código firmado de dos minutos. Ni lee ni pone cookie.
+- **`POST /api/app/auth/google/finish`** `{code, verifier}`: da el token de la app solo a quien
+  tiene el secreto con el que empezó (PKCE, S256). El código dice qué cuenta (el `sub`), nunca
+  un email; el email y el nombre salen del documento del usuario.
+- **A dónde puede ir un código** (`AppRedirects`): a `markethub://auth` (la app instalada) y a lo
+  que diga **`MARKETHUB_APP_REDIRECTS`** (`config.py`, `.env`, y el script de despliegue lo pasa
+  al servicio). Hoy el `.env` del dueño lleva
+  `exp://*-alejandrorodriguezalvarez884-8081.exp.direct/--/auth`: la app en Expo Go por el túnel
+  de su propia cuenta de Expo (el `*` son solo letras y cifras). **Cada dirección ahí es un sitio
+  más al que se puede mandar un inicio de sesión: se vacía y se despliega antes de publicar la
+  app en tiendas.** Decisión del agente, avisada al usuario.
+- **Hace falta en Google Cloud** (lo hace el usuario): en el cliente OAuth de la web, añadir
+  `https://themarkethub.app/api/app/auth/google/callback` a "Authorised redirect URIs". Sin eso
+  Google responde `redirect_uri_mismatch`.
+- 20 tests nuevos en `tests/test_app_google.py` (Google simulado); 239 en verde.
+- **Sin probar**: con Google de verdad y en un teléfono.
+
 ### Watchlist: muro de gráficas, lectura de cada acción y mapa (2026-10-07; desplegado como `market-hub-00022-l94`)
 
 El usuario pidió una sección nueva en My Hub, entre Analysis y Community: ver las acciones de la
