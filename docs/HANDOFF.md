@@ -35,7 +35,20 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
-### Contar visitas: Cloudflare Web Analytics (2026-10-07; en `main`, sin desplegar)
+### Desplegado todo el 2026-10-07 (`market-hub-00018-n9s`)
+
+A petición del usuario se desplegaron a la vez los cuatro servicios, desde el equipo Windows y
+tras comparar cada `.env` con su servicio: el portal (`market-hub-00018-n9s`: la competición, los
+menús de los filtros de noticias y el contador de visitas), Fundamentals Lab
+(`fundamentals-lab-00011-kmr`), el radar del hub (`earnings-radar-hub-00008-m7x`) y el radar
+público (`earnings-radar-00004-jc2`). Los tres primeros en paralelo, sin choques de IAM. Variables,
+topes, memoria y escalado quedaron como estaban, y ningún secreto recibió versión nueva.
+Comprobado en el portal sin sesión: las páginas nuevas responden, `/api/competitions*` pide sesión
+(401), el hilo de un mes no se sirve por el punto público de Opinión (404), y el HTML lleva el
+script de Cloudflare. **Sin comprobar**: la competición con una sesión real en producción (el
+agente no puede iniciar sesión) y que Cloudflare empiece a contar.
+
+### Contar visitas: Cloudflare Web Analytics (2026-10-07; desplegado)
 
 - Las webs no llevaban analítica. `site/src/layouts/Layout.astro` carga ahora el script de
   Cloudflare Web Analytics (sin cookies), solo cuando el host es `themarkethub.app` o un
@@ -284,7 +297,7 @@ a qué sector afecta, o si es macro.
 - Coste: cada documento pide ahora unos 500 tokens de salida más; del orden de medio céntimo a un
   céntimo por noticia.
 
-### Community en dos secciones: compartir la cartera y la competición mensual (2026-10-07; en `main`, sin desplegar)
+### Community en dos secciones: compartir la cartera y la competición mensual (2026-10-07; desplegado como `market-hub-00018-n9s`)
 
 El usuario pidió que Community tenga secciones (de momento dos): compartir tu cartera, exigiendo
 tenerla, y competiciones mensuales con clasificación del mes, histórico y comentarios para debatir.
@@ -361,7 +374,7 @@ El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
   no pegaba con la web. Son un botón y un panel con el estilo del menú de la cuenta
   (`bg-panel`, `border-line-strong`); uno abierto a la vez, se cierran al pulsar fuera o con
   Escape, y las flechas recorren las opciones. Si hace falta otro menú en la web, sale de ahí.
-  (Los menús están en `main` sin desplegar: en producción siguen los `<select>` de `00017-bx9`.) Con algún filtro puesto salen "Clear filters" y la cuenta ("3 of 25"); sin resultados,
+  (Los menús se desplegaron en `00018-n9s`.) Con algún filtro puesto salen "Clear filters" y la cuenta ("3 of 25"); sin resultados,
   "No news matches these filters.".
 - **Se filtra en el navegador**, sobre lo que ya se había pedido: no hay llamadas nuevas ni gasto.
   La página pide ahora la portada entera (`limit=200`, que es `NEWS_FRONT_ITEMS`; el tope de
