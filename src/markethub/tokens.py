@@ -20,7 +20,9 @@ FIELDS = ("id", "email", "name", "picture", "provider")
 def bearer(header: str | None) -> str | None:
     """The token of an ``Authorization: Bearer <token>`` header, or None when it carries none."""
     scheme, _, value = (header or "").partition(" ")
-    return value.strip() or None if scheme.lower() == "bearer" else None
+    if scheme.lower() != "bearer":
+        return None
+    return value.strip() or None
 
 
 class AppTokens:

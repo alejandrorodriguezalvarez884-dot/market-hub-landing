@@ -11,6 +11,8 @@
     POST   /api/auth/register       {email, password, name, captcha}: an account of ours, and its session
     POST   /api/auth/password       {email, password}: sign in to one
     PUT    /api/auth/password       {current, new}: change its password
+    POST   /api/app/auth/password   {email, password}: the phone app signs in, and gets a token
+    POST   /api/app/auth/renew      the app's token, for a new one that lasts from today
     GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
     GET    /api/watchlist           the stocks the user follows and holds, each read from its prices
     GET    /api/watchlist/stock     ?t=  any one stock, read the same way
@@ -46,6 +48,10 @@
 
 Market figures come from FMP when there is a key (live.py), else from sample.py; the overview
 names any part that is sample data in "sample_sections". The news comes from news.py.
+
+A browser is known by its session cookie. The phone app has none: it sends the token it was
+handed at /api/app/auth/... as "Authorization: Bearer <token>" (tokens.py), and every route above
+that asks who is signed in answers it the same.
 
 Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build.
 """
@@ -87,6 +93,7 @@ from .config import (PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HO
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, WATCH_PER_IP_PER_HOUR)
 from .market import Directory, Fmp, MarketUnavailable
+from .tokens import AppTokens, bearer
 from .yahoo import default_market
 from .users import InvalidPortfolio, UserStore, clean, default_users, empty, touch
 
@@ -207,6 +214,17 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     # counted per address they come from.
     signing = RateLimiter(PASSWORD_TRIES_PER_IP_PER_HOUR)
     registering = RateLimiter(REGISTRATIONS_PER_IP_PER_HOUR)
+    tokens = AppTokens(secret, SESSION_DAYS * 86400)
+
+    def app_token(request: Request) -> str | None:
+        return bearer(request.headers.get("authorization"))
+
+    def from_app(request: Request) -> bool:
+        """The phone app sends no Origin, and its requests need none. What the Origin check stops
+        is a foreign page using the cookie a browser sends by itself: the routes under /api/app/
+        neither read that cookie nor set one, and a request that carries a good token is answered
+        for the token's user alone (signed_in)."""
+        return request.url.path.startswith("/api/app/") or tokens.read(app_token(request)) is not None
 
     origins = [o.strip() for o in os.environ.get("MARKETHUB_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
@@ -214,8 +232,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     async def same_origin_writes(request: Request, call_next):
         """Writes must come from this site. With the session cookie set to SameSite=Lax this
         closes cross-site request forgery: a foreign page can neither send the cookie on a POST
-        nor pass this check."""
-        if request.method in UNSAFE and request.url.path.startswith("/api/"):
+        nor pass this check. The phone app's writes carry its token instead (from_app)."""
+        if request.method in UNSAFE and request.url.path.startswith("/api/") and not from_app(request):
             origin = request.headers.get("origin")
             own = f"{request.url.scheme}://{request.url.netloc}"
             forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
@@ -235,10 +253,16 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         app.add_middleware(HostScopedCookieDomain, domain=cookie_domain)
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True,
-                           allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["content-type"])
+                           allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["content-type", "authorization"])
+
+    def signed_in(request: Request) -> dict | None:
+        """Who is asking, or None. A request that carries a token is the token's user or nobody:
+        the cookie is not looked at, so a token never borrows a browser's session."""
+        token = app_token(request)
+        return tokens.read(token) if token else request.session.get("user")
 
     def current_user(request: Request) -> dict:
-        user = request.session.get("user")
+        user = signed_in(request)
         if not user:
             raise HTTPException(401, "Sign in first.")
         return user
@@ -292,13 +316,27 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         return {"user": request.session["user"], "new": new,
                 "has_data": bool(doc.get("positions") or doc.get("watchlist"))}
 
-    def enter(request: Request, user: dict, new: bool) -> dict:
-        """Open the session of an account of ours, and keep its profile with its document."""
+    def welcome(user: dict, new: bool) -> dict:
+        """Keep the profile of an account of ours with its document, and say what it has."""
         doc = users.get(user["id"]) or empty(user["id"])
         users.put(user["id"], touch(doc, email=user["email"], name=user["name"], picture="", provider="password"))
+        return {"user": user, "new": new, "has_data": bool(doc.get("positions") or doc.get("watchlist"))}
+
+    def enter(request: Request, user: dict, new: bool) -> dict:
+        """Open the session of an account of ours."""
+        said = welcome(user, new)
         request.session.clear()
         request.session["user"] = user
-        return {"user": user, "new": new, "has_data": bool(doc.get("positions") or doc.get("watchlist"))}
+        return said
+
+    def checked(email: str, password: str) -> dict:
+        try:
+            return accounts.sign_in(email, password)
+        except accounts_.Wrong:
+            # The same words whether the address is unknown or the password is not its own.
+            raise HTTPException(401, "That email and password do not match an account.") from None
+        except accounts_.TooMany:
+            raise HTTPException(429, "Too many wrong passwords for that email. Wait a few minutes and try again.") from None
 
     def by_password(request: Request, limiter: RateLimiter, sorry: str) -> None:
         if not password_login:
@@ -325,15 +363,27 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.post("/api/auth/password")
     def sign_in_password(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000)) -> dict:
         by_password(request, signing, "Too many attempts from this address. Try again later.")
-        try:
-            user = accounts.sign_in(email, password)
-        except accounts_.Wrong:
-            # The same words whether the address is unknown or the password is not its own.
-            raise HTTPException(401, "That email and password do not match an account.") from None
-        except accounts_.TooMany:
-            raise HTTPException(429, "Too many wrong passwords for that email. Wait a few minutes and try again.") from None
+        user = checked(email, password)
         log.info("password sign-in ok")
         return enter(request, user, new=False)
+
+    @app.post("/api/app/auth/password")
+    def app_sign_in_password(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000)) -> dict:
+        """The phone app's way in: the same check and the same limits, and a token where the site
+        gets a cookie. No cookie is read or set here."""
+        by_password(request, signing, "Too many attempts from this address. Try again later.")
+        user = checked(email, password)
+        log.info("password sign-in ok (app)")
+        return welcome(user, new=False) | {"token": tokens.issue(user)}
+
+    @app.post("/api/app/auth/renew")
+    def app_renew(request: Request) -> dict:
+        """A token that lasts from today, for an app that is opened before its own runs out."""
+        allow(request)
+        user = tokens.read(app_token(request))
+        if not user:
+            raise HTTPException(401, "Sign in first.")
+        return {"user": user, "token": tokens.issue(user)}
 
     @app.put("/api/auth/password")
     def change_password(request: Request, current: str = Body(embed=True, max_length=1000), new: str = Body(embed=True, max_length=1000)) -> dict:
@@ -663,7 +713,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.get("/api/public/opinion/comments")
     def public_comments(request: Request, slug: str = Query(max_length=100)) -> dict:
         """Anyone reads the thread. A signed-in reader is told which comments are theirs."""
-        user = request.session.get("user")
+        user = signed_in(request)
         if slug.startswith(MEMBERS_ONLY):  # a thread of the community is not a public one
             raise HTTPException(404, "No such article.")
         return {"comments": opinion.comments(slug, user), "signed_in": bool(user), "moderator": opinion.can_moderate(user)}

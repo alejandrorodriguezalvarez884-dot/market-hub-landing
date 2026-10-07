@@ -35,6 +35,35 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
+### La app de móvil entra con un token (2026-10-07; en `main`, **sin desplegar**)
+
+El usuario quiere My Hub como app de iPhone y Android (repo `market-hub-mobile`, Expo). Una app
+nativa no tiene la cookie de sesión ni manda `Origin`, así que la API gana una segunda forma de
+saber quién pregunta, sin tocar la de la web:
+
+- **`src/markethub/tokens.py`**: un token firmado con el mismo `SESSION_SECRET` que la cookie, con
+  una sal propia (una cookie no vale como token ni al revés), que dice lo mismo que la sesión
+  (`id`, `email`, `name`, `picture`, `provider`) y dura lo mismo (`SESSION_DAYS`, 30 días). No se
+  guarda en el servidor: como la cookie, no se puede retirar antes de que caduque.
+- **`POST /api/app/auth/password`** `{email, password}`: la misma comprobación y los mismos
+  límites que `/api/auth/password`, y devuelve `{token, user, new, has_data}` en vez de poner
+  cookie. **`POST /api/app/auth/renew`**: cambia un token válido por uno que dura desde hoy (la
+  app lo pide al abrirse).
+- **Quién pregunta** (`signed_in` en `api.py`): si la petición trae `Authorization: Bearer`, es el
+  usuario del token o nadie; **la cookie no se mira**. Sin esa cabecera, la cookie, como siempre.
+  Todas las rutas que piden sesión responden igual a las dos.
+- **El control de `Origin`** sigue para todo lo que va con cookie. No se aplica a las rutas
+  `/api/app/` (ni leen ni ponen cookie: una página ajena no puede plantar nada en un navegador) ni
+  a una escritura que trae un token **válido** (un navegador no añade esa cabecera por su cuenta, y
+  la petición se responde solo por el usuario del token). Un token malo no salta el control.
+- CORS deja pasar la cabecera `authorization`, solo para los orígenes de
+  `MARKETHUB_ALLOWED_ORIGINS` (hace falta para ver la app en su vista de navegador en desarrollo).
+- 22 tests nuevos en `tests/test_app_tokens.py`; 219 en verde.
+- **Pendiente**: desplegar (hasta entonces la app solo habla con el portal en local);
+  `/api/app/auth/google` y el de Apple cuando la app tenga esos logins; decir en `/privacy/` que
+  existe la app y qué guarda en el teléfono, antes de publicarla. Fundamentals Lab y el Earnings
+  Radar no entienden el token: siguen yendo con la cookie.
+
 ### Watchlist: muro de gráficas, lectura de cada acción y mapa (2026-10-07; desplegado como `market-hub-00022-l94`)
 
 El usuario pidió una sección nueva en My Hub, entre Analysis y Community: ver las acciones de la

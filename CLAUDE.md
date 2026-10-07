@@ -21,11 +21,13 @@ Reglas que no se negocian:
   guarde se añade antes a la página de privacidad y a la de cuenta.
 - **El login se verifica en el servidor.** Nunca se confía en un email o un id que mande el
   navegador; solo en el ID token verificado (Google) o en la contraseña comprobada contra su hash
-  (cuenta propia, `accounts.py`), y en la cookie firmada. De una contraseña solo se guarda el hash
+  (cuenta propia, `accounts.py`), y en la cookie firmada o, en la app de móvil, en su token
+  firmado (`tokens.py`). De una contraseña solo se guarda el hash
   scrypt; nunca va a un log. El email de una cuenta propia no está verificado: no da ningún
   derecho (moderar, ser admin) ni se une a una cuenta de Google. Crear una cuenta propia pasa
   siempre por el captcha (`captcha.py`); sin sus claves, el registro queda cerrado, no abierto.
-  Las escrituras pasan el control de `Origin`.
+  Las escrituras pasan el control de `Origin`, salvo las de la app de móvil, que no llevan cookie:
+  llevan su token, y las rutas `/api/app/` ni leen ni ponen cookie.
 - **Claves solo en `.env` o en el entorno.** Nunca en el repo, en logs ni en commits.
 - **Nada programado y nada en GitHub Actions.** Todo se lanza a mano desde el `Makefile`.
 
