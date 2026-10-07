@@ -10,6 +10,7 @@ a real price over an invented history would be worse than either.
 from __future__ import annotations
 
 import os
+import random
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import timedelta
@@ -101,9 +102,27 @@ class SampleData:
     def profile(self, ticker: str) -> dict:
         s, rows = self._rows(ticker)
         fund = s.kind == "etf" or ticker in ALIASES
+        growth = self.estimates(ticker).get("eps", {}).get("+1y", {}).get("growth")
+        pe = rows[-1][4] / s.eps if s.eps > 0 and not fund else None
         return {"sector": "" if fund else SAMPLE_SECTOR_OF.get(ticker, s.sector), "industry": "", "name": self._name(ticker, s), "is_etf": fund, "exchange": s.exchange,
                 "beta": sample.beta_of(s), "last_dividend": round(rows[-1][4] * s.dividend_yield, 4),
-                "market_cap": rows[-1][4] * s.shares if s.shares else None, "country": SAMPLE_COUNTRIES.get(ticker, "US")}
+                "market_cap": rows[-1][4] * s.shares if s.shares else None, "country": SAMPLE_COUNTRIES.get(ticker, "US"),
+                "pe": pe, "forward_pe": pe / (1 + growth) if pe and growth is not None else None, "next_results": None}
+
+    def bars(self, ticker: str) -> list[dict]:
+        _, rows = self._rows(ticker)
+        return [{"time": d.isoformat(), "open": o, "high": h, "low": lo, "close": c, "volume": v} for d, o, h, lo, c, v in rows[-760:]]
+
+    def estimates(self, ticker: str) -> dict:
+        """Made-up estimates, the same from one visit to the next. A fund has none."""
+        s, _ = self._rows(ticker)
+        if s.kind != "stock" or ticker in ALIASES:
+            return {}
+        r = random.Random(f"estimates:{s.symbol}")
+        analysts = r.randint(6, 48)
+        table = lambda low, high: {period: {"growth": round(r.uniform(low, high), 4), "analysts": analysts}  # noqa: E731
+                                   for period in ("0q", "+1q", "0y", "+1y")}
+        return {"eps": table(-0.12, 0.34), "revenue": table(-0.05, 0.22)}
 
 
 @dataclass

@@ -40,6 +40,8 @@ import { link } from "../lib/site";
 				surname, your email address or your picture. The comments you write in the competition's discussion are seen by
 				signed-in members only, with the name you play under (your first name, if you have none).</li>
 			<li>A session cookie, signed by us, that keeps you signed in for up to 30 days. No advertising or tracking cookies.</li>
+			<li>In your browser only, not with us: on the Watchlist page, which stocks you chose to see (the ones you looked up there
+				among them), how many at a time and how the charts are drawn. Clearing the site's data in your browser removes it.</li>
 			<li>Nothing about you in the analysis tools. Fundamentals Lab and the Earnings Radar, on their own subdomains, read the
 				same session cookie only to check that you are signed in; they do not store your name, email or stocks.</li>
 		</ul>
@@ -53,6 +55,12 @@ import { link } from "../lib/site";
 			server sends it what your portfolio is made of and how it has moved: the tickers, each one's share in percent, and their
 			returns. It does not send your name, email or account, how many shares you hold, what you paid or what it is worth, and
 			we keep nothing of what the model writes. Nothing is sold, and we do not connect to any broker.
+		</p>
+		<p>
+			On the Watchlist page, the server asks the market data provider for the prices of the stocks you look at and for what
+			analysts estimate of each. The sentences under a stock's figures are written by the same language model: for them the
+			server sends that one ticker with its market figures, which are the same for everybody, and nothing else. Not who asks,
+			and not the rest of your list or anything you hold.
 		</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Where it lives</h2>
 		<p>In a Google Cloud Firestore database in the European Union (Belgium region), accessible only to the service.</p>

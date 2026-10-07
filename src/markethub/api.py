@@ -12,6 +12,10 @@
     POST   /api/auth/password       {email, password}: sign in to one
     PUT    /api/auth/password       {current, new}: change its password
     GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
+    GET    /api/watchlist           the stocks the user follows and holds, each read from its prices
+    GET    /api/watchlist/stock     ?t=  any one stock, read the same way
+    GET    /api/watchlist/bars      ?t=  its daily bars, for its chart
+    GET    /api/watchlist/read      ?t=  what analysts estimate for it, and its figures in sentences
     GET    /api/sharing             whether the portfolio is shared, and under what name
     PUT    /api/sharing             {enabled, handle}: share it, rename it or stop
     GET    /api/community           the shared portfolios and where the user's stands
@@ -74,13 +78,14 @@ from . import competitions as competitions_
 from .competitions import CompetitionStore, Competitions, default_competitions
 from .holdings import SampleData, sample_only
 from .insights import default_writer
+from .watch import Watch, default_reader
 from .live import default_markets
 from .news import default_news
 from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
-                     SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
+                     SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, WATCH_PER_IP_PER_HOUR)
 from .market import Directory, Fmp, MarketUnavailable
 from .yahoo import default_market
 from .users import InvalidPortfolio, UserStore, clean, default_users, empty, touch
@@ -146,7 +151,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                news=None, opinion: Opinion | None = None, community_store: CommunityStore | None = None,
                insight_writer="default", logins: LoginStore | None = None,
                password_cost: tuple[int, int, int] = accounts_.COST, captcha="default",
-               competition_store: CompetitionStore | None = None, clock=None) -> FastAPI:
+               competition_store: CompetitionStore | None = None, clock=None, stock_reader="default") -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -178,6 +183,9 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def mix(positions: list[dict]) -> dict:
         return {"positions": positions, "watchlist": []}
 
+    # The watchlist page: each stock read from its prices, and by the model when there is one.
+    watch = Watch(market, stand_in, reader=default_reader() if stock_reader == "default" else stock_reader, sample=only_sample,
+                  name_of=lambda ticker: company_name(ticker))
     community_store = community_store or default_community()
     community = Community(community_store, value=lambda positions: figures(mix(positions)),
                           sample_value=lambda positions: dashboard.build(mix(positions), stand_in, stand_in, sample=True))
@@ -194,6 +202,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     secure = SECURE_COOKIES if secure_cookies is None else secure_cookies
     limiter = RateLimiter(PER_IP_PER_HOUR)
     commenting = RateLimiter(COMMENTS_PER_USER_PER_HOUR)
+    watching = RateLimiter(WATCH_PER_IP_PER_HOUR)
     # Checking a password is slow on purpose, and an account costs nothing to ask for: both are
     # counted per address they come from.
     signing = RateLimiter(PASSWORD_TRIES_PER_IP_PER_HOUR)
@@ -417,6 +426,51 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         except MarketUnavailable as exc:
             raise HTTPException(503, str(exc)) from None
         return (writer.read(user["id"], doc, d) if writer else None) or d["insights"]
+
+    def watched(request: Request, t: str | None = None) -> tuple[dict, str | None]:
+        """The signed-in user and, where one is asked for, a ticker the directory knows."""
+        user = current_user(request)
+        if not watching.allow(_client_address(request)):
+            raise HTTPException(429, "Too many requests from this address. Try again later.")
+        if t is None:
+            return user, None
+        t = symbol(t).replace(".", "-")
+        try:
+            if not directory.known(t):
+                raise HTTPException(404, "No such stock.")
+        except MarketUnavailable:
+            pass  # the list of companies is not there to check against: the provider will say
+        return user, t
+
+    @app.get("/api/watchlist")
+    def watchlist(request: Request) -> dict:
+        user, _ = watched(request)
+        return watch.board(load(user))
+
+    @app.get("/api/watchlist/stock")
+    def watch_stock(request: Request, t: str = Query(max_length=12)) -> dict:
+        _, ticker = watched(request, t)
+        found = watch.stock(ticker)
+        if not found:
+            raise HTTPException(404, "No prices for that stock right now.")
+        return found
+
+    @app.get("/api/watchlist/bars")
+    def watch_bars(request: Request, t: str = Query(max_length=12)) -> dict:
+        _, ticker = watched(request, t)
+        found = watch.bars(ticker)
+        if not found:
+            raise HTTPException(404, "No prices for that stock right now.")
+        return found
+
+    @app.get("/api/watchlist/read")
+    def watch_read(request: Request, t: str = Query(max_length=12)) -> dict:
+        """What the model is sent is in watch.facts: one ticker and its market figures, nothing of the user."""
+        user, ticker = watched(request, t)
+        found = watch.read(user["id"], ticker)
+        if not found:
+            raise HTTPException(404, "No prices for that stock right now.")
+        return found
 
     @app.get("/api/sharing")
     def sharing(request: Request) -> dict:

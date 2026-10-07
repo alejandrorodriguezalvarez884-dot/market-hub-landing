@@ -21,7 +21,7 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
@@ -38,6 +38,8 @@ OVERVIEW_TTL = float(os.environ.get("PUBLIC_MARKETS_TTL_SECONDS", "300"))
 REFUSED_SECONDS = 300
 FAILED_SECONDS = 60
 WORKERS = 8
+BARS_KEPT = 760  # daily bars of a symbol handed to the watchlist: three years
+ESTIMATES_TTL_SECONDS = 24 * 3600
 
 # The portal's symbols for what is not a stock (live.INSTRUMENTS) -> Yahoo's. Indices are the same.
 SYMBOLS = {
@@ -87,6 +89,26 @@ def _late(frame, meta: dict) -> dict | None:
     return {"session": session, "price": price, "change": price - base, "change_pct": price / base - 1, "at": at.isoformat()}
 
 
+def _day(stamp) -> str | None:
+    """A moment Yahoo gives in seconds, as a date."""
+    stamp = _num(stamp)
+    return datetime.fromtimestamp(stamp, timezone.utc).date().isoformat() if stamp else None
+
+
+def _estimates(frame) -> dict:
+    """One of Yahoo's tables of estimates, by period: the mean, its growth on the year before and
+    the number of analysts behind it."""
+    if frame is None or getattr(frame, "empty", True):
+        return {}
+    out = {}
+    for period, row in frame.to_dict("index").items():
+        cell = {name: _num(row.get(column)) for name, column in (("avg", "avg"), ("growth", "growth"), ("analysts", "numberOfAnalysts"))}
+        cell = {k: v for k, v in cell.items() if v is not None and v == v}  # NaN: no figure
+        if "growth" in cell:
+            out[str(period)] = cell
+    return out
+
+
 class Yahoo:
     def __init__(self, yf=None):
         self._yf = yf  # the yfinance module; tests pass a stand-in
@@ -94,6 +116,7 @@ class Yahoo:
         self._facts = TTLCache()
         self._minutes = TTLCache()
         self._lates = TTLCache()
+        self._outlooks = TTLCache()
         self._quiet_until = 0.0
         self._lock = threading.Lock()
 
@@ -215,9 +238,34 @@ class Yahoo:
              "last_dividend": _num(info.get("dividendRate")) or _num(info.get("trailingAnnualDividendRate")),
              "average_volume": _num(info.get("averageVolume")), "market_cap": _num(info.get("marketCap")),
              "shares": _num(info.get("sharesOutstanding")), "country": info.get("country") or "",
-             "pe": _num(info.get("trailingPE")), "eps": _num(info.get("trailingEps"))}
+             "pe": _num(info.get("trailingPE")), "eps": _num(info.get("trailingEps")),
+             "forward_pe": _num(info.get("forwardPE")), "next_results": _day(info.get("earningsTimestampStart"))}
         self._facts.put(key, p)
         return p
+
+    def bars(self, ticker: str) -> list[dict]:
+        """Three years of daily bars, oldest first: time, open, high, low, close and volume. The
+        last one is today's, as fresh as a quote."""
+        return self._read(ticker, QUOTE_TTL_SECONDS)["bars"][-BARS_KEPT:]
+
+    def estimates(self, ticker: str) -> dict:
+        """What analysts expect of a company, as Yahoo gathers it: earnings per share and revenue
+        for this quarter and the next ("0q", "+1q") and this fiscal year and the next ("0y",
+        "+1y"), each with its growth on the year before and how many analysts it is the mean of.
+        Empty for a fund, or a company nobody covers."""
+        key = ticker.upper()
+        hit = self._outlooks.get(key, ESTIMATES_TTL_SECONDS)
+        if hit is not None:
+            return hit
+
+        def ask(yf):
+            t = yf.Ticker(SYMBOLS.get(key, key))  # one request answers both tables
+            return t.earnings_estimate, t.revenue_estimate
+
+        got = self._call(f"estimates {key}", ask)
+        out = {name: table for name, table in zip(("eps", "revenue"), map(_estimates, got or ())) if table}
+        self._outlooks.put(key, out)
+        return out
 
     def intraday(self, symbol: str, interval: str, period: str) -> list[dict]:
         """Bars within the day, oldest first, on the exchange's own clock."""
@@ -257,6 +305,14 @@ class Yahoo:
         return [r for r in got.get("quotes") or [] if isinstance(r, dict)]
 
 
+def daily_bars(source, ticker: str) -> list[dict]:
+    """A provider's daily bars. One that only has closes gives them as bars with no range and no volume."""
+    if hasattr(source, "bars"):
+        return source.bars(ticker)
+    return [{"time": b["date"], "open": b["close"], "high": b["close"], "low": b["close"], "close": b["close"], "volume": 0}
+            for b in source.history(ticker)]
+
+
 class Fallback:
     """Several providers behind one: a question goes to the first that has an answer to it."""
 
@@ -284,6 +340,12 @@ class Fallback:
 
     def profile(self, ticker: str) -> dict:
         return self._first(lambda s: s.profile(ticker), bool)
+
+    def bars(self, ticker: str) -> list[dict]:
+        return self._first(lambda s: daily_bars(s, ticker), bool)
+
+    def estimates(self, ticker: str) -> dict:
+        return self._first(lambda s: s.estimates(ticker) if hasattr(s, "estimates") else {}, bool)
 
 
 def default_market():

@@ -150,12 +150,29 @@ def writer():
     return FakeWriter()
 
 
+class FakeReader:
+    """Stands for the model that reads one stock: it answers about its trend, and keeps what it was sent."""
+
+    def __init__(self):
+        self.seen = []
+
+    def read(self, user_id, figures):
+        self.seen.append((user_id, figures))
+        return {"headline": f"{figures['ticker']}, read by the model.", "points": [{"aspect": "trend", "text": "A sentence."}],
+                "contrast": "", "written": True}
+
+
 @pytest.fixture
-def client(users, market, directory, opinion, shared, writer, logins, captcha, entries):
+def reader():
+    return FakeReader()
+
+
+@pytest.fixture
+def client(users, market, directory, opinion, shared, writer, logins, captcha, entries, reader):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
                      community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha,
-                     competition_store=entries)
+                     competition_store=entries, stock_reader=reader)
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

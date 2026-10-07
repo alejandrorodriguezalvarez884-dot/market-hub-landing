@@ -103,6 +103,14 @@ MODEL_PRICES = {"claude-haiku-4-5": (1.00, 5.00)}
 # most this many times a day per user. Without a key the page keeps the sentences the code writes.
 INSIGHTS_MODEL = os.environ.get("INSIGHTS_MODEL", "claude-haiku-4-5")
 INSIGHTS_PER_USER_PER_DAY = int(os.environ.get("INSIGHTS_PER_USER_PER_DAY", "6"))
+# The watchlist page (watch.py). The model that reads one stock's figures back, with the same key.
+# A stock is read once a day for everybody; a user can have this many stocks read in a day, and
+# the service as a whole this many. Without a key the page keeps the sentences the code writes.
+WATCH_MODEL = os.environ.get("WATCH_MODEL", "claude-haiku-4-5")
+WATCH_READS_PER_USER_PER_DAY = int(os.environ.get("WATCH_READS_PER_USER_PER_DAY", "40"))
+WATCH_READS_PER_DAY = int(os.environ.get("WATCH_READS_PER_DAY", "300"))
+# Requests per address per hour on the watchlist's endpoints: a wall of charts asks for many at once.
+WATCH_PER_IP_PER_HOUR = 1500
 # Portfolios their owners chose to share, shown on the community board.
 COMMUNITY_MEMBERS = 300
 # A shared portfolio's figures are worked out again when they are older than this...

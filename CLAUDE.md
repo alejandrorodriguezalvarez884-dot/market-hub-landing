@@ -7,13 +7,16 @@ Reglas que no se negocian:
   se usa ningún conector de broker (IBKR u otro), ni siquiera para importar posiciones o precios.
 - **Describir, no recomendar.** El dashboard muestra valores, ganancias frente al coste del propio
   usuario y rentabilidades pasadas. Nada de "compra", "vende", alertas de oportunidad ni
-  predicciones.
+  predicciones. En Watchlist, un estado ("extended", "uptrend", "ahead") nombra dónde está una
+  cifra, y el crecimiento es solo lo que estima el consenso de analistas, dicho como suyo.
 - **Los datos del usuario son suyos.** Solo se guarda lo que la web dice en `/privacy/`. El
   contenido de las carteras nunca va a los logs. Cada usuario solo lee y escribe su documento
   (la clave es el `sub` de Google que sale de la sesión, nunca un parámetro de la petición).
   Borrar la cuenta borra el documento entero. De una cartera solo salen del servidor los tickers
   (al proveedor de precios), los tickers con sus pesos y rentabilidades (al modelo que escribe
-  las frases de My Hub, `insights.facts`) y lo que su dueño decide compartir en Community: nunca
+  las frases de My Hub, `insights.facts`), un ticker suelto con sus cifras de mercado (al modelo
+  que lee cada acción de la página Watchlist, `watch.facts`: nada del usuario ni del resto de su
+  lista) y lo que su dueño decide compartir en Community: nunca
   la identidad, el número de acciones, los costes ni los importes. Cualquier dato nuevo que se
   guarde se añade antes a la página de privacidad y a la de cuenta.
 - **El login se verifica en el servidor.** Nunca se confía en un email o un id que mande el

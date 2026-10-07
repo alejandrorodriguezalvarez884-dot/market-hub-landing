@@ -35,6 +35,93 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
+### Watchlist: muro de gráficas, lectura de cada acción y mapa (2026-10-07; en `main`, **sin desplegar**)
+
+El usuario pidió una sección nueva en My Hub, entre Analysis y Community: ver las acciones de la
+watchlist "de una manera única", varias gráficas a la vez (eligiendo cuáles y cuántas, y que se
+ajusten a la ventana), poder mirar también otros valores, y un análisis con IA de "qué pinta tiene"
+cada acción (si está extendida, si se prevé crecimiento, la fuerza relativa de la acción y de su
+sector, y más), mostrado de forma visual y no como texto plantado.
+
+- **Página `/watchlist/`** (`pages/watchlist.astro`, `lib/watch.ts`, `lib/watchcharts.ts`), enlazada
+  en la barra de My Hub (`App.astro`, que gana la opción `wide`) y en los `HubNav.astro` de
+  `fundamentals-lab` y `decision-signal-lab`. Tres vistas sobre las mismas acciones:
+  - **Charts**: un muro de gráficas propias (Lightweight Charts, no el widget de TradingView: así
+    llevan las medias de 20, 50 y 200 sesiones y caben doce a la vez). Se elige cuántas a la vez
+    (1, 2, 3, 4, 6, 9, 12), el tramo (3M a 2Y), velas o línea y si van las medias. La rejilla se
+    calcula para llenar lo que queda de ventana (`fit`) y se rehace al cambiar su tamaño; si no
+    caben, las gráficas conservan un tamaño digno y la página hace scroll. El resto se pagina con
+    las flechas (también las del teclado). Cada gráfica lleva encima tres marcas (distancia a la
+    media de 50, tendencia, puntos frente al S&P 500) y un botón "Reading".
+  - **Readings**: la lectura de cada acción. Una frase arriba y **un medidor por aspecto con su
+    frase debajo**: precio frente a su media de 50 (sobre la escala de sus propias distancias, con
+    la banda de "lo habitual"), tendencia (precio y tres medias sobre una misma línea de precios),
+    fuerza frente al S&P 500 (regla de cero en el centro a 1, 3, 6 y 12 meses, y su línea relativa),
+    sector (su fondo SPDR frente al índice, y la acción frente a su sector), momentum (RSI y
+    rentabilidades), rango de 52 semanas, volumen, crecimiento (consenso de analistas) y PER.
+  - **Map**: toda la lista en un plano. En horizontal, a cuántos "rangos diarios" (ATR de 14
+    sesiones) está el precio de su media de 50; en vertical, los puntos frente al S&P 500 a tres
+    meses; un anillo marca las extendidas. Debajo, la misma lista en tabla ordenable. Pulsar un
+    punto o una fila abre la lectura de esa acción en un panel lateral, con su gráfica.
+- **Qué acciones**: las de la watchlist (encendidas), las posiciones (apagadas hasta que se
+  encienden) y **cualquier otra** que se busque ("Look at any other stock"; hasta 20), que se puede
+  pasar a la watchlist con "follow". Cada una es una ficha que se enciende o se apaga.
+  **Nada de esto se guarda en el servidor**: lo elegido vive en `localStorage` (`mh.watchlist.v1`).
+- **Las cifras** (`src/markethub/watch.py`, `reading`): todo sale de las barras diarias. Decisiones
+  **del agente**, a revisar si el usuario quiere otras:
+  - *Extended*: la distancia a la media de 50 sesiones se compara con las de las 504 sesiones
+    anteriores de la propia acción; fuera de su banda del 10 % al 90 % (y al lado correcto de la
+    media) está "extended". Con menos de 120 sesiones de historia, a 3 rangos diarios o más.
+  - *Tendencia*: `up` (precio > media 50 > media 200), `pullback` (bajo la de 50 y sobre la de 200,
+    con la de 50 aún encima), `down`, `rebound` y `mixed`.
+  - *Fuerza*: diferencia de rentabilidad con SPY en puntos; `ahead`, `fading` (por delante a 3
+    meses, por detrás a 1), `gaining` y `behind`. El sector, igual, con su fondo SPDR
+    (`yahoo.SECTOR_FUNDS`).
+  - *Volumen*: las cinco últimas sesiones completas frente a las 50 anteriores a hoy (la barra de
+    hoy se deja fuera porque el día puede no haber acabado).
+- **"Si se prevé crecimiento" = consenso de analistas, no una predicción nuestra.** Yahoo da en
+  una petición las estimaciones de BPA e ingresos (`Yahoo.estimates`, guardadas 24 h): la página
+  enseña el crecimiento de este ejercicio y del siguiente y de cuántos analistas es la media. La
+  regla "describir, no recomendar" sigue: un estado nombra dónde está una cifra, y ni el código ni
+  el modelo dicen qué hará un precio. Avisado al usuario.
+- **Quién escribe las frases**: el código siempre (`watch.sentences`, gratis, salen con la página).
+  Con `ANTHROPIC_API_KEY`, Claude Haiku 4.5 (`StockReader`, `WATCH_MODEL`) escribe además un
+  titular, de cuatro a seis frases (una por aspecto) y un "contraste" (dos cifras que no apuntan
+  al mismo lado); la página pone la del modelo donde la hay y la del código en el resto. Filtro:
+  `insights.reads_as_advice` más el vocabulario de una operación (`watch.TRADE`: overbought, entry,
+  breakout, buy, sell...); la frase que no pasa se descarta sola. **Con cifras de ejemplo no se
+  llama al modelo.** La página no dice que lo escribe una IA (criterio del dueño); `/privacy/` sí.
+- **Qué sale del servidor**: al modelo, un ticker con sus cifras de mercado (`watch.facts`, unos
+  1.600 caracteres): nada del usuario ni del resto de su lista. Por eso **una acción se lee una vez
+  al día para todos** (caché en memoria por ticker y día).
+- **Topes de gasto, elegidos por el agente** (`config.py`, cambiables por entorno): 40 lecturas
+  nuevas por usuario y día (`WATCH_READS_PER_USER_PER_DAY`) y 300 al día en total
+  (`WATCH_READS_PER_DAY`). Coste estimado, **no medido**: un tercio de céntimo por acción (unos
+  1.400 tokens de entrada y 350 de salida), así que el tope total son alrededor de 1 USD al día.
+  Los contadores y la caché son en memoria, por instancia: un arranque en frío los pone a cero.
+  La lectura se pide solo para las acciones que se ven en "Readings" o que se abren en el panel.
+- **API**: `GET /api/watchlist` (las listas del usuario, leídas), `/api/watchlist/stock?t=`
+  (cualquier otra), `/api/watchlist/bars?t=` (tres años de barras, en columnas) y
+  `/api/watchlist/read?t=` (consenso y frases). Todas piden sesión; límite propio de 1.500
+  peticiones por IP y hora (un muro pide muchas a la vez).
+- **Yahoo**: la página pide, por ticker, sus barras (una petición, 2 minutos de caché), su ficha
+  (7 días) y, al abrir su lectura, sus estimaciones (24 h); más SPY y los fondos de sector que
+  hagan falta. Una watchlist de 6 valores en frío tardó 8,6 s desde el equipo Windows. Con una
+  lista larga son muchas peticiones seguidas: si Yahoo rechaza la IP, toda la página cae a cifras
+  de ejemplo marcadas (nunca mezcla) durante 5 minutos. Con FMP detrás no hay ni rango intradía ni
+  volumen ni estimaciones.
+- 197 tests en verde (23 nuevos en `tests/test_watch.py`, sin red), `astro check` y build en verde.
+  **Probado en local** con cifras de ejemplo y una cuenta de prueba (ya borrada), a 1440, 1200 y
+  375 px: las tres vistas, elegir fichas, cuántas a la vez, tramo y estilo, paginar con el teclado,
+  buscar otra acción y pasarla a la watchlist, el panel lateral, sin desbordes. Las cifras, el
+  consenso y las frases del código, además, contra Yahoo real desde Python.
+- **Sin probar**: el modelo de verdad (no se ha gastado nada: hace falta el visto bueno del
+  usuario para la primera llamada, y conviene leer lo que escribe de unas cuantas acciones);
+  la página con datos reales en el navegador; con el login de Google.
+- **Pendiente / a decidir**: desplegar el portal y las dos herramientas (por el enlace nuevo de
+  sus barras); los umbrales de arriba; si la lectura con IA debe guardarse en Firestore para que
+  un arranque en frío no la vuelva a pagar; la landing y la película no enseñan la Watchlist.
+
 ### Premarket y after hours en la ficha (2026-10-07; desplegado como `market-hub-00021-fx4`)
 
 El usuario preguntó si el gráfico de TradingView podía incluir el premarket. **El widget gratuito
