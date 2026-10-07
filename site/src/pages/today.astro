@@ -25,7 +25,6 @@ import { link } from "../lib/site";
 		<section class="sec order-3" aria-labelledby="sectors-title">
 			<div class="sec-head">
 				<h2 id="sectors-title" class="sec-title">US sectors</h2>
-				<span id="sectors-note" class="sec-note">&nbsp;</span>
 			</div>
 			<div id="sectors" style="--track: 240px"><div class="skeleton h-72"></div></div>
 		</section>
@@ -57,7 +56,7 @@ import { link } from "../lib/site";
 	import { news, overview, watchNews, type Snapshot } from "../lib/market";
 	import { newsLine } from "../lib/news";
 	import { tvChart, type Chart } from "../lib/tv";
-	import { failed, flagSample, quoteHref, rateItem, rulerAxis, rulerGroup, rulerRow, rulerScale, sectorRuler, sectorsNote, snapshotItem } from "../lib/widgets";
+	import { failed, flagSample, quoteHref, rateItem, rulerAxis, rulerGroup, rulerRow, rulerScale, sectorRuler, snapshotItem } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
 	let chart: Chart | null = null;
@@ -99,7 +98,6 @@ import { link } from "../lib/site";
 				...rulerGroup("Crypto", rows(o.crypto)));
 			$("sectors").replaceChildren(sectorRuler(o.sectors));
 			pick(o.indices.find((s) => s.symbol === "SPX") ?? charted[0]);
-			$("sectors-note").textContent = sectorsNote(o);
 
 			flagSample(o, ["indices", "rates", "commodities", "currencies", "crypto"], $("ruler-title"));
 			flagSample(o, ["sectors"], $("sectors-title"));

@@ -350,7 +350,7 @@ class YahooMarkets(LiveMarkets):
                 self.yahoo.quotes([provider for _, provider, _, _ in INSTRUMENTS] + [fund for _, fund in SECTOR_FUNDS])
             except MarketUnavailable:
                 pass
-        return super().overview(detail) | {"sectors_by": "funds"}
+        return super().overview(detail)
 
     def _daily(self, provider: str) -> list[dict]:
         bars = self.yahoo.daily(provider)

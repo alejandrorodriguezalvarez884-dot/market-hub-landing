@@ -134,7 +134,7 @@ def markets(yf=None):
 
 def test_the_overview_from_yahoo_and_the_treasury():
     o = markets().overview()
-    assert o["sample"] is False and o["sample_sections"] == [] and o["source"] == "Yahoo Finance" and o["sectors_by"] == "funds"
+    assert o["sample"] is False and o["sample_sections"] == [] and o["source"] == "Yahoo Finance"
     spx = next(s for s in o["indices"] if s["symbol"] == "SPX")
     assert spx["name"] == "S&P 500" and spx["price"] == 400.5 and spx["change_pct"] == pytest.approx(2.5 / 398)
     ten = next(r for r in o["rates"] if r["symbol"] == "US10Y")

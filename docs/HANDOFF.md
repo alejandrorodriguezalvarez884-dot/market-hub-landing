@@ -45,7 +45,8 @@ TradingView y, para todo lo que necesita el número en el servidor, "yfinance o 
   Sin clave y sin cuota diaria. `Yahoo` responde lo mismo que `market.Fmp` (`quotes`, `history`,
   `profile`) y `YahooMarkets` es `live.LiveMarkets` leyendo de él: índices, materias primas (futuros
   `GC=F`…), divisas, cripto, movers (las listas del día de Yahoo) y sectores (**por su fondo SPDR**,
-  no por la media de sus acciones; la web lo dice, `sectors_by`). Un símbolo se lee en una sola
+  no por la media de sus acciones; **la web no lo dice, por decisión del usuario**: "US sectors" va
+  sin nota). Un símbolo se lee en una sola
   petición (5 años de barras diarias, que traen la cotización), se guarda en memoria y sirve a la
   cotización, al histórico y al gráfico. Tras un rechazo de Yahoo no se pregunta en 5 minutos (1
   minuto tras cualquier otro fallo). La ficha gana PER y BPA.
@@ -58,7 +59,8 @@ TradingView y, para todo lo que necesita el número en el servidor, "yfinance o 
   responde, el resumen público cae a cifras de ejemplo marcadas y My Hub a FMP (si hay clave) o a
   ejemplo. Entonces: `MARKET_DATA=fmp` y redesplegar. Comprobado contra Yahoo desde el equipo
   Windows: resumen completo en frío en unos 12 s, ficha en 1 s, cartera de 3 valores en 1 s.
-- **Memoria**: `yfinance` trae pandas y numpy. El servicio sigue con 512 Mi; vigilar que no se quede corto.
+- **Memoria**: `yfinance` trae pandas y numpy. El servicio pasa de 512 Mi a **1 Gi** a petición del
+  usuario (`scripts/deploy-cloudrun.sh`, y aplicado al servicio en marcha el 2026-10-07).
 - **Widgets de TradingView** (`site/src/lib/tv.ts`): el gráfico de `/today/` y el de la ficha son el
   widget "Advanced Chart"; `/markets/` gana el mapa del S&P 500 ("Stock Heatmap"), cuyos bloques
   abren la ficha de aquí (`?tvwidgetsymbol=`). Los widgets **no dan los índices oficiales** ni los
