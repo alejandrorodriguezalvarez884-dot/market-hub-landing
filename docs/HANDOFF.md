@@ -269,6 +269,70 @@ a qué sector afecta, o si es macro.
 - Coste: cada documento pide ahora unos 500 tokens de salida más; del orden de medio céntimo a un
   céntimo por noticia.
 
+### Community en dos secciones: compartir la cartera y la competición mensual (2026-10-07; en `main`, sin desplegar)
+
+El usuario pidió que Community tenga secciones (de momento dos): compartir tu cartera, exigiendo
+tenerla, y competiciones mensuales con clasificación del mes, histórico y comentarios para debatir.
+
+- **Dos páginas, una navegación** (`communityNav` en `lib/hub.ts`, dos puertas bajo el título):
+  `/community/` (compartir) y `/community/competitions/` (la competición). La barra lateral sigue
+  con un solo "Community", así que los `HubNav.astro` de las herramientas no cambian.
+- **Compartir** (`pages/community.astro`): abre con el bloque de compartir, en tres pasos. **Sin
+  cartera no hay formulario**: solo "Add your portfolio", que lleva a `/portfolio/`. Debajo, "Where
+  you stand" (solo con cartera) y el tablero de siempre.
+- **La competición** (`src/markethub/competitions.py`, `pages/community/competitions.astro`):
+  - *Reglas*: cada mes natural es una competición. La entrada es una cartera de **3 a 10 acciones
+    individuales** (fuera fondos: los de `market.EXTRA` y lo que la ficha del proveedor marca
+    `is_etf`), cada una con entre **5 % y 50 %**, en porcentajes enteros que suman 100. Se envía y se
+    cambia **hasta el final del último día del mes anterior, hora de Nueva York**; después queda fija.
+    Se mide del último cierre del mes anterior al último cierre de su mes, comprada al inicio y sin
+    tocar, sin dividendos. Gana la mayor rentabilidad; en empate, la entrada cambiada antes. **Los
+    números (3–10, 5–50) los eligió el agente**: están en `config.py` (`COMPETITION_*`).
+  - *Nombre*: se juega con un nombre propio (las mismas reglas que el de compartir); no puede ser el
+    de otro jugador del mes ni el que otro usa al compartir cartera. No hace falta compartir la
+    cartera real para jugar: la entrada no tiene nada que ver con las posiciones.
+  - *El mes en curso*: podio, gráfico "session by session" (la rentabilidad de cada cartera desde el
+    cierre de partida; se eligen hasta seis líneas desde la tabla, más el S&P 500), clasificación con
+    la regla de cero en el centro, y cada línea se abre a sus acciones (peso, rentabilidad y puntos
+    que aporta). Se calcula **con cierres diarios, no con cotizaciones**: es la clasificación del
+    último cierre, y cuesta una llamada de histórico por ticker distinto cada 6 h (más la de SPY).
+  - *Tu entrada*: constructor con buscador, barra de la mezcla, deslizadores, "Equal weights" (los
+    pesos se reparten solos mientras no se toquen a mano) y la lista de lo que falta para poder
+    enviar. Hasta que empieza el mes nadie ve la entrada de otro: solo cuántas hay.
+  - *Histórico*: el récord de todos (meses jugados, **meses ganados** y **rentabilidad media de los
+    meses jugados**, mejor mes; se ordena por la columna que se pulse), tu récord, y cada mes
+    terminado tal como acabó.
+  - *Comentarios*: un hilo por mes (`competition-2026-11`) en el mismo almacén que los de Opinión
+    (`opinion_comments`), con el mismo código de hilos (`lib/thread.ts`, que ahora usan las dos
+    páginas). Solo para usuarios con sesión: el hilo público de Opinión no los sirve. Se firman con
+    el nombre con el que se juega (o el de pila si aún no hay). Se escribe en el mes en curso y en
+    el que está abierto.
+- **Cierre de un mes, sin nada programado**: la primera visita tras acabar el mes lo liquida
+  (`_settle`) y guarda `competition_results/{mes}`; desde ahí no cambia. Solo con datos reales
+  (nunca con cifras de ejemplo), solo cuando ya hay un cierre del mes siguiente, y esperando hasta
+  5 días a que todas las acciones tengan su último cierre.
+- **Con cifras de ejemplo** (proveedor sin contestar, o `MARKETHUB_SAMPLE_MARKETS=1`) salen
+  jugadores de relleno marcados "sample" en el mes y cuatro meses pasados de relleno; nada de eso
+  se guarda y desaparece con datos reales. **En producción con datos reales la página estará vacía
+  hasta noviembre**: octubre de 2026 no tiene inscritos (el plazo acabó el 30 de septiembre) y la
+  primera competición es noviembre, con inscripción abierta hasta el 31 de octubre.
+- **Datos**: `competition_entries/{mes}_{id}` (id de cuenta, nombre, acciones y pesos) y
+  `competition_results/{mes}`. El id de cuenta no sale del servidor. Borrar la cuenta borra las
+  entradas; en un mes ya liquidado su línea queda sin nombre ("Former member") y fuera del récord.
+  Dicho en `/privacy/` y en `/account/` (que lista las entradas y las incluye en la descarga).
+- **API**: `GET /api/competitions`, `PUT`/`DELETE /api/competitions/entry`,
+  `GET`/`POST /api/competitions/comments`, `GET /api/competitions/mine`.
+- 163 tests en verde (27 nuevos en `tests/test_competitions.py`), `astro check` y build en verde.
+  **Probado en local** (cifras de ejemplo, cuenta de prueba, 1366 y 375 px): las tres vistas,
+  elegir líneas del gráfico, comentar y responder, construir una entrada, que un fondo se rechaza,
+  enviarla, el estado vacío, la puerta de "añade tu cartera", el hilo de un artículo de Opinión
+  tras el cambio, la página de cuenta, y que borrar la cuenta se lleva entradas y comentarios.
+- **Sin probar**: con datos reales de FMP y con Firestore (las consultas son por un solo campo,
+  `month` o `user_id`, sin índices compuestos); la liquidación de un mes solo está probada en tests.
+- **Pendiente / a decidir**: con muchos jugadores el plan gratuito de FMP no llega (una llamada de
+  histórico por ticker distinto); no hay moderación de nombres más allá de los reservados; el
+  ganador no recibe nada ni se anuncia; la landing y la película no enseñan la competición.
+
 ### Filtros de noticias: sector, sentimiento y día (2026-10-07; desplegado como `market-hub-00017-bx9`)
 
 El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.

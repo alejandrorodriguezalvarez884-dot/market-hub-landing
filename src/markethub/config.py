@@ -110,6 +110,19 @@ COMMUNITY_STALE_SECONDS = 6 * 3600
 # ...and at most this many of them on one visit to the board.
 COMMUNITY_REFRESH_PER_VISIT = 4
 
+# The monthly competition (competitions.py): a portfolio of single stocks, sent in before the month
+# starts. How many stocks it takes and how much of the whole each one can be, in percent.
+COMPETITION_PICKS_MIN = 3
+COMPETITION_PICKS_MAX = 10
+COMPETITION_WEIGHT_MIN = 5
+COMPETITION_WEIGHT_MAX = 50
+COMPETITION_ENTRANTS = 500  # entries a month takes
+# The standings are worked out from daily closes and kept in memory this long.
+COMPETITION_CACHE_SECONDS = 300
+# A month that ended is settled once every stock has its last close; after this many days it is
+# settled with the closes there are (a stock that stopped trading keeps its last one).
+COMPETITION_SETTLE_DAYS = 5
+
 # --- The tools the portal opens ------------------------------------------------------------
 
 EARNINGS_RADAR_URL = os.environ.get("EARNINGS_RADAR_URL", "https://earningsradar.app").rstrip("/")

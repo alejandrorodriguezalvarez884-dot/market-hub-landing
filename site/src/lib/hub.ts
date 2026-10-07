@@ -119,3 +119,23 @@ export function empty(text: string): HTMLElement {
 export function failure(root: HTMLElement, e: unknown) {
   root.replaceChildren(h("p", "rounded-md border border-down/40 bg-down-soft p-4 text-[13px] text-down", e instanceof Error ? e.message : "This page failed to load."));
 }
+
+// --- Community ---------------------------------------------------------------------------------
+
+// The sections of the community, as the two doors under the page's head. More will come.
+const SECTIONS = [
+  { key: "portfolios", href: "/community/", title: "Shared portfolios", note: "Share yours and see where it stands" },
+  { key: "competitions", href: "/community/competitions/", title: "Monthly competition", note: "Pick stocks, play the month, win it" },
+] as const;
+export function communityNav(active: (typeof SECTIONS)[number]["key"]): HTMLElement {
+  const nav = add(h("nav", "grid gap-px overflow-hidden rounded-[3px] border border-line bg-line sm:grid-cols-2"), ...SECTIONS.map((s) => {
+    const on = s.key === active;
+    const a = add(linkTo(link(s.href), `group block p-4 transition-colors ${on ? "bg-raised shadow-[inset_0_-2px_0_var(--color-ink-strong)]" : "bg-page hover:bg-panel"}`),
+      h("div", `text-[15px] font-semibold ${on ? "text-ink-strong" : "text-ink group-hover:text-ink-strong"}`, s.title),
+      h("div", "mt-0.5 text-[12.5px] text-muted", s.note));
+    if (on) a.setAttribute("aria-current", "page");
+    return a;
+  }));
+  nav.setAttribute("aria-label", "Community sections");
+  return nav;
+}

@@ -223,3 +223,22 @@ export function miniChart(host: HTMLElement, bars: { time: string | number; valu
   chart.timeScale().fitContent();
   return chart;
 }
+
+// Returns since a common start, in percent, one line each: the month of a competition, session by
+// session. Zero is drawn, since everybody starts there.
+export type ReturnLine = { name: string; values: number[]; color: string; dashed?: boolean; width?: 1 | 2 | 3 };
+export function returnsChart(host: HTMLElement, dates: string[], lines: ReturnLine[], height = 280) {
+  const box = h("div");
+  box.style.height = `${height}px`;
+  host.replaceChildren(box);
+  const chart = baseChart(box);
+  chart.applyOptions({ localization: { locale: "en-US", priceFormatter: (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%` } });
+  lines.forEach((s, i) => {
+    const line = chart.addSeries(LineSeries, { color: s.color, lineWidth: s.width ?? 2, lineStyle: s.dashed ? LineStyle.Dashed : LineStyle.Solid,
+      priceLineVisible: false, lastValueVisible: true });
+    line.setData(dates.map((d, k) => ({ time: d as Time, value: +((s.values[k] ?? 0) * 100).toFixed(2) })));
+    if (!i) line.createPriceLine({ price: 0, color: C.cross, lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: false, title: "" });
+  });
+  chart.timeScale().fitContent();
+  return chart;
+}

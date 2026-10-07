@@ -15,6 +15,13 @@
     GET    /api/sharing             whether the portfolio is shared, and under what name
     PUT    /api/sharing             {enabled, handle}: share it, rename it or stop
     GET    /api/community           the shared portfolios and where the user's stands
+    GET    /api/competitions        the monthly competition: this month's standings, the entry for the
+                                    next one, the months that ended and everybody's record
+    PUT    /api/competitions/entry  {handle, picks}: send in or change the entry for next month
+    DELETE /api/competitions/entry  take it back
+    GET    /api/competitions/comments ?month=  the month's discussion (signed in)
+    POST   /api/competitions/comments {month, text, parent_id}: comment or answer
+    GET    /api/competitions/mine   the user's own entries
     GET    /api/dashboard           positions valued at today's prices, favourites, history
     GET    /api/search?q=           companies by ticker or name
     GET    /api/public/overview     markets: indices, rates, commodities, currencies, sectors, movers
@@ -63,14 +70,16 @@ from .captcha import default_captcha, open_without
 from .community import PERIODS as BOARD_PERIODS
 from .community import Community, CommunityStore, default_community
 from .community import Refused as SharingRefused
+from . import competitions as competitions_
+from .competitions import CompetitionStore, Competitions, default_competitions
 from .holdings import SampleData, sample_only
 from .insights import default_writer
 from .live import default_markets
 from .news import default_news
-from .opinion import Opinion, Refused, default_opinion
+from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
-                     COMMENTS_PER_USER_PER_HOUR, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
+                     COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET)
 from .market import Directory, Fmp, MarketUnavailable
 from .users import InvalidPortfolio, UserStore, clean, default_users, empty, touch
@@ -135,7 +144,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                static_dir: str | None = None, cookie_domain: str | None = COOKIE_DOMAIN, markets=None,
                news=None, opinion: Opinion | None = None, community_store: CommunityStore | None = None,
                insight_writer="default", logins: LoginStore | None = None,
-               password_cost: tuple[int, int, int] = accounts_.COST, captcha="default") -> FastAPI:
+               password_cost: tuple[int, int, int] = accounts_.COST, captcha="default",
+               competition_store: CompetitionStore | None = None, clock=None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -167,8 +177,14 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def mix(positions: list[dict]) -> dict:
         return {"positions": positions, "watchlist": []}
 
-    community = Community(community_store or default_community(), value=lambda positions: figures(mix(positions)),
+    community_store = community_store or default_community()
+    community = Community(community_store, value=lambda positions: figures(mix(positions)),
                           sample_value=lambda positions: dashboard.build(mix(positions), stand_in, stand_in, sample=True))
+    # The monthly competition. A name played under cannot be one somebody else shares a portfolio under.
+    competitions = Competitions(
+        competition_store or default_competitions(), market, stand_in, known=directory.known, name_of=lambda ticker: company_name(ticker),
+        taken=lambda key, user_id: any(m.get("handle_key") == key and m.get("user_id") != user_id for m in community_store.all(COMMUNITY_MEMBERS)),
+        shared_name=lambda user_id: community.status(user_id)["handle"], sample=only_sample, now=clock)
     client_id = GOOGLE_CLIENT_ID if client_id is None else client_id
     secret = session_secret or SESSION_SECRET
     if not secret:
@@ -342,6 +358,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         user = current_user(request)
         opinion.forget(user["id"])  # the comments go with the account
         community.stop(user["id"])  # and so does the shared portfolio
+        competitions.forget(user["id"])  # and the entries to the competition
         accounts.forget(user)  # and its password, if it had one of ours
         users.delete(user["id"])
         request.session.clear()
@@ -435,6 +452,61 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                 "periods": [{"key": p["key"], "label": p["label"]} for p in periods if p["key"] in BOARD_PERIODS],
                 "indices": [{"ticker": i["ticker"], "name": i["name"], "performance": {p["key"]: p["indices"].get(i["ticker"]) for p in periods}}
                             for i in d["performance"]["indices"]]}
+
+    @app.get("/api/competitions")
+    def competition(request: Request) -> dict:
+        user = current_user(request)
+        allow(request)
+        return competitions.overview(user["id"])
+
+    @app.put("/api/competitions/entry")
+    def enter_competition(request: Request, handle: str = Body(embed=True, max_length=40), picks: list = Body(embed=True)) -> dict:
+        user = current_user(request)
+        allow(request)
+        try:
+            entry = competitions.enter(user["id"], handle, picks)
+        except competitions_.Refused as exc:
+            raise HTTPException(400, str(exc)) from None
+        except MarketUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+        log.info("competition entry saved")
+        return entry
+
+    @app.delete("/api/competitions/entry")
+    def leave_competition(request: Request) -> dict:
+        competitions.withdraw(current_user(request)["id"])
+        return {"withdrawn": True}
+
+    @app.get("/api/competitions/mine")
+    def my_entries(request: Request) -> dict:
+        """What the account page shows as kept: the user's own entries."""
+        return {"entries": competitions.mine(current_user(request)["id"])}
+
+    def month_thread(month: str, writing: bool = False) -> str:
+        """The discussion of a month: any month up to the one entries are open for is read, and
+        the one being played and the one about to be are written in."""
+        running, open_ = competitions.months()
+        if not competitions_.MONTH.fullmatch(month) or month > open_ or (writing and month < running):
+            raise HTTPException(404, "No such month.")
+        return competitions_.thread(month)
+
+    @app.get("/api/competitions/comments")
+    def competition_comments(request: Request, month: str = Query(max_length=7)) -> dict:
+        """Members only, like the standings they hang from."""
+        user = current_user(request)
+        return {"comments": opinion.comments(month_thread(month), user), "signed_in": True, "moderator": opinion.can_moderate(user)}
+
+    @app.post("/api/competitions/comments")
+    def competition_comment(request: Request, month: str = Body(max_length=7), text: str = Body(max_length=8000),
+                            parent_id: str | None = Body(None, max_length=40)) -> dict:
+        user = current_user(request)
+        if not commenting.allow(user["id"]):
+            raise HTTPException(429, "That is a lot of comments in an hour. Try again later.")
+        try:
+            # Shown with the name the member plays under, when they have one.
+            return opinion.post(user, month_thread(month, writing=True), text, parent_id, name=competitions.name(user["id"]) or None)
+        except Refused as exc:
+            raise HTTPException(400, str(exc)) from None
 
     @app.get("/api/search")
     def search(request: Request, q: str = Query(min_length=1, max_length=60)) -> dict:
@@ -537,6 +609,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def public_comments(request: Request, slug: str = Query(max_length=100)) -> dict:
         """Anyone reads the thread. A signed-in reader is told which comments are theirs."""
         user = request.session.get("user")
+        if slug.startswith(MEMBERS_ONLY):  # a thread of the community is not a public one
+            raise HTTPException(404, "No such article.")
         return {"comments": opinion.comments(slug, user), "signed_in": bool(user), "moderator": opinion.can_moderate(user)}
 
     @app.post("/api/opinion/comments")

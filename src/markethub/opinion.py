@@ -33,6 +33,10 @@ DEPTH_MAX = 6  # an answer to an answer to an answer...: below this the thread r
 PER_ARTICLE_MAX = 1000
 FRONT_CACHE_SECONDS = 60
 COVERS_KEPT = 48  # covers held in memory, so a picture is read from the store once
+# Threads that hang from something other than an article keep their comments in the same store,
+# under a name of their own. The community's competition has one a month ("competition-2026-11");
+# only signed-in members read those, so the public thread of an article never answers for them.
+MEMBERS_ONLY = "competition-"
 
 
 class Refused(ValueError):
@@ -221,14 +225,22 @@ class Opinion:
                 "mine": bool(user and not gone and c.get("user_id") == user["id"])}
 
     def comments(self, slug: str, user: dict | None = None) -> list[dict]:
-        """The thread under an article, oldest first: the page nests it by ``parent_id``."""
+        """A thread, oldest first: the page nests it by ``parent_id``."""
         if not SLUG.fullmatch(slug):
             return []
         return [self._view(c, user) for c in sorted(self.store.comments(slug), key=lambda c: c["created_utc"])]
 
     def add(self, user: dict, slug: str, text: str, parent_id: str | None = None) -> dict:
-        if not self.article(slug):
+        """A comment under an article."""
+        if slug.startswith(MEMBERS_ONLY) or not self.article(slug):
             raise Refused("There is no such article.")
+        return self.post(user, slug, text, parent_id)
+
+    def post(self, user: dict, slug: str, text: str, parent_id: str | None = None, name: str | None = None) -> dict:
+        """A comment in the thread ``slug``, whatever it hangs from: the caller has checked that
+        it exists. ``name`` is what stands next to it, when that is not the account's first name."""
+        if not SLUG.fullmatch(slug):
+            raise Refused("There is no such thread.")
         text = re.sub(r"\n{3,}", "\n\n", str(text).replace("\r\n", "\n")).strip()
         if not text:
             raise Refused("Write something first.")
@@ -243,9 +255,9 @@ class Opinion:
             if depth > DEPTH_MAX:
                 raise Refused("This thread is too deep to answer here. Answer further up.")
         if len(self.store.comments(slug)) >= PER_ARTICLE_MAX:
-            raise Refused("This article has reached its limit of comments.")
+            raise Refused("This thread has reached its limit of comments.")
         comment = {"id": secrets.token_urlsafe(9), "slug": slug, "parent_id": parent_id or None, "depth": depth,
-                   "user_id": user["id"], "name": shown_name(user), "text": text, "created_utc": _now(), "deleted": False}
+                   "user_id": user["id"], "name": (name or shown_name(user))[:30], "text": text, "created_utc": _now(), "deleted": False}
         self.store.put_comment(comment)
         return self._view(comment, user)
 

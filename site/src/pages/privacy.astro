@@ -23,8 +23,13 @@ import { link } from "../lib/site";
 				one's share of the portfolio in percent, and the returns of those holdings. Signed-in members see that on the Community
 				page. It never includes your name, email or picture, how many shares you hold, what you paid or what it is worth.
 				It is off until you turn it on, and turning it off removes it at once.</li>
+			<li>If you enter the monthly competition, and only then: the name you pick to play under, and the stocks you choose for the
+				month with the share you give each one. Until the month starts nobody sees them; from then on signed-in members see
+				that name, those stocks and weights and what the mix has returned, and the final standings of a month are kept. It never
+				includes your name, email or picture, and it has nothing to do with the positions you hold.</li>
 			<li>The comments you write under opinion articles. They are public, and they are shown with your first name: not with your
-				surname, your email address or your picture.</li>
+				surname, your email address or your picture. The comments you write in the competition's discussion are seen by
+				signed-in members only, with the name you play under (your first name, if you have none).</li>
 			<li>A session cookie, signed by us, that keeps you signed in for up to 30 days. No advertising or tracking cookies.</li>
 			<li>Nothing about you in the analysis tools. Fundamentals Lab and the Earnings Radar, on their own subdomains, read the
 				same session cookie only to check that you are signed in; they do not store your name, email or stocks.</li>
@@ -45,9 +50,10 @@ import { link } from "../lib/site";
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Your control</h2>
 		<p>
 			On <a href={link("/account/")} class="link">Account and data</a> you can see and download everything kept about you, and
-			delete your account: that removes it from the database at once, takes your portfolio off the Community page and empties every
-			comment you wrote. You can also
-			delete any comment of yours where it stands.
+			delete your account: that removes it from the database at once, takes your portfolio off the Community page, removes your
+			entries to the competition and empties every comment you wrote. In a month of the competition that has already ended, your
+			line stays where it finished, with no name on it. You can also delete any comment of yours where it stands, and take back
+			an entry until its month starts.
 		</p>
 	</div>
 </Site>

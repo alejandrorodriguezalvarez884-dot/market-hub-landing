@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from markethub.accounts import MemoryLogins
 from markethub.api import create_app
 from markethub.community import MemoryCommunity
+from markethub.competitions import MemoryCompetitions
 from markethub.market import Company, Directory
 from markethub.opinion import MemoryOpinion, Opinion
 from markethub.users import MemoryUsers
@@ -110,6 +111,11 @@ def shared():
     return MemoryCommunity()
 
 
+@pytest.fixture
+def entries():
+    return MemoryCompetitions()
+
+
 class FakeCaptcha:
     """Stands for Cloudflare: the token "human" passes, once asked with the address it came from."""
 
@@ -145,10 +151,11 @@ def writer():
 
 
 @pytest.fixture
-def client(users, market, directory, opinion, shared, writer, logins, captcha):
+def client(users, market, directory, opinion, shared, writer, logins, captcha, entries):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
-                     community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha)
+                     community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha,
+                     competition_store=entries)
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

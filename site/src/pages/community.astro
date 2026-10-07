@@ -1,7 +1,8 @@
 ---
-// My Hub, Community: the portfolios their owners chose to share, ranked by how today's holdings
-// did over a period, and where yours stands among them, shared or not. Sharing is off until the
-// user turns it on, and shows weights and returns only: never amounts.
+// My Hub, Community, its first section: sharing your portfolio. It takes a portfolio first; then a
+// name, and the say-so. Under it, the portfolios their owners chose to share, ranked by how today's
+// holdings did over a period, and where yours stands among them, shared or not. Sharing shows
+// weights and returns only: never amounts. The other section is the monthly competition.
 import App from "../components/App.astro";
 ---
 
@@ -13,7 +14,7 @@ import App from "../components/App.astro";
 	import { api, requireUser } from "../lib/api";
 	import { add, card, h, linkTo } from "../lib/dom";
 	import { pct, signedPct, timeAgo } from "../lib/format";
-	import { cell, failure, ordinal, pageHead, points, shareBar, tone } from "../lib/hub";
+	import { cell, communityNav, failure, ordinal, pageHead, points, shareBar, tone } from "../lib/hub";
 	import { link } from "../lib/site";
 	import type { Board, Member, PeriodKey, Sharing } from "../lib/types";
 
@@ -23,13 +24,9 @@ import App from "../components/App.astro";
 
 	// --- Where you stand ---------------------------------------------------------------------------
 
-	function standing(b: Board): HTMLElement {
+	function standing(b: Board): HTMLElement | null {
+		if (!b.you.performance) return null; // nothing to stand with yet: the sharing block asks for the portfolio
 		const c = card("Where you stand", b.you.sharing ? `Shared as ${b.you.handle}` : "Only you see this: your portfolio is not shared");
-		if (!b.you.performance) {
-			add(c.body, h("p", "text-sm text-ink", "Add your positions to see where they stand among the shared portfolios."),
-				add(h("p", "mt-3"), linkTo(link("/portfolio/"), "btn btn-primary", "Add your positions")));
-			return c.el;
-		}
 		c.body.className = "";
 		c.body.append(add(h("div", "grid grid-cols-2 gap-px bg-line sm:grid-cols-5"), ...b.periods.map((p) => {
 			const st = b.you.standing[p.key];
@@ -58,8 +55,29 @@ import App from "../components/App.astro";
 
 	// --- Sharing -----------------------------------------------------------------------------------
 
+	// The way to a shared portfolio, in three steps: the one being taken is lit, those behind it are ticked.
+	function steps(at: number): HTMLElement {
+		return add(h("ol", "grid gap-px overflow-hidden rounded-[3px] border border-line bg-line sm:grid-cols-3"),
+			...["Add your portfolio", "Pick a name to be shown under", "Members see its weights and returns"].map((text, i) => {
+				const done = i < at;
+				const li = add(h("li", `flex items-center gap-3 p-3 ${i === at ? "bg-raised" : "bg-page"}`),
+					h("span", `num flex h-6 w-6 flex-none items-center justify-center rounded-full border text-[12px] ${done ? "border-up text-up" : i === at ? "border-ink-strong text-ink-strong" : "border-line-strong text-faint"}`, done ? "✓" : String(i + 1)),
+					h("span", `text-[13px] ${i <= at ? "text-ink-strong" : "text-muted"}`, text));
+				if (i === at) li.setAttribute("aria-current", "step");
+				return li;
+			}));
+	}
+
 	function sharing(b: Board): HTMLElement {
 		const on = b.you.sharing;
+		if (!on && !b.you.performance) {
+			// No portfolio, nothing to share: it has to be added first.
+			const gate = card("Share your portfolio", "It starts with a portfolio");
+			add(gate.body, steps(0),
+				h("p", "mt-4 max-w-2xl text-sm text-ink", "You have not added a portfolio yet, so there is nothing to share. Add the positions you hold; you then pick a name and decide whether members see it."),
+				add(h("p", "mt-4"), linkTo(link("/portfolio/"), "btn btn-primary", "Add your portfolio")));
+			return gate.el;
+		}
 		const c = card(on ? "Your portfolio is shared" : "Share your portfolio", on ? `As ${b.you.handle}${b.you.since_utc ? `, since ${new Date(b.you.since_utc).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}` : ""}` : "Off until you turn it on");
 		const name = h("input", "field w-56");
 		name.maxLength = 20;
@@ -89,13 +107,11 @@ import App from "../components/App.astro";
 		stop.addEventListener("click", () => send({ enabled: false }, stop));
 		const list = (title: string, items: string[]) => add(h("div"), h("h3", "label mb-1.5", title),
 			add(h("ul", "space-y-1 text-[13px] text-ink"), ...items.map((x) => h("li", "", x))));
-		add(c.body,
-			add(h("div", "grid gap-x-10 gap-y-4 sm:grid-cols-2"),
+		add(c.body, steps(on ? 3 : 1),
+			add(h("div", "mt-4 grid gap-x-10 gap-y-4 sm:grid-cols-2"),
 				list("What others see", ["The name you pick here", "The tickers you hold and each one's share, in percent", "The returns of those holdings"]),
 				list("What nobody sees", ["Your name, email or picture", "How many shares you hold, or what they are worth", "What you paid, your gains and your watchlist"])),
-			h("p", "mt-4 text-[13px] text-muted", b.you.performance || on
-				? "Only signed-in members see the shared portfolios. It follows what you hold, and stops the moment you say so."
-				: "You need at least one position to share."),
+			h("p", "mt-4 text-[13px] text-muted", "Only signed-in members see the shared portfolios. It follows what you hold, and stops the moment you say so."),
 			add(h("div", "mt-4 flex flex-wrap items-center gap-2"), form, on ? stop : null), note);
 		return c.el;
 	}
@@ -185,7 +201,7 @@ import App from "../components/App.astro";
 	function draw(b: Board) {
 		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"),
 			pageHead("Community", "Portfolios their owners chose to share, and where yours stands among them.", { sample: b.sample }),
-			standing(b), board(b), sharing(b)));
+			communityNav("portfolios"), sharing(b), standing(b), board(b)));
 	}
 
 	async function load() {

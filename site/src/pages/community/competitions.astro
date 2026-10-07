@@ -1,0 +1,521 @@
+---
+// My Hub, Community, its second section: the monthly competition. A portfolio of single stocks is
+// sent in before a month starts and measured over that month; the best return wins. The page has
+// the month being played (podium, the month session by session, standings, discussion), the entry
+// for the next month, and the months that ended with everybody's record.
+import App from "../../components/App.astro";
+import Search from "../../components/Search.astro";
+---
+
+<App title="Monthly competition" description="A portfolio of single stocks, one month, and the best return wins.">
+	<div id="competition" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-20"></div><div class="skeleton h-56"></div><div class="skeleton h-96"></div></div>
+	<!-- The search box is drawn here and moved into the entry's form: its script binds what is in the page. -->
+	<div hidden><Search mode="pick" button="Add" id="add-pick" /></div>
+</App>
+
+<script>
+	import { requireUser } from "../../lib/api";
+	import { add, card, h, linkTo } from "../../lib/dom";
+	import { pct, signedPct, timeAgo } from "../../lib/format";
+	import { cell, communityNav, failure, ordinal, pageHead, points, shareBar, tone } from "../../lib/hub";
+	import { C, returnsChart } from "../../lib/lwc";
+	import { competition, evenly, monthComment, monthThread, sendEntry, who, withdrawEntry, type Benchmark, type Competition, type Line, type RecordLine } from "../../lib/competition";
+	import { removeComment } from "../../lib/opinion";
+	import { link, tidyName } from "../../lib/site";
+	import { mountThread } from "../../lib/thread";
+	import { track } from "../../lib/widgets";
+
+	const root = document.getElementById("competition")!;
+	const search = document.getElementById("add-pick") as HTMLFormElement;
+	const VIEWS = [["month", "This month"], ["entry", "Your entry"], ["history", "History"]] as const;
+	type View = (typeof VIEWS)[number][0];
+	const asked = new URLSearchParams(location.search).get("view");
+	let view: View = VIEWS.some(([v]) => v === asked) ? (asked as View) : "month";
+	let data: Competition;
+	let skew = 0; // the server's clock less this one's, so the countdown does not trust the reader's
+	const now = () => Date.now() + skew;
+
+	const day = (iso: string, long = false) => new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: long ? "long" : "short", day: "numeric", timeZone: "UTC" });
+	const button = (cls: string, text: string, onClick: () => void) => {
+		const b = h("button", cls, text);
+		b.type = "button";
+		b.addEventListener("click", onClick);
+		return b;
+	};
+	const chip = (text: string, cls = "") => h("span", `chip !font-sans ml-2 ${cls}`, text);
+	const tags = (l: { you: boolean; stand_in: boolean }) => [l.you ? chip("you") : null, l.stand_in ? h("span", "ml-2 text-[11.5px] text-warn", "sample") : null];
+	const mix = (l: Line, max = 4) => l.picks.slice().sort((a, b) => b.weight - a.weight).slice(0, max).map((p) => `${p.ticker} ${pct(p.weight, 0)}`).join(" · ");
+
+	function go(to: View) {
+		view = to;
+		history.replaceState(null, "", location.pathname + (to === "month" ? "" : `?view=${to}`));
+		draw();
+		document.getElementById("views")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+	}
+
+	// --- The clock ---------------------------------------------------------------------------------
+
+	// What is left until a moment, kept current once a second wherever the page shows it.
+	function countdown(until: string, cls: string, plain = false): HTMLElement {
+		const el = h("div", cls);
+		el.dataset.until = until;
+		if (plain) el.dataset.plain = "";
+		return el;
+	}
+	function tick() {
+		for (const el of document.querySelectorAll<HTMLElement>("[data-until]")) {
+			const left = Math.max(0, Date.parse(el.dataset.until!) - now());
+			if (!left) return location.reload(); // the month has turned: the page is another one
+			const parts: [number, string][] = [[Math.floor(left / 86400000), "days"], [Math.floor(left / 3600000) % 24, "hours"], [Math.floor(left / 60000) % 60, "min"], [Math.floor(left / 1000) % 60, "sec"]];
+			if (el.dataset.plain !== undefined) el.textContent = parts[0][0] ? `${parts[0][0]}d ${parts[1][0]}h` : `${parts[1][0]}h ${parts[2][0]}m ${parts[3][0]}s`;
+			else el.replaceChildren(...parts.map(([n, unit]) => add(h("div", "min-w-[3.5rem] rounded-[3px] border border-line bg-page px-2 py-2 text-center"),
+				h("div", "num text-2xl font-semibold text-ink-strong", String(n).padStart(2, "0")), h("div", "text-[11px] text-muted", unit))));
+		}
+	}
+	setInterval(tick, 1000);
+
+	// --- The two months, side by side --------------------------------------------------------------
+
+	function hero(c: Competition): HTMLElement {
+		const run = c.running;
+		const open = c.open;
+		const leader = run.standings[0];
+		// How far into the month we are: a line from its first day to its last, and a dot on today.
+		const from = Date.parse(`${run.start_date}T00:00:00Z`) + 86400000;
+		const done = Math.min(1, Math.max(0, (now() - from) / (Date.parse(run.next_starts_utc) - from)));
+		const line = h("div", "relative mt-4 h-[3px] rounded-full bg-raised");
+		const fill = h("span", "absolute inset-y-0 left-0 rounded-full bg-ink-strong");
+		fill.style.width = `${done * 100}%`;
+		const dot = h("span", "absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-strong ring-4 ring-page");
+		dot.style.left = `${done * 100}%`;
+		line.append(fill, dot);
+		const stat = (label: string, value: (Node | string | null)[], note: string, cls = "text-ink-strong") => add(h("div", "min-w-0 bg-page p-3"),
+			h("div", "label", label), add(h("div", `num mt-1 truncate text-lg font-semibold ${cls}`), ...value), h("div", "truncate text-[12px] text-muted", note));
+		const playing = add(h("section", "panel p-5 sm:p-6"),
+			add(h("p", "label flex items-center gap-2"), h("span", "inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-up"), "Now playing"),
+			h("h2", "mt-1 text-[1.75rem] font-medium leading-tight tracking-tight text-ink-strong", run.label),
+			line,
+			add(h("div", "mt-2 flex justify-between text-[12px] text-muted"), h("span", "", day(run.start_date)),
+				h("span", "", run.as_of ? `${run.days.length} ${run.days.length === 1 ? "session" : "sessions"} played · close of ${day(run.as_of)}` : "No close yet this month"), h("span", "", day(run.ends))),
+			add(h("div", "mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line sm:grid-cols-4"),
+				stat("Players", [String(run.entrants)], run.entrants ? "portfolios in play" : "nobody this month"),
+				leader ? stat("Leader", [signedPct(leader.return, 2)], who(leader), tone(leader.return)) : stat("Leader", ["—"], "nobody yet"),
+				stat(run.benchmark.name, [signedPct(run.benchmark.return, 2)], "the index, same days", tone(run.benchmark.return)),
+				run.you ? stat("You", [signedPct(run.you.return, 2)], `${ordinal(run.you.rank)} of ${run.you.of}`, tone(run.you.return)) : stat("You", ["—"], "not in this one")));
+
+		const entry = open.entry;
+		const next = add(h("section", "panel p-5 sm:p-6"),
+			h("p", "label", "Next up · entries open"),
+			h("h2", "mt-1 text-[1.75rem] font-medium leading-tight tracking-tight text-ink-strong", open.label),
+			countdown(open.closes_utc, "mt-4 flex flex-wrap gap-2"),
+			h("p", "mt-3 text-[13px] text-muted", `Entries close at the end of ${day(run.ends, true)}, New York time. ${open.entrants === 1 ? "1 portfolio is" : `${open.entrants} portfolios are`} in so far.`),
+			entry
+				? add(h("div", "mt-4"), add(h("p", "flex flex-wrap items-center gap-1.5 text-[13px] text-ink"), h("span", "mr-1 text-up", "✓ Your entry is in"),
+					...entry.picks.map((p) => h("span", "chip", `${p.ticker} ${p.weight}%`))),
+					add(h("p", "mt-3"), button("btn btn-ghost", "Change it", () => go("entry"))))
+				: add(h("p", "mt-4"), button("btn btn-primary", `Build your entry for ${open.label.split(" ")[0]}`, () => go("entry"))));
+		return add(h("div", "grid gap-4 lg:grid-cols-2"), playing, next);
+	}
+
+	// --- Standings ---------------------------------------------------------------------------------
+
+	// Three steps: the second, the first, the third.
+	function podium(lines: Line[]): HTMLElement | null {
+		const top = lines.slice(0, 3);
+		if (!top.length) return null;
+		const steps: [Line | undefined, string][] = [[top[1], "h-16"], [top[0], "h-24"], [top[2], "h-10"]];
+		return add(h("div", "grid grid-cols-3 items-end gap-2 sm:gap-5"), ...steps.map(([l, height]) => !l ? h("div") : add(h("div", "min-w-0 text-center"),
+			h("div", "truncate text-[13px] font-semibold text-ink-strong", who(l)),
+			l.you || l.stand_in ? add(h("div", "-ml-2 leading-none"), ...tags(l)) : null,
+			h("div", `num mt-0.5 text-lg font-semibold sm:text-xl ${tone(l.return)}`, signedPct(l.return, 2)),
+			h("div", "hidden truncate text-[11.5px] text-muted sm:block", mix(l, 3)),
+			add(h("div", `mt-2 flex ${height} items-start justify-center rounded-t-[3px] border border-b-0 ${l.rank === 1 ? "border-ink-strong bg-raised" : "border-line bg-panel"}`),
+				h("span", `num pt-1.5 text-lg ${l.rank === 1 ? "font-semibold text-ink-strong" : "text-muted"}`, String(l.rank))))));
+	}
+
+	// What a line opens onto: each stock, its share, what it did and the points it put in.
+	function holdings(l: Line): HTMLElement {
+		return add(h("div", "grid gap-x-10 gap-y-2 px-1 py-3 lg:grid-cols-2"), ...l.picks.map((p) =>
+			add(h("div", "grid grid-cols-[3.5rem_minmax(0,1fr)_2.75rem_3.75rem_4.5rem] items-center gap-2 text-[13px] sm:grid-cols-[3.5rem_minmax(0,1fr)_5rem_2.75rem_3.75rem_4.5rem]"),
+				linkTo(link(`/quote/?t=${encodeURIComponent(p.ticker)}`), "font-semibold text-ink-strong hover:underline", p.ticker),
+				h("span", "truncate text-muted", tidyName(p.name)),
+				shareBar(p.weight, "hidden w-full sm:inline-block"), h("span", "num text-right text-ink", pct(p.weight, 0)),
+				h("span", `num text-right ${tone(p.return)}`, p.return == null ? "no price" : signedPct(p.return, 1)),
+				h("span", "num text-right text-muted", p.return == null ? "" : points(p.weight * p.return, 2)))));
+	}
+
+	// The lines of a month, the best first, with the index among them for reference. `pick` adds a
+	// column that puts a line on the chart; `final` marks the winner.
+	function standings(lines: Line[], bench: Benchmark | null, opts: { final?: boolean; pick?: (l: Line, button: HTMLButtonElement) => void; picked?: (l: Line) => string | null } = {}): HTMLElement {
+		const reach = Math.max(0.01, Math.ceil(Math.max(0, ...lines.map((l) => Math.abs(l.return)), Math.abs(bench?.return ?? 0)) * 100) / 100);
+		const body = h("tbody");
+		const columns = opts.pick ? 6 : 5;
+		const index = () => bench && bench.return != null ? add(h("tr"),
+			cell("", "w-8"), add(h("td", "!text-left !font-sans"), h("span", "text-muted", bench.name), h("span", "ml-2 text-[11.5px] text-faint", "index")),
+			cell(signedPct(bench.return, 2), "num text-muted"), add(h("td", "hidden sm:table-cell"), track(bench.return, reach)),
+			cell("", "hidden lg:table-cell"), opts.pick ? cell("") : null) : null;
+		let placed = false;
+		for (const l of lines) {
+			if (!placed && bench && bench.return != null && l.return < bench.return) (placed = true), add(body, index());
+			const row = add(h("tr", `cursor-pointer ${l.you ? "bg-raised/60" : ""}`),
+				cell(String(l.rank), "num w-8 !text-left text-muted"),
+				add(h("td", "!text-left !font-sans"), h("span", "font-semibold text-ink-strong", who(l)), ...tags(l), opts.final && l.rank === 1 ? chip("winner", "!border-up !text-up") : null),
+				cell(signedPct(l.return, 2), `num font-semibold ${tone(l.return)}`),
+				add(h("td", "hidden sm:table-cell"), track(l.return, reach)),
+				add(h("td", "hidden !text-left !font-sans lg:table-cell"), h("span", "text-[12.5px] text-muted", mix(l))));
+			if (opts.pick) {
+				// A line on the chart, or not: its swatch is the line's colour.
+				const b = h("button", "inline-flex h-6 w-9 items-center justify-center rounded-[3px] border border-line-strong hover:border-muted aria-[pressed=true]:border-ink-strong aria-[pressed=true]:bg-raised");
+				b.type = "button";
+				b.title = "Show this portfolio on the chart";
+				b.setAttribute("aria-label", `Show ${who(l)} on the chart`);
+				const paint = () => {
+					const color = opts.picked!(l);
+					b.setAttribute("aria-pressed", String(Boolean(color)));
+					const sw = h("span", "block h-[3px] w-4 rounded-full");
+					sw.style.background = color ?? "var(--color-line-strong)";
+					b.replaceChildren(sw);
+				};
+				paint();
+				b.addEventListener("click", (e) => (e.stopPropagation(), opts.pick!(l, b), paint()));
+				row.append(add(h("td", "w-12"), b));
+			}
+			const detail = add(h("tr"), add(Object.assign(h("td", "!whitespace-normal"), { colSpan: columns }), holdings(l)));
+			detail.hidden = !l.you;
+			row.tabIndex = 0;
+			row.setAttribute("aria-expanded", String(!detail.hidden));
+			const toggle = () => ((detail.hidden = !detail.hidden), row.setAttribute("aria-expanded", String(!detail.hidden)));
+			row.addEventListener("click", (e) => (e.target as HTMLElement).closest("a") || toggle());
+			row.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && e.target === row && (e.preventDefault(), toggle()));
+			add(body, row, detail);
+		}
+		if (!placed) add(body, index());
+		const table = add(h("table", "data-table"), add(h("thead"), add(h("tr"), h("th", "!text-left", "#"), h("th", "!text-left", "Player"), h("th", "", "Return"),
+			h("th", "hidden sm:table-cell"), h("th", "hidden !text-left lg:table-cell", "Largest picks"), opts.pick ? h("th", "", "Chart") : null)), body);
+		return add(h("div", "overflow-x-auto"), table);
+	}
+
+	// --- This month --------------------------------------------------------------------------------
+
+	const PALETTE = ["#6f93c4", "#c9a45a", "#a388c9", "#5fb0a6", "#c98a6f", "#8fae5d"];
+	const colors = new Map<string, string>(); // the lines on the chart and the colour each one took
+	let withIndex = true;
+
+	function monthView(c: Competition): HTMLElement {
+		const run = c.running;
+		const talk = card("Discussion", `${run.label}: say what you think of the month. Members only.`);
+		const composer = h("div");
+		const thread = h("div", "mt-2");
+		add(talk.body, composer, thread);
+		mountThread({ composer, list: thread }, {
+			load: () => monthThread(run.month), post: (text, parent) => monthComment(run.month, text, parent), remove: removeComment,
+			note: "Shown with the name you play under, or your first name. Be civil.", ask: "How is your month going?", none: "Nobody has said anything yet. Open the debate.",
+		})();
+		if (!run.standings.length) {
+			return add(h("div", "grid min-w-0 gap-4"),
+				add(h("section", "panel p-8 text-center"),
+					h("p", "text-lg text-ink-strong", `Nobody is playing ${run.label}.`),
+					h("p", "mx-auto mt-2 max-w-xl text-sm text-ink", `A month is played by the portfolios sent in before it started. ${c.open.label} is open: send yours before the end of ${day(run.ends, true)}.`),
+					add(h("p", "mt-5"), button("btn btn-primary", `Build your entry for ${c.open.label.split(" ")[0]}`, () => go("entry")))),
+				talk.el);
+		}
+
+		// The chart starts with the podium and the reader's own line.
+		if (!colors.size) for (const l of run.standings) if (l.you || l.rank <= 3) colors.set(who(l), l.you ? C.ink : PALETTE.find((p) => ![...colors.values()].includes(p))!);
+		const race = card("The month, session by session", `Each line is what a portfolio has returned since the close of ${day(run.start_date)}. Pick the lines in the table below.`);
+		const host = h("div");
+		const legend = h("div", "mb-3 flex flex-wrap items-center gap-1.5");
+		let chart: { remove(): void } | null = null;
+		const plot = () => {
+			const shown = run.standings.filter((l) => colors.has(who(l)));
+			const swatch = (color: string, dashed = false) => {
+				const s = h("span", "inline-block h-[3px] w-3.5 rounded-full");
+				s.style.background = dashed ? `repeating-linear-gradient(90deg, ${color} 0 4px, transparent 4px 6px)` : color;
+				return s;
+			};
+			const bench = add(button("chip !font-sans !px-2 !py-0.5 aria-[pressed=false]:opacity-50", "", () => ((withIndex = !withIndex), plot())), swatch(C.text, true), run.benchmark.name);
+			bench.setAttribute("aria-pressed", String(withIndex));
+			legend.replaceChildren(...shown.map((l) => add(h("span", "chip !font-sans !px-2 !py-0.5"), swatch(colors.get(who(l))!), who(l), h("span", `num ml-1 ${tone(l.return)}`, signedPct(l.return, 1)))), bench);
+			chart?.remove();
+			chart = null;
+			if (!run.days.length) return host.replaceChildren(h("p", "py-10 text-center text-sm text-muted", "The first close of the month is not in yet: everybody stands at zero."));
+			chart = returnsChart(host, [run.start_date, ...run.days], [
+				...(withIndex && run.benchmark.series?.length ? [{ name: run.benchmark.name, values: [0, ...run.benchmark.series], color: C.text, dashed: true, width: 1 as const }] : []),
+				...shown.map((l) => ({ name: who(l), values: [0, ...(l.series ?? [])], color: colors.get(who(l))!, width: (l.you ? 3 : 2) as 2 | 3 })),
+			], 300);
+		};
+		add(race.body, legend, host);
+		requestAnimationFrame(plot);
+
+		const board = card("Standings", `${run.entrants} ${run.entrants === 1 ? "portfolio" : "portfolios"}${run.as_of ? `, as of the close of ${day(run.as_of)}` : ""}. A line opens onto its stocks.`);
+		board.body.className = "";
+		const note = h("p", "num px-4 pt-2 text-[12.5px] text-warn");
+		board.body.append(note, standings(run.standings, run.benchmark, {
+			picked: (l) => colors.get(who(l)) ?? null,
+			pick: (l) => {
+				note.textContent = "";
+				if (colors.has(who(l))) colors.delete(who(l));
+				else if (colors.size >= PALETTE.length) note.textContent = `Up to ${PALETTE.length} lines at a time: take one off first.`;
+				else colors.set(who(l), l.you ? C.ink : PALETTE.find((p) => ![...colors.values()].includes(p)) ?? PALETTE[0]);
+				plot();
+			},
+		}), h("p", "border-t border-line px-4 py-3 text-[12.5px] text-muted",
+			`Measured from the close of ${day(run.start_date)}: what each mix, bought then and left alone, has returned on price. The third column of an open line is the stock's own return; the last, the points it puts into the portfolio's.${run.partial ? " Some stocks have no price yet and count as flat." : ""}`));
+
+		const stage = card("The podium so far", `After ${run.days.length} ${run.days.length === 1 ? "session" : "sessions"}. It is settled at the last close of ${day(run.ends, true)}.`);
+		add(stage.body, podium(run.standings));
+		return add(h("div", "grid min-w-0 gap-4"), stage.el, race.el, board.el, talk.el);
+	}
+
+	// --- Your entry --------------------------------------------------------------------------------
+
+	// `even`: the weights have not been set by hand, so they are dealt evenly as stocks come and go.
+	type Draft = { handle: string; picks: { ticker: string; name: string; weight: number }[]; even: boolean };
+	let draft: Draft | null = null;
+	let picking: ((e: Event) => void) | null = null; // the form listening to the search box, one at a time
+	const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9_\-]| (?! )){1,18}[A-Za-z0-9]$/;
+
+	function entryView(c: Competition): HTMLElement {
+		const { rules, open } = c;
+		draft ??= { handle: open.entry?.handle ?? c.name, picks: open.entry?.picks.map((p) => ({ ...p })) ?? [], even: !open.entry };
+		const d = draft;
+		const saved = () => JSON.stringify([open.entry?.handle ?? "", ...(open.entry?.picks ?? []).map((p) => [p.ticker, p.weight])]) === JSON.stringify([d.handle.trim(), ...d.picks.map((p) => [p.ticker, p.weight])]);
+		const total = () => d.picks.reduce((s, p) => s + p.weight, 0);
+		const deal = () => evenly(d.picks.length || 1).forEach((w, i) => d.picks[i] && (d.picks[i].weight = Math.min(rules.weight_max, w)));
+
+		const name = h("input", "field w-64 max-w-full");
+		Object.assign(name, { maxLength: 20, placeholder: "The name you play under", value: d.handle, autocomplete: "off" });
+		name.setAttribute("aria-label", "The name you play under");
+		const bar = h("div", "flex h-9 w-full overflow-hidden rounded-[3px] border border-line bg-panel");
+		const rows = h("div");
+		const checks = h("ul", "space-y-1.5 text-[13px]");
+		const said = h("p", "text-[13px]");
+		said.setAttribute("role", "status");
+		const send = button("btn btn-primary", "", async () => {
+			send.disabled = true;
+			say("Sending…");
+			try {
+				await sendEntry(d.handle.trim(), d.picks.map(({ ticker, weight }) => ({ ticker, weight })));
+				draft = null;
+				await load();
+				document.getElementById("entry-said")!.className = "text-[13px] text-up";
+				document.getElementById("entry-said")!.textContent = `Your entry for ${open.label} is in. You can change it until the end of ${day(c.running.ends, true)}.`;
+			} catch (e) {
+				say(e instanceof Error ? e.message : "The entry could not be sent.", true);
+				refresh();
+			}
+		});
+		said.id = "entry-said";
+		const say = (text: string, bad = false) => ((said.className = `text-[13px] ${bad ? "text-down" : "text-muted"}`), (said.textContent = text));
+
+		// What changes as the weights move: the bar, the three rules and the button.
+		function refresh() {
+			const sum = total();
+			const over = sum > 100;
+			bar.classList.toggle("!border-down", over);
+			bar.replaceChildren(...d.picks.map((p, i) => {
+				const seg = h("span", "flex h-full min-w-0 items-center justify-center overflow-hidden border-r border-page bg-ink-strong text-[11px] font-semibold text-page");
+				seg.style.width = `${(p.weight / Math.max(100, sum)) * 100}%`;
+				seg.style.opacity = String(Math.max(0.35, 1 - i * 0.07));
+				seg.textContent = p.weight >= 9 ? p.ticker : "";
+				seg.title = `${p.ticker} ${p.weight}%`;
+				return seg;
+			}), ...(sum < 100 ? [h("span", "flex flex-1 items-center justify-center text-[11.5px] text-muted", sum ? `${100 - sum}% to place` : "Empty: add your first stock")] : []));
+			const ok = {
+				name: NAME.test(d.handle.trim()),
+				count: d.picks.length >= rules.picks_min && d.picks.length <= rules.picks_max,
+				each: d.picks.length > 0 && d.picks.every((p) => p.weight >= rules.weight_min && p.weight <= rules.weight_max),
+				sum: sum === 100,
+			};
+			const check = (met: boolean, text: string) => add(h("li", `flex items-center gap-2 ${met ? "text-ink" : "text-muted"}`),
+				h("span", `num flex h-4 w-4 flex-none items-center justify-center rounded-full border text-[10px] ${met ? "border-up text-up" : "border-line-strong text-transparent"}`, "✓"), text);
+			checks.replaceChildren(
+				check(ok.name, "A name of 3 to 20 letters, digits, spaces, hyphens or underscores"),
+				check(ok.count, `${rules.picks_min} to ${rules.picks_max} single stocks (${d.picks.length} now)`),
+				check(ok.each, `Each one between ${rules.weight_min}% and ${rules.weight_max}%`),
+				check(ok.sum, `Weights that add up to 100% (${sum}% now)`));
+			send.textContent = open.entry ? (saved() ? "Entry sent" : "Update my entry") : `Send my entry for ${open.label.split(" ")[0]}`;
+			send.disabled = !Object.values(ok).every(Boolean) || saved();
+			if (!saved() && said.textContent?.startsWith("Your entry")) say("");
+		}
+
+		function drawRows() {
+			rows.replaceChildren(...d.picks.map((p, i) => {
+				const slider = h("input", "order-last col-span-3 h-1.5 w-full cursor-pointer accent-ink-strong sm:order-none sm:col-span-1");
+				Object.assign(slider, { type: "range", min: String(rules.weight_min), max: String(rules.weight_max), step: "1", value: String(p.weight) });
+				slider.setAttribute("aria-label", `Weight of ${p.ticker}`);
+				const box = h("input", "field !w-[4.25rem] text-right");
+				Object.assign(box, { type: "number", min: String(rules.weight_min), max: String(rules.weight_max), step: "1", value: String(p.weight), inputMode: "numeric" });
+				box.setAttribute("aria-label", `Weight of ${p.ticker}, in percent`);
+				slider.addEventListener("input", () => ((d.even = false), (p.weight = Number(slider.value)), (box.value = slider.value), refresh()));
+				box.addEventListener("input", () => ((d.even = false), (p.weight = Math.round(Number(box.value) || 0)), (slider.value = String(p.weight)), refresh()));
+				const remove = button("rounded px-2 py-1 text-lg leading-none text-muted hover:bg-raised hover:text-ink-strong", "×", () => (d.picks.splice(i, 1), d.even && deal(), drawRows(), refresh()));
+				remove.setAttribute("aria-label", `Remove ${p.ticker}`);
+				return add(h("div", "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-2 border-b border-line py-3 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto_auto]"),
+					add(h("div", "min-w-0"), h("div", "font-semibold text-ink-strong", p.ticker), h("div", "truncate text-[12px] text-muted", tidyName(p.name))),
+					slider, add(h("label", "flex items-center gap-1.5 text-[13px] text-muted"), box, "%"), remove);
+			}));
+			if (!d.picks.length) rows.append(h("p", "border-b border-line py-6 text-center text-[13px] text-muted", `Search a company or a ticker to add it. Single stocks only: no funds.`));
+		}
+
+		if (picking) search.removeEventListener("pick", picking);
+		search.addEventListener("pick", (picking = onPick));
+		function onPick(e: Event) {
+			const { ticker, name: company } = (e as CustomEvent<{ ticker: string; name: string }>).detail;
+			if (d.picks.some((p) => p.ticker === ticker)) return say(`${ticker} is already in the portfolio.`);
+			if (d.picks.length >= rules.picks_max) return say(`Up to ${rules.picks_max} stocks.`, true);
+			// A new stock takes what is left to place, within what one stock may be.
+			d.picks.push({ ticker, name: company, weight: Math.min(rules.weight_max, Math.max(rules.weight_min, 100 - total())) });
+			if (d.even) deal();
+			say("");
+			drawRows();
+			refresh();
+		}
+		name.addEventListener("input", () => ((d.handle = name.value), refresh()));
+
+		const even = button("btn btn-ghost", "Equal weights", () => {
+			d.even = true;
+			deal();
+			drawRows();
+			refresh();
+		});
+		const leave = open.entry ? button("btn btn-ghost", "Withdraw my entry", async () => {
+			if (!confirm(`Take your entry for ${open.label} back?`)) return;
+			await withdrawEntry().catch(() => {});
+			draft = null;
+			await load();
+		}) : null;
+
+		const panel = add(h("section", "panel"),
+			add(h("header", "panel-head flex-wrap"),
+				add(h("div", "min-w-0"), h("h2", "panel-title", `Your portfolio for ${open.label}`),
+					h("p", "mt-0.5 text-xs text-muted", open.entry ? `Sent${open.entry.updated_utc ? ` ${timeAgo(open.entry.updated_utc)}` : ""}. You can change it until the end of ${day(c.running.ends, true)}, New York time.` : `Not sent yet. Entries close at the end of ${day(c.running.ends, true)}, New York time.`)),
+				add(h("div", "flex items-center gap-2 text-[12.5px] text-muted"), "Closes in", countdown(open.closes_utc, "num text-ink-strong", true))),
+			add(h("div", "grid gap-x-10 gap-y-6 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_17rem]"),
+				add(h("div", "min-w-0"),
+					add(h("div", "grid gap-4 sm:grid-cols-2"),
+						add(h("label", "block"), h("span", "label mb-1.5 block", "The name you play under"), name),
+						add(h("div"), h("span", "label mb-1.5 block", "Add a stock"), search)),
+					add(h("div", "mt-6"), h("div", "label mb-1.5", "The mix"), bar),
+					rows,
+					add(h("div", "mt-4 flex flex-wrap items-center gap-2"), send, even, leave),
+					add(h("div", "mt-3"), said)),
+				add(h("aside", "min-w-0"), h("h3", "label mb-2.5", "What an entry needs"), checks,
+					h("p", "mt-4 text-[12.5px] leading-relaxed text-muted", `It plays ${open.label}, from the last close before it to its last close. Others see your name, your stocks and their weights once the month starts; until then, only that you are in.`))));
+		drawRows();
+		refresh();
+		return panel;
+	}
+
+	// --- History -----------------------------------------------------------------------------------
+
+	let pastMonth = "";
+	let sortBy: keyof Pick<RecordLine, "wins" | "months" | "average" | "best"> = "wins";
+
+	function historyView(c: Competition): HTMLElement {
+		const { months, record, you } = c.history;
+		if (!months.length) {
+			return add(h("section", "panel p-8 text-center"),
+				h("p", "text-lg text-ink-strong", "No month has ended yet."),
+				h("p", "mx-auto mt-2 max-w-xl text-sm text-ink", "When a month ends, its final standings are kept here, and with them everybody's record: the months played, the months won and the average return."));
+		}
+		const out = h("div", "grid min-w-0 gap-4");
+		if (you) {
+			const cells: [string, string, string][] = [["Months played", String(you.months), ""], ["Months won", String(you.wins), ""],
+				["Average return", signedPct(you.average, 2), tone(you.average)], ["Best month", signedPct(you.best, 2), tone(you.best)], ["All-time place", ordinal(you.rank), ""]];
+			out.append(add(h("section", "panel"), add(h("header", "panel-head"), h("h2", "panel-title", "Your record")),
+				add(h("div", "grid grid-cols-2 gap-px bg-line sm:grid-cols-5"), ...cells.map(([label, value, cls]) => add(h("div", "bg-page p-4"), h("div", "label", label), h("div", `num mt-1 text-xl font-semibold ${cls || "text-ink-strong"}`, value))))));
+		}
+
+		// Everybody's record. A column's head sorts by it.
+		const all = card("The record", "Every player's months: how many they played, how many they won, and their average return over the months they played.");
+		all.body.className = "";
+		const body = h("tbody");
+		const heads: [typeof sortBy, string][] = [["wins", "Won"], ["months", "Played"], ["average", "Average return"], ["best", "Best month"]];
+		const headRow = h("tr");
+		const fill = () => {
+			const rows = [...record].sort((a, b) => b[sortBy] - a[sortBy] || b.wins - a.wins || b.average - a.average);
+			body.replaceChildren(...rows.map((r, i) => {
+				const wins = add(h("td", "num"), ...Array.from({ length: Math.min(r.wins, 6) }, () => h("span", "mr-0.5 inline-block h-1.5 w-1.5 rounded-full bg-up align-middle")), h("span", `ml-1.5 ${r.wins ? "font-semibold text-ink-strong" : "text-muted"}`, String(r.wins)));
+				return add(h("tr", r.you ? "bg-raised/60" : ""), cell(String(i + 1), "num w-8 !text-left text-muted"),
+					add(h("td", "!text-left !font-sans"), h("span", "font-semibold text-ink-strong", who(r)), ...tags(r)),
+					wins, cell(String(r.months), "num text-ink"), cell(signedPct(r.average, 2), `num font-semibold ${tone(r.average)}`), cell(signedPct(r.best, 2), `num ${tone(r.best)}`));
+			}));
+			headRow.replaceChildren(h("th", "!text-left", "#"), h("th", "!text-left", "Player"), ...heads.map(([key, text]) => {
+				const b = button(`hover:text-ink-strong ${key === sortBy ? "text-ink-strong" : ""}`, `${text}${key === sortBy ? " ↓" : ""}`, () => ((sortBy = key), fill()));
+				const th = add(h("th"), b);
+				th.setAttribute("aria-sort", key === sortBy ? "descending" : "none");
+				return th;
+			}));
+		};
+		fill();
+		all.body.append(add(h("div", "overflow-x-auto"), add(h("table", "data-table"), add(h("thead"), headRow), body)));
+
+		// One month at a time, as it ended.
+		if (!months.some((m) => m.month === pastMonth)) pastMonth = months[0].month;
+		const past = months.find((m) => m.month === pastMonth)!;
+		const winner = past.standings[0];
+		const each = card(`${past.label}, as it ended`, winner ? `${who(winner)} won it with ${signedPct(winner.return, 2)}, among ${past.entrants}.` : "Nobody played it.");
+		if (past.sample) each.head.querySelector("h2")!.append(h("span", "ml-2 text-[11.5px] font-normal text-warn", "sample"));
+		each.body.className = "";
+		const picker = add(h("div", "flex flex-wrap gap-1.5 border-b border-line px-4 py-3"), ...months.map((m) => {
+			const b = button("rounded-[3px] border px-2.5 py-1 text-[13px] aria-[pressed=true]:border-ink-strong aria-[pressed=true]:bg-raised aria-[pressed=true]:text-ink-strong border-line-strong text-muted hover:border-muted hover:text-ink-strong",
+				m.label, () => ((pastMonth = m.month), draw()));
+			b.setAttribute("aria-pressed", String(m.month === pastMonth));
+			return b;
+		}));
+		each.body.append(picker, standings(past.standings, past.benchmark, { final: true }));
+		out.append(all.el, each.el);
+		return out;
+	}
+
+	// --- The page ----------------------------------------------------------------------------------
+
+	function rules(c: Competition): HTMLElement {
+		const r = c.rules;
+		return add(h("section", "panel p-5"), h("h2", "panel-title", "How it works"),
+			add(h("ol", "mt-3 grid gap-x-10 gap-y-2.5 text-[13px] leading-relaxed text-ink md:grid-cols-2"), ...[
+				`Build a portfolio of ${r.picks_min} to ${r.picks_max} single stocks listed in the US. No funds.`,
+				`Give each one between ${r.weight_min}% and ${r.weight_max}% of it, in whole percents that add up to 100.`,
+				"Send it before the month starts: until the end of the last day of the month before, New York time. You can change it until then; after that it is fixed.",
+				"It is measured from the last close before the month to the last close of the month, as bought at the start and left alone. Dividends are not counted.",
+				"The best return wins the month. A tie goes to the entry that was last changed earlier.",
+				"It is a game, with no money in it. Nothing here is advice, and a month won says nothing about the next.",
+			].map((text, i) => add(h("li", "flex gap-3"), h("span", "num flex-none text-muted", String(i + 1)), text))));
+	}
+
+	function draw() {
+		const c = data;
+		const tabs = h("div", "tabs border-b border-line pb-px pt-2");
+		tabs.id = "views";
+		tabs.setAttribute("role", "tablist");
+		for (const [key, text] of VIEWS) {
+			const t = button("tab-btn !py-2 !text-[14px] !font-semibold", key === "entry" && c.open.entry ? `${text} ✓` : text, () => go(key));
+			t.setAttribute("role", "tab");
+			t.setAttribute("aria-selected", String(key === view));
+			tabs.append(t);
+		}
+		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"),
+			pageHead("Community", "A portfolio of single stocks, one month, and the best return wins it.", { sample: c.sample }),
+			communityNav("competitions"), hero(c), tabs,
+			view === "entry" ? entryView(c) : view === "history" ? historyView(c) : monthView(c),
+			rules(c)));
+		tick();
+	}
+
+	async function load() {
+		data = await competition();
+		skew = Date.parse(data.now_utc) - Date.now();
+		draw();
+	}
+
+	async function start() {
+		await requireUser();
+		try {
+			await load();
+		} catch (e) {
+			failure(root, e);
+		}
+	}
+	start().catch(() => {});
+</script>
