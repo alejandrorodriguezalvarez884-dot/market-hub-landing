@@ -276,8 +276,13 @@ El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
 - **`/news/`** (`pages/news.astro`) tiene, bajo las pestañas de tipo: el sentimiento, que se elige
   pulsando su marca (las tres de los artículos, `toneMark` en `lib/news.ts`: Bullish, Bearish,
   Neutral; pulsar la elegida la suelta; el usuario pidió que no fuera un desplegable), y dos
-  desplegables, `Any sector` (los sectores que tienen alguna noticia, y `Macro` al final) y
-  `Any day` (los días que hay, en la hora del lector). Se combinan entre sí y con las pestañas. Con algún filtro puesto salen "Clear filters" y la cuenta ("3 of 25"); sin resultados,
+  menús, `Any sector` (los sectores que tienen alguna noticia, y `Macro` al final) y
+  `Any day` (los días que hay, en la hora del lector). Se combinan entre sí y con las pestañas.
+  **Los menús son propios, no `<select>`**: al usuario la lista del navegador le salía blanca y
+  no pegaba con la web. Son un botón y un panel con el estilo del menú de la cuenta
+  (`bg-panel`, `border-line-strong`); uno abierto a la vez, se cierran al pulsar fuera o con
+  Escape, y las flechas recorren las opciones. Si hace falta otro menú en la web, sale de ahí.
+  (Los menús están en `main` sin desplegar: en producción siguen los `<select>` de `00017-bx9`.) Con algún filtro puesto salen "Clear filters" y la cuenta ("3 of 25"); sin resultados,
   "No news matches these filters.".
 - **Se filtra en el navegador**, sobre lo que ya se había pedido: no hay llamadas nuevas ni gasto.
   La página pide ahora la portada entera (`limit=200`, que es `NEWS_FRONT_ITEMS`; el tope de

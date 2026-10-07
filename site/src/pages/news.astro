@@ -30,7 +30,7 @@ import Site from "../components/Site.astro";
 </Site>
 
 <script>
-	import { add, h } from "../lib/dom";
+	import { add, h, svg } from "../lib/dom";
 	import { timeAgo } from "../lib/format";
 	import { news, watchNews, type News, type NewsItem } from "../lib/market";
 	import { byDay, dayKey, dayLabel, newsLine, SENTIMENTS, toneMark, type Sentiment } from "../lib/news";
@@ -91,20 +91,72 @@ import Site from "../components/Site.astro";
 		}));
 	}
 
+	// The menus of the filters are the page's own, drawn like its other menus: a browser's select
+	// opens a list in the system's colours. One is open at a time; a click elsewhere closes it.
+	const menus = () => document.querySelectorAll<HTMLElement>("#news-filters [data-menu]");
+	function shut(but?: Node | null) {
+		for (const m of menus()) {
+			if (but && m.contains(but)) continue;
+			m.querySelector<HTMLElement>("[role=listbox]")!.hidden = true;
+			m.querySelector("button")!.setAttribute("aria-expanded", "false");
+		}
+	}
+	document.addEventListener("click", (e) => shut(e.target as Node));
+
 	// How it reads is chosen by its own mark, the one each item carries: pressing one filters by
-	// it, pressing it again lets go. A sector and a day are a select each: one is offered when some
-	// item has it, and one asked for in the address and no longer there stays in its list, so the
+	// it, pressing it again lets go. A sector and a day are a menu each: one is offered when some
+	// item has it, and one asked for in the address and no longer there stays in its menu, so the
 	// reader sees what is filtering.
 	function filters(n: News, refreshing: boolean) {
 		const present = (k: Key) => [...new Set([...n.items.map(valueOf[k]), chosen[k]].filter(Boolean))];
-		const select = (k: Key, label: string, options: string[][]) => {
-			const s = h("select", "field !w-auto max-w-full cursor-pointer !px-2 !py-1 !text-[13px]");
-			s.setAttribute("aria-label", label);
-			s.append(new Option(`Any ${label.toLowerCase()}`, ""), ...options.map(([value, text]) => new Option(text, value)));
-			s.value = chosen[k];
-			if (!chosen[k]) s.classList.add("!text-muted");
-			s.addEventListener("change", () => choose(n, refreshing, { [k]: s.value }));
-			return s;
+		const menu = (k: Key, label: string, options: string[][]) => {
+			const all = [["", `Any ${label.toLowerCase()}`], ...options];
+			const on = Boolean(chosen[k]);
+			const box = h("div", "relative");
+			box.dataset.menu = k;
+			const arrow = svg("svg", { viewBox: "0 0 10 6", class: "h-1.5 w-2.5 flex-none", fill: "none", stroke: "currentColor", "stroke-width": 1.5, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" });
+			arrow.append(svg("path", { d: "M1 1l4 4 4-4" }));
+			const button = add(h("button", `inline-flex items-center gap-2 rounded-[3px] border px-2 py-1 text-[13px] ${on ? "border-ink-strong bg-raised text-ink-strong" : "border-line-strong text-muted hover:border-muted hover:text-ink-strong"}`),
+				all.find(([value]) => value === chosen[k])![1], arrow);
+			button.type = "button";
+			button.setAttribute("aria-haspopup", "listbox");
+			button.setAttribute("aria-expanded", "false");
+			const list = h("div", "absolute left-0 top-full z-40 mt-1 max-h-80 min-w-full overflow-y-auto whitespace-nowrap rounded-[3px] border border-line-strong bg-panel p-1.5 shadow-2xl shadow-black/60");
+			list.setAttribute("role", "listbox");
+			list.setAttribute("aria-label", label);
+			list.hidden = true;
+			for (const [value, text] of all) {
+				const o = h("button", `block w-full rounded px-3 py-1.5 text-left text-[13px] hover:bg-raised focus-visible:bg-raised ${value === chosen[k] ? "text-ink-strong" : "text-ink"}`, text);
+				o.type = "button";
+				o.setAttribute("role", "option");
+				o.setAttribute("aria-selected", String(value === chosen[k]));
+				o.addEventListener("click", () => {
+					choose(n, refreshing, { [k]: value });
+					document.querySelector<HTMLElement>(`#news-filters [data-menu="${k}"] button`)?.focus();
+				});
+				list.append(o);
+			}
+			const open = (yes: boolean) => {
+				shut();
+				list.hidden = !yes;
+				button.setAttribute("aria-expanded", String(yes));
+			};
+			button.addEventListener("click", () => open(Boolean(list.hidden)));
+			// Down and up walk the options, and Escape closes the menu and gives the focus back.
+			box.addEventListener("keydown", (e) => {
+				const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+				if (e.key === "Escape" && !list.hidden) {
+					open(false);
+					button.focus();
+				}
+				if (!step) return;
+				e.preventDefault();
+				if (list.hidden) open(true);
+				const items = [...list.children] as HTMLElement[];
+				const at = items.indexOf(document.activeElement as HTMLElement);
+				items[at < 0 ? Math.max(0, all.findIndex(([value]) => value === chosen[k])) : (at + step + items.length) % items.length].focus();
+			});
+			return add(box, button, list);
 		};
 		const mark = (v: Sentiment) => {
 			const on = chosen.sentiment === v;
@@ -122,8 +174,8 @@ import Site from "../components/Site.astro";
 		clear.addEventListener("click", () => choose(n, refreshing, { kind: "", sector: "", sentiment: "", day: "" }));
 		$("news-filters").replaceChildren(
 			marks,
-			select("sector", "Sector", present("sector").sort((a, b) => Number(a === "Macro") - Number(b === "Macro") || a.localeCompare(b)).map((v) => [v, v])),
-			select("day", "Day", present("day").sort().reverse().map((v) => [v, dayLabel(`${v}T12:00:00`)])),
+			menu("sector", "Sector", present("sector").sort((a, b) => Number(a === "Macro") - Number(b === "Macro") || a.localeCompare(b)).map((v) => [v, v])),
+			menu("day", "Day", present("day").sort().reverse().map((v) => [v, dayLabel(`${v}T12:00:00`)])),
 			...(filtering() ? [clear, h("span", "num ml-auto text-[12.5px] text-muted", `${shown(n).length} of ${n.items.length}`)] : []),
 		);
 	}
