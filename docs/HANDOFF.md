@@ -35,7 +35,7 @@ Decisiones del usuario:
 | Repo en GitHub: `alejandrorodriguezalvarez884-dot/market-hub-landing` (el código se movió aquí desde `market-hub` el 2026-10-05, con su historial); código en `main` | |
 | **Login único con las herramientas (2026-10-05)**: dominio `themarkethub.app` (comprado por el usuario). La cookie de sesión lleva `Domain=themarkethub.app` (`MARKETHUB_COOKIE_DOMAIN`), solo en peticiones que llegan por ese dominio (`HostScopedCookieDomain`; en `*.run.app` queda en el host). El login acepta volver a `https://<sub>.themarkethub.app/...`. Fundamentals Lab (`fundamentals.`) y el Earnings Radar del hub (`radar.`, servicio `earnings-radar-hub`) leen esa cookie con el mismo secreto (`market-hub-session-secret`) y piden login. `earningsradar.app` sigue público y sin tocar | Verificar `themarkethub.app` en Search Console, crear los mapeos de dominio de Cloud Run y añadir los DNS; añadir `https://themarkethub.app` a los orígenes del cliente OAuth |
 
-### Watchlist: muro de gráficas, lectura de cada acción y mapa (2026-10-07; en `main`, **sin desplegar**)
+### Watchlist: muro de gráficas, lectura de cada acción y mapa (2026-10-07; desplegado como `market-hub-00022-l94`)
 
 El usuario pidió una sección nueva en My Hub, entre Analysis y Community: ver las acciones de la
 watchlist "de una manera única", varias gráficas a la vez (eligiendo cuáles y cuántas, y que se
@@ -85,7 +85,7 @@ sector, y más), mostrado de forma visual y no como texto plantado.
   regla "describir, no recomendar" sigue: un estado nombra dónde está una cifra, y ni el código ni
   el modelo dicen qué hará un precio. Avisado al usuario.
 - **Quién escribe las frases**: el código siempre (`watch.sentences`, gratis, salen con la página).
-  Con `ANTHROPIC_API_KEY`, Claude Haiku 4.5 (`StockReader`, `WATCH_MODEL`) escribe además un
+  Con `ANTHROPIC_API_KEY`, Claude Sonnet 5.5 (`StockReader`, `WATCH_MODEL`) escribe además un
   titular, de cuatro a seis frases (una por aspecto) y un "contraste" (dos cifras que no apuntan
   al mismo lado); la página pone la del modelo donde la hay y la del código en el resto. Filtro:
   `insights.reads_as_advice` más el vocabulario de una operación (`watch.TRADE`: overbought, entry,
@@ -94,12 +94,19 @@ sector, y más), mostrado de forma visual y no como texto plantado.
 - **Qué sale del servidor**: al modelo, un ticker con sus cifras de mercado (`watch.facts`, unos
   1.600 caracteres): nada del usuario ni del resto de su lista. Por eso **una acción se lee una vez
   al día para todos** (caché en memoria por ticker y día).
-- **Topes de gasto, elegidos por el agente** (`config.py`, cambiables por entorno): 40 lecturas
-  nuevas por usuario y día (`WATCH_READS_PER_USER_PER_DAY`) y 300 al día en total
-  (`WATCH_READS_PER_DAY`). Coste estimado, **no medido**: un tercio de céntimo por acción (unos
-  1.400 tokens de entrada y 350 de salida), así que el tope total son alrededor de 1 USD al día.
-  Los contadores y la caché son en memoria, por instancia: un arranque en frío los pone a cero.
-  La lectura se pide solo para las acciones que se ven en "Readings" o que se abren en el panel.
+- **Modelo y gasto: Sonnet 5.5 y sin tope, decisión del usuario** (2026-10-07, al desplegar; el
+  agente había propuesto Haiku 4.5 con 40 lecturas por usuario y día y 300 en total). Las dos
+  variables siguen ahí y ponen un tope si se les da valor (`WATCH_READS_PER_USER_PER_DAY`,
+  `WATCH_READS_PER_DAY`); vacías, no hay ninguno. Sonnet 5.5 piensa antes de contestar y eso
+  cuenta en `max_tokens`: la petición va con `effort: low` y 4.000 tokens de margen (a Haiku no se
+  le manda `effort`, que no lo admite). **Coste medido** con tres lecturas reales (NVDA, KO, AAPL):
+  2.255 tokens de entrada y 502 de salida, **0,0095 USD por acción**, entre 8 y 11 segundos. Lo que
+  limita el gasto ahora: una acción se lee una vez al día para todos (caché en memoria, por
+  instancia; un arranque en frío la vacía), hace falta sesión, y el límite de 1.500 peticiones por
+  IP y hora. Con eso, una cuenta que pida lecturas de tickers distintos sin parar puede gastar
+  hasta unos 14 USD por hora: el freno de verdad es el crédito de la cuenta de la API, como en las
+  noticias. La lectura se pide solo para las acciones que se ven en "Readings" o que se abren en
+  el panel.
 - **API**: `GET /api/watchlist` (las listas del usuario, leídas), `/api/watchlist/stock?t=`
   (cualquier otra), `/api/watchlist/bars?t=` (tres años de barras, en columnas) y
   `/api/watchlist/read?t=` (consenso y frases). Todas piden sesión; límite propio de 1.500
@@ -115,12 +122,17 @@ sector, y más), mostrado de forma visual y no como texto plantado.
   375 px: las tres vistas, elegir fichas, cuántas a la vez, tramo y estilo, paginar con el teclado,
   buscar otra acción y pasarla a la watchlist, el panel lateral, sin desbordes. Las cifras, el
   consenso y las frases del código, además, contra Yahoo real desde Python.
-- **Sin probar**: el modelo de verdad (no se ha gastado nada: hace falta el visto bueno del
-  usuario para la primera llamada, y conviene leer lo que escribe de unas cuantas acciones);
-  la página con datos reales en el navegador; con el login de Google.
-- **Pendiente / a decidir**: desplegar el portal y las dos herramientas (por el enlace nuevo de
-  sus barras); los umbrales de arriba; si la lectura con IA debe guardarse en Firestore para que
-  un arranque en frío no la vuelva a pagar; la landing y la película no enseñan la Watchlist.
+- **Probado con el modelo de verdad** (2026-10-07, desde el Mac, con la clave de Secret Manager y
+  cifras reales de Yahoo): las tres lecturas pasaron el filtro enteras, con titular, seis frases
+  (una por aspecto) y contraste, sin nada que suene a consejo. **Sin probar**: la página con datos
+  reales en el navegador y con el login de Google (en producción responde, `/watchlist/` da 200 y
+  su API pide sesión).
+- **Desplegado el 2026-10-07** a petición del usuario, con las dos herramientas
+  (`fundamentals-lab-00013-56v` y `earnings-radar-hub-00009-z2g`, por el enlace nuevo de sus
+  barras). Configuración y secretos como estaban.
+- **Pendiente / a decidir**: los umbrales de arriba; si la lectura con IA debe guardarse en
+  Firestore para que un arranque en frío no la vuelva a pagar (ahora pesa más: cada lectura cuesta
+  un céntimo); la landing y la película no enseñan la Watchlist.
 
 ### Premarket y after hours en la ficha (2026-10-07; desplegado como `market-hub-00021-fx4`)
 
