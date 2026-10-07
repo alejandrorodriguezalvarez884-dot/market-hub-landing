@@ -7,9 +7,9 @@ import { Muxer as WebmMuxer, ArrayBufferTarget as WebmTarget } from "./node_modu
 import { RATE, levels, score as firstScore } from "./audio.js";
 import { DURATION, FPS, H, W, draw as firstDraw } from "./film.js";
 
-// Another cut of the film, asked for in the address (film.html?cut=adventure): the same pictures
+// Another cut of the film, asked for in the address (film.html?cut=progress): the same pictures
 // to another score, each with its own drawing and its own sound.
-const CUTS = { adventure: ["./adventure.js", "./adventure-audio.js"] };
+const CUTS = { progress: ["./progress.js", "./progress-audio.js"] };
 const cut = CUTS[new URLSearchParams(location.search).get("cut") ?? ""];
 const [picture, cutSound] = cut ? await Promise.all(cut.map((file) => import(file))) : [null, null];
 const draw = picture?.draw ?? firstDraw;

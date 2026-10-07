@@ -1,15 +1,16 @@
-// A second cut of the film, to a driving score (adventure-audio.js): the same pictures as film.js,
-// moved onto the beat. Nothing of film.js is redrawn here. Its clock is bent instead: every
-// moment the picture marks (a row landing, a headline arriving, a part opening) is given a place
-// on the score's grid, and the film runs faster or slower in between to get there on time. Over
-// that, the frame leans on the kick drum, and a line along the bottom carries the dot from the
-// first part to the last.
+// A second cut of the film, to a solemn score that keeps moving forward (progress-audio.js): the
+// same pictures as film.js, moved onto its pulse. Nothing of film.js is redrawn here. Its clock is
+// bent instead: every moment the picture marks (a row landing, a headline arriving, a part
+// opening) is given a place on the score's grid, and the film runs faster or slower in between to
+// get there on time. Over that, the frame leans on the great drum, and a line along the bottom
+// carries the dot from the first part to the last.
 
 import { DURATION, EVENTS as PLAYED, H, T, W, draw as plain } from "./film.js";
 
 export { DURATION, FPS, H, W } from "./film.js";
 
-// 128 beats a minute: the film's sixty seconds are thirty-two bars of four.
+// The grid: 128 pulses a minute, in bars of four, thirty-two of them in the film's sixty seconds.
+// The score is felt at half of that, slow and wide; the pulse is what the low strings bow.
 export const BPM = 128;
 export const BEAT = 60 / BPM;
 export const BAR = 4 * BEAT;
@@ -23,37 +24,37 @@ export const at = (bar, beat = 1) => bar * BAR + (beat - 1) * BEAT;
 // The bar each part opens on.
 export const PARTS = { intro: 0, today: 4, lede: 6, markets: 8, news: 12, hub: 16, year: 19, tools: 22, jobs: 25, outro: 28, name: 29 };
 
-// The harmony, a bar each, in F major: the bass note and the chord, as MIDI numbers.
-const Dm = { bass: 38, notes: [62, 65, 69] }, Bb = { bass: 34, notes: [58, 62, 65] };
-const F = { bass: 41, notes: [60, 65, 69] }, C = { bass: 36, notes: [60, 64, 67] };
+// The harmony, a bar each: the bass note and the chord, low, as MIDI numbers. The bass climbs,
+// D, F, B flat, C, and starts again from D: each turn is a step up, and the last one comes home to F.
+const Dm = { bass: 38, notes: [50, 57, 62, 65] }, F = { bass: 41, notes: [53, 57, 60, 65] };
+const Bb = { bass: 46, notes: [53, 58, 62, 65] }, C = { bass: 48, notes: [52, 55, 60, 67] };
 export const HARMONY = [
-  Dm, Dm, Bb, C,          // the mark: the pulse gathers
-  Dm, Bb, F, C,           // Today: the drums come in, at half the pace
-  Dm, Bb, F, C,           // Markets: the full beat
-  Bb, F, Dm, C,           // News
-  F, C, Dm, Bb, F, C,     // My Hub: the tune, in the major
-  Dm, Bb, F, C,           // the tools
-  Bb, C,                  // the climb
-  Bb, F, F, F,            // the mark again, and home
+  Dm, Dm, Dm, Dm,          // the mark: one low note, and the strings begin to bow
+  Dm, Dm, F, F,            // Today
+  Bb, Bb, C, C,            // Markets
+  Dm, Dm, F, F,            // News
+  Bb, Bb, C, C, Dm, C,     // My Hub: the horns take the tune
+  Dm, Dm, F, F,            // the tools
+  Bb, C,                   // the climb
+  C, F, F, F,              // the mark again, and home
 ];
 
-// How much of the band plays in a bar, from 0 to 1: the film grows as it goes.
-export const drive = (bar) => (bar < 4 ? 0.25 + bar * 0.1 : bar < 8 ? 0.7 : bar < 12 ? 0.85 : bar < 16 ? 0.8 : bar < 28 ? 1 : bar < 29 ? 0.7 : 1);
+// How much of the orchestra plays in a bar, from 0 to 1: the film grows as it goes.
+export const drive = (bar) => (bar < 4 ? 0.2 + bar * 0.08 : bar < 8 ? 0.55 : bar < 12 ? 0.7 : bar < 16 ? 0.75 : bar < 22 ? 0.9 : bar < 28 ? 1 : bar < 29 ? 0.8 : 1);
 
-// The beats of a bar the kick drum falls on. The picture leans on the same list.
-export function kick(bar) {
-  if (bar < 1 || bar > 29) return [];
-  if (bar < 4) return bar === 3 ? [1, 3] : [1];  // a heartbeat
-  if (bar < 8) return [1, 2.5];                  // half the pace: the snare answers on three
-  if (bar === 15) return [1, 2];                 // room for the drums to roll into My Hub
-  if (bar === 21) return [1, 2, 3];
-  if (bar === 27) return [];                     // the climb holds its breath
-  if (bar >= 28) return [1];
-  return [1, 2, 3, 4];
+// The beats of a bar the great drum falls on: seldom at first, then closer. The picture leans on
+// the same list.
+export function drum(bar) {
+  if (bar < 2 || bar > 29) return [];
+  if (bar < 8) return [1];
+  if (bar < 16) return [1, 3];
+  if (bar < 22) return [1, 2.5, 3];
+  if (bar < 28) return [1, 2.5, 3, 4];
+  return [1];
 }
 
 // Where a part lands with everything at once: [bar, weight].
-export const HITS = [[4, 0.7], [8, 1], [12, 0.6], [16, 1], [22, 0.9], [28, 0.7], [29, 1.2]];
+export const HITS = [[4, 0.6], [8, 0.8], [12, 0.6], [16, 1], [22, 0.9], [28, 0.7], [29, 1.2]];
 
 // --- The clock, bent ------------------------------------------------------------------------------
 
@@ -111,11 +112,11 @@ export const EVENTS = PLAYED.map((e) => ({ ...e, t: toCut(e.t), ...(e.length ? {
 
 const clamp = (v) => Math.min(1, Math.max(0, v));
 
-// How hard the last kick still pushes, and the last landing, each from 1 down to 0.
+// How hard the last stroke of the drum still pushes, and the last landing, each from 1 down to 0.
 function push(t) {
   const bar = Math.floor(t / BAR);
   let beat = 0, landing = 0;
-  for (const b of [bar - 1, bar]) for (const n of kick(b)) if (t >= at(b, n)) beat = Math.max(beat, Math.exp(-(t - at(b, n)) * 9));
+  for (const b of [bar - 1, bar]) for (const n of drum(b)) if (t >= at(b, n)) beat = Math.max(beat, Math.exp(-(t - at(b, n)) * 6));
   for (const [b, weight] of HITS) if (t >= at(b)) landing = Math.max(landing, weight * Math.exp(-(t - at(b)) * 4.5));
   return [beat, landing];
 }
@@ -154,7 +155,7 @@ function road(ctx, t, beat) {
 
 export function draw(ctx, t) {
   const [beat, landing] = push(t);
-  // The whole frame swells a little on the kick, and more where a part lands.
+  // The whole frame swells a little on the drum, and more where a part lands.
   const scale = 1 + 0.007 * beat + 0.022 * landing;
   ctx.save();
   ctx.translate(W / 2, H / 2);

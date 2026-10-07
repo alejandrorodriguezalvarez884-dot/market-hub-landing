@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const here = dirname(fileURLToPath(import.meta.url));
-// `--cut=adventure` renders that cut instead, as a trial: into film/out/, not into the site.
+// `--cut=progress` renders that cut instead, as a trial: into film/out/, not into the site.
 const cut = process.argv.find((a) => a.startsWith("--cut="))?.slice(6) ?? "";
 const site = cut ? join(here, "out") : join(here, "..", "site", "public");
 const name = cut ? `film-${cut}` : "film";

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const here = dirname(fileURLToPath(import.meta.url));
-// `--cut=adventure` checks that cut's trial files in film/out/ instead of the site's.
+// `--cut=progress` checks that cut's trial files in film/out/ instead of the site's.
 const cut = process.argv.find((a) => a.startsWith("--cut="))?.slice(6) ?? "";
 const site = cut ? join(here, "out") : join(here, "..", "site", "public");
 const film = cut ? `film-${cut}` : "film";

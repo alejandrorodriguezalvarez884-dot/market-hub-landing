@@ -554,21 +554,26 @@ grabación con Playwright descrita más arriba.
   el sonido se activa en los controles. La nota pasa de "No sound" a "With sound".
 - `film/` no se sube a Cloud Run (`.gcloudignore`, `.dockerignore`).
 - **Prueba con otra música (2026-10-07; sin publicar)**: el usuario pidió probar la película con
-  una música "motivadora, de progreso y aventura" en vez de la actual (que oye como relajante), y
-  que los movimientos la acompañen. Es un segundo montaje, **sin tocar el primero**:
-  `make film CUT=adventure` lo deja en `film/out/film-adventure.{webm,mp4}` (no en la web).
-  - `film/adventure-audio.js`: banda sintetizada a 128 pulsos por minuto (los 60 s son 32 compases):
-    batería, bajo, una figura rápida de notas cortas, acordes y, desde My Hub, una melodía; crece
-    por partes, sube antes del final y cae en el logo. Las notas que "toca" la imagen siguen.
-  - `film/adventure.js`: no redibuja nada. **Dobla el reloj** de `film.js`: cada momento que la
+  una música que motive y suene a progreso en vez de la actual (que oye como relajante), y que los
+  movimientos la acompañen. Es un segundo montaje, **sin tocar el primero**:
+  `make film CUT=progress` lo deja en `film/out/film-progress.{webm,mp4}` (no en la web).
+  - **Primer intento, descartado por el usuario** ("no me gusta"): una banda a 128 pulsos con
+    batería, bajo, notas cortas rápidas y campanas agudas (commit `51a251d`, `adventure*.js`). Pidió
+    cambiar "las teclas, ese sonido agudo" por algo **más grave y solemne, que motive y suene a
+    progreso**.
+  - **Segundo intento** (`film/progress-audio.js`): grave, lento y ancho. Las cuerdas bajas marcan
+    un pulso constante, **el bajo sube un escalón en cada cambio de acorde** (re, fa, si bemol, do,
+    y vuelta a empezar; al final cae en fa), un tambor grande marca los compases, la orquesta crece
+    por partes y desde My Hub las trompas llevan una melodía lenta. Sin platos rápidos ni caja. Las
+    notas que "toca" la imagen son ahora una cuerda grave pulsada, dos octavas por debajo.
+  - `film/progress.js`: no redibuja nada. **Dobla el reloj** de `film.js`: cada momento que la
     imagen marca (una fila, un titular, el comienzo de una parte) se lleva a su sitio en la rejilla
     de la música (`ANCHORS`), y entre uno y otro la película corre más o menos deprisa (entre 0,6 y
-    2 veces). Encima, el cuadro entero crece un poco con cada bombo y más donde cae una parte, y una
-    línea abajo lleva el punto de la primera parte a la última.
+    2 veces). Encima, el cuadro entero crece un poco con cada golpe del tambor y más donde cae una
+    parte, y una línea abajo lleva el punto de la primera parte a la última.
   - El agente no puede oírlo. Medido por compases: pico 0,89, unos −15 dB de media, graves unos 5 dB
-    por debajo del total y agudos entre 10 y 15. 73 de las 81 notas de la imagen caen en la rejilla
-    (las otras 8 son las que suenan pegadas a otra).
-  - Si se adopta: pesa el doble que la actual (16 MB en WebM, 14 en MP4), porque el cuadro se mueve
+    por debajo del total y agudos unos 16 (oscuro, como se pidió).
+  - Si se adopta: pesa el doble que la actual (16 MB en WebM, 13 en MP4), porque el cuadro se mueve
     entero en cada pulso; habría que bajar el `bitrate` en `film/page.js` o suavizar ese movimiento.
 
 ### Desplegado el 2026-10-06, y despliegues en paralelo
