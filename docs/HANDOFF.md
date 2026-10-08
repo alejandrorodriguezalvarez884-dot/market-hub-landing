@@ -167,14 +167,18 @@ SMTP y se quitó entero, commit `d50e9df`).
   allí): que el usuario envíe uno de prueba, lo vea con `make inbox` y lo retire. El botón "Take
   it back" pulsado en el navegador (su ruta sí está testeada).
 
-### La página de privacidad habla de la app de móvil (2026-10-08; **sin desplegar**)
+### La página de privacidad habla de la app de móvil (2026-10-08; **desplegado**, revisión `market-hub-00030-bgx`)
 
 Antes de publicar la app en Google Play, `/privacy/` dice que existe y qué guarda: nada más en
 el servidor; en el teléfono, solo la sesión (el token firmado, con nombre y email, en el llavero),
 que se quita al salir; ningún kit de anuncios ni de analítica; ningún permiso pedido al usuario;
 Google por el navegador del teléfono y el mismo captcha al crear una cuenta. Es la dirección que
 se da a Play como política de privacidad (`market-hub-mobile/store/google-play/LISTING.md`).
-`astro check` y el build en verde. **Pendiente**: desplegar.
+`astro check` y el build en verde. Desplegado desde una copia limpia del commit `4364179` (otra
+sesión tenía cambios sin commitear en la carpeta), tras comparar el `.env` con el servicio.
+Comprobado en producción: `/privacy/` lleva el párrafo de la app, las rutas de la app y las de
+los envíos siguen respondiendo, `/api/config` sigue en `registration: captcha`, y el servicio
+conserva variables, secretos, memoria y escalado.
 
 ### La app de móvil crea cuentas (2026-10-08; **desplegado**, revisión `market-hub-00027-wcg`)
 
