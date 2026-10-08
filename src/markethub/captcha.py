@@ -16,6 +16,7 @@ made (Cloudflare not answering) counts as failed: the door stays shut rather tha
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 
@@ -50,6 +51,24 @@ class Turnstile:
             return False
         # A token made for another purpose on the same site is not one for this.
         return body.get("action") in (None, "", ACTION)
+
+
+def app_page(site_key: str) -> str:
+    """The widget on a page by itself, for the phone app to show inside its own form (a WebView):
+    Turnstile runs only on a page of the domain its key was made for, so the page is ours. It
+    hands what the widget says to the app that shows it, and to nobody else: in a browser there
+    is nobody to hand it to. {"token": ""} says the one given before no longer counts."""
+    key = json.dumps(site_key).replace("<", "\\u003c")
+    return ("<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+            "<meta name=robots content=noindex><title>Market Hub</title>"
+            "<style>html,body{margin:0;background:#0b0c0d}#check{min-height:65px}</style>"
+            "<div id=check></div><script>"
+            "function say(m){if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify(m))}"
+            f"function ready(){{turnstile.render('#check',{{sitekey:{key},theme:'dark',size:'flexible',action:'{ACTION}',"
+            "callback:function(t){say({token:t})},'expired-callback':function(){say({token:''})},"
+            "'error-callback':function(){say({token:'',error:true})}})}"
+            "</script><script src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=ready' async defer "
+            "onerror='say({token:\"\",error:true})'></script></html>")
 
 
 def default_captcha() -> Turnstile | None:

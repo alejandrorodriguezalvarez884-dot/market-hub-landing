@@ -98,6 +98,55 @@ def test_the_app_cannot_sign_in_with_a_password_where_passwords_are_off(users, m
     assert app_sign_in(TestClient(app)).status_code == 404
 
 
+# --- Making an account -----------------------------------------------------------------------------
+
+
+def app_register(phone, email=EMAIL, password=PASSWORD, name="Ana Test", captcha="human"):
+    return phone.post("/api/app/auth/register", json={"email": email, "password": password, "name": name, "captcha": captcha})
+
+
+def test_the_app_makes_an_account_for_a_token_and_no_cookie(phone, captcha):
+    r = app_register(phone)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["new"] is True and body["has_data"] is False and body["user"]["provider"] == "password"
+    assert "set-cookie" not in r.headers and not phone.cookies
+    assert captcha.asked[-1] == ("human", "testclient")
+    assert phone.get("/api/me", headers=as_(body["token"])).json()["user"] == body["user"]
+    assert app_sign_in(phone).json()["user"] == body["user"]
+    taken = app_register(phone)
+    assert taken.status_code == 400 and "token" not in taken.json()
+
+
+def test_an_account_made_from_the_app_takes_the_captcha_first(phone, logins):
+    for token in ("", "a robot"):
+        refused = app_register(phone, password="short", captcha=token)
+        assert refused.status_code == 400 and "person" in refused.json()["detail"] and "password" not in refused.json()["detail"]
+    assert logins.docs == {}
+    assert app_register(phone, password="short").status_code == 400 and logins.docs == {}  # a person, and still the rules
+
+
+def test_the_app_shows_the_captcha_on_a_page_of_the_portal(phone):
+    r = phone.get("/api/app/captcha")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
+    assert '"test-site-key"' in r.text and "challenges.cloudflare.com/turnstile" in r.text and "ReactNativeWebView" in r.text
+    assert "set-cookie" not in r.headers and r.headers["cache-control"] == "no-store"
+
+
+def test_where_no_captcha_is_asked_for_the_app_has_no_page_for_it(users, market, directory, monkeypatch):
+    def app():
+        return TestClient(create_app(users=users, market=market, directory=directory, verifier=fake_verifier, client_id=CLIENT_ID, session_secret="s",
+                                     secure_cookies=False, community_store=MemoryCommunity(), insight_writer=None, logins=MemoryLogins(),
+                                     password_cost=FAST, captcha=None))
+
+    closed = app()
+    assert closed.get("/api/app/captcha").status_code == 404 and app_register(closed).status_code == 403
+    monkeypatch.setenv("MARKETHUB_OPEN_REGISTRATION", "1")  # a developer's machine
+    opened = app()
+    assert opened.get("/api/app/captcha").status_code == 404
+    assert app_register(opened, captcha="").json()["token"]
+
+
 # --- Asking with it --------------------------------------------------------------------------------
 
 

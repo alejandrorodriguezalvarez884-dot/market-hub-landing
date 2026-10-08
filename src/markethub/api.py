@@ -80,7 +80,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import accounts as accounts_
 from . import dashboard
 from .accounts import Accounts, LoginStore, default_logins
-from .captcha import default_captcha, open_without
+from .captcha import app_page, default_captcha, open_without
 from .community import PERIODS as BOARD_PERIODS
 from .community import Community, CommunityStore, default_community
 from .community import Refused as SharingRefused
@@ -357,9 +357,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         if not limiter.allow(_client_address(request)):
             raise HTTPException(429, sorry)
 
-    @app.post("/api/auth/register")
-    def register(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000),
-                 name: str = Body(embed=True, max_length=200), captcha: str = Body("", embed=True, max_length=4096)) -> dict:
+    def made(request: Request, email: str, password: str, name: str, captcha: str) -> dict:
+        """A new account of ours, for the site or for the app: the same door and the same checks."""
         if registration == "closed":
             raise HTTPException(403, "New accounts cannot be made here right now.")
         by_password(request, registering, "Too many accounts were made from this address. Try again later.")
@@ -371,7 +370,29 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         except accounts_.Refused as exc:
             raise HTTPException(400, str(exc)) from None
         log.info("account made")
-        return enter(request, user, new=True)
+        return user
+
+    @app.post("/api/auth/register")
+    def register(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000),
+                 name: str = Body(embed=True, max_length=200), captcha: str = Body("", embed=True, max_length=4096)) -> dict:
+        return enter(request, made(request, email, password, name, captcha), new=True)
+
+    @app.post("/api/app/auth/register")
+    def app_register(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000),
+                     name: str = Body(embed=True, max_length=200), captcha: str = Body("", embed=True, max_length=4096)) -> dict:
+        """An account made from the phone app: the captcha is asked for all the same (the app shows
+        its widget on the page below), and a token comes back where the site gets a cookie."""
+        user = made(request, email, password, name, captcha)
+        return welcome(user, new=True) | {"token": tokens.issue(user)}
+
+    @app.get("/api/app/captcha")
+    def app_captcha(request: Request) -> Response:
+        """The captcha's widget on a page of this site, for the app to show inside itself: the
+        widget only runs on a page of the domain its key was made for."""
+        allow(request)
+        if registration != "captcha":
+            raise HTTPException(404, "No check is asked for here.")
+        return HTMLResponse(app_page(human.site_key))
 
     @app.post("/api/auth/password")
     def sign_in_password(request: Request, email: str = Body(embed=True, max_length=300), password: str = Body(embed=True, max_length=1000)) -> dict:
