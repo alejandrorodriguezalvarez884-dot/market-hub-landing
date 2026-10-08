@@ -1,22 +1,37 @@
 ---
 // Media: what Market Hub publishes outside the portal. YouTube, playlist by playlist, with a
 // player; then Instagram and X, each waiting for its account. The covers are our own files: the
-// page asks nothing of YouTube until a visitor presses play.
+// page asks nothing of YouTube until a visitor presses play. Each place carries its mark, in the
+// colour of the page's own text.
 import Site from "../components/Site.astro";
+import SocialMark from "../components/SocialMark.astro";
 import { INSTAGRAM, X, YOUTUBE, shortUrl } from "../lib/media";
 import { link } from "../lib/site";
 
 const cover = (file: string) => link(`/media/${file}`);
 const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+// The three places, in the order of the page: the line under the title leads to each.
+const places = [
+	{ id: "youtube", name: "YouTube", mark: "youtube" },
+	{ id: "instagram", name: "Instagram", mark: "instagram" },
+	{ id: "x", name: "X", mark: "x" },
+] as const;
 ---
 
 <Site title="Media" description="Market Hub's videos, playlist by playlist, and its posts on Instagram and X.">
 	<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Media</h1>
 	<p class="mt-2 max-w-xl text-ink">What Market Hub publishes outside this site: the videos, and soon the posts.</p>
+	<nav class="mt-5 flex flex-wrap gap-2" aria-label="On this page">
+		{places.map((p) => (
+			<a href={`#${p.id}`} class="place">
+				<SocialMark name={p.mark} class="h-4 w-4" />{p.name}
+			</a>
+		))}
+	</nav>
 
 	<section id="youtube" class="sec mt-10 !pt-5">
 		<div class="sec-head">
-			<h2 class="text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong">YouTube</h2>
+			<h2 class="flex items-center gap-3 text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong"><span class="mark"><SocialMark name="youtube" class="h-[1.05rem] w-[1.05rem]" /></span>YouTube</h2>
 			<a href={YOUTUBE.channel} class="sec-note link" rel="noopener" target="_blank">Open the channel</a>
 		</div>
 
@@ -105,20 +120,24 @@ const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 	<section id="instagram" class="sec mt-16 !pt-5">
 		<div class="sec-head">
-			<h2 class="text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong">Instagram</h2>
+			<h2 class="flex items-center gap-3 text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong"><span class="mark"><SocialMark name="instagram" class="h-[1.05rem] w-[1.05rem]" /></span>Instagram</h2>
 			{INSTAGRAM.handle
 				? <a href={`https://www.instagram.com/${INSTAGRAM.handle}/`} class="sec-note link" rel="noopener" target="_blank">@{INSTAGRAM.handle}</a>
 				: <span class="sec-note">Account coming soon</span>}
 		</div>
 		<p class="max-w-2xl text-ink">The posts of Market Hub's Instagram account will be shown here: one idea in a picture, the short way into each video.</p>
 		<ul class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-hidden="true">
-			{Array.from({ length: 4 }, (_, n) => <li class:list={["waiting aspect-square rounded-sm", n === 3 && "sm:hidden lg:block"]}></li>)}
+			{Array.from({ length: 4 }, (_, n) => (
+				<li class:list={["waiting grid aspect-square place-items-center rounded-sm text-faint", n === 3 && "sm:hidden lg:grid"]}>
+					<SocialMark name="instagram" class:list={["h-9 w-9", n > 0 && "opacity-40"]} />
+				</li>
+			))}
 		</ul>
 	</section>
 
 	<section id="x" class="sec mt-16 !pt-5">
 		<div class="sec-head">
-			<h2 class="text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong">X</h2>
+			<h2 class="flex items-center gap-3 text-[1.4rem] font-medium leading-tight tracking-tight text-ink-strong"><span class="mark"><SocialMark name="x" class="h-[0.95rem] w-[0.95rem]" /></span>X</h2>
 			{X.handle
 				? <a href={`https://x.com/${X.handle}`} class="sec-note link" rel="noopener" target="_blank">@{X.handle}</a>
 				: <span class="sec-note">Account coming soon</span>}
@@ -127,7 +146,10 @@ const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 		<ul class="mt-6 grid gap-4 lg:grid-cols-3" aria-hidden="true">
 			{Array.from({ length: 3 }, () => (
 				<li class="waiting rounded-sm p-5">
-					<span class="block h-2.5 w-24 rounded-full bg-line-strong"></span>
+					<span class="flex items-center gap-3">
+						<span class="grid h-9 w-9 flex-none place-items-center rounded-full border border-line-strong text-muted"><SocialMark name="x" class="h-3.5 w-3.5" /></span>
+						<span class="block h-2.5 w-24 rounded-full bg-line-strong"></span>
+					</span>
 					<span class="mt-4 block h-2.5 w-full rounded-full bg-line"></span>
 					<span class="mt-2.5 block h-2.5 w-11/12 rounded-full bg-line"></span>
 					<span class="mt-2.5 block h-2.5 w-2/3 rounded-full bg-line"></span>
@@ -138,9 +160,41 @@ const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 </Site>
 
 <style>
-	/* A place that is waiting for something: an outline, nothing in it. */
+	/* A place that is waiting for something: an outline, and at most the mark of what will come. */
 	.waiting {
 		border: 1px dashed var(--color-line-strong);
+	}
+	/* The mark of a place next to its name, in a small tile like an app's. */
+	.mark {
+		display: grid;
+		place-items: center;
+		width: 2rem;
+		height: 2rem;
+		flex: none;
+		border-radius: 7px;
+		border: 1px solid var(--color-line-strong);
+		background: var(--color-raised);
+		color: var(--color-ink-strong);
+	}
+	/* The way to each place, under the title. */
+	.place {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		border-radius: 999px;
+		border: 1px solid var(--color-line-strong);
+		padding: 5px 13px 5px 11px;
+		font-size: 13.5px;
+		color: var(--color-ink);
+		transition: border-color 0.15s, color 0.15s;
+	}
+	.place:hover {
+		border-color: var(--color-muted);
+		color: var(--color-ink-strong);
+	}
+	/* The header stays on top of the page: a section jumped to stops below it. */
+	section[id] {
+		scroll-margin-top: 5.5rem;
 	}
 	.video-row[aria-current="true"] .title {
 		color: var(--color-ink-strong);
