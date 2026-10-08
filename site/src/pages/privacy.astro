@@ -61,8 +61,10 @@ import { link } from "../lib/site";
 			<li>In your browser only, not with us: on the Watchlist page, which stocks you chose to see (the ones you looked up there
 				among them), how many at a time and how the charts are drawn. And on the page where you write for Opinion, the article you are
 				writing, until you send it. Clearing the site's data in your browser removes it.</li>
-			<li>Nothing about you in the analysis tools. Fundamentals Lab and the Earnings Radar, on their own subdomains, read the
-				same session cookie only to check that you are signed in; they do not store your name, email or stocks.</li>
+			<li>Nothing about you in the analysis tools. Fundamentals Lab, the Earnings Radar and the Playground, on their own
+				subdomains, read the same session cookie only to check that you are signed in; they do not store your name, email
+				or stocks. A board you make in the Playground, and what you wrote to make it, live in the page that shows them
+				and nowhere else: reloading or closing the page clears them.</li>
 		</ul>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">What we do with it</h2>
 		<p>
@@ -80,6 +82,13 @@ import { link } from "../lib/site";
 			analysts estimate of each. The sentences under a stock's figures are written by the same language model: for them the
 			server sends that one ticker with its market figures, which are the same for everybody, and nothing else. Not who asks,
 			and not the rest of your list or anything you hold.
+		</p>
+		<p>
+			In the Playground, what you write in the chat is sent to the same language model, together with the board as it
+			stands (the views on it and their tickers) and the last few messages of that conversation, so that it can change
+			the board. It does not send your name, email or account, and nothing of your portfolio or your lists. We keep
+			neither what you write nor what the model answers, and neither goes to our logs. To draw a view, the server asks
+			the market data provider for the prices of its tickers.
 		</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Where it lives</h2>
 		<p>In a Google Cloud Firestore database in the European Union (Belgium region), accessible only to the service. The
