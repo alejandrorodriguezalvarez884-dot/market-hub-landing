@@ -22,12 +22,11 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Peers en la navegación de My Hub (2026-10-08; sin desplegar)
+### Peers en la navegación de My Hub (2026-10-08; desplegado como `market-hub-00032-84z`)
 
 En `App.astro`, el enlace `Peers` (Tools) lleva a Peer Map, la herramienta nueva (`market-hub-peers-map`,
-https://peers.themarkethub.app). **En `main`, sin desplegar**: se despliega cuando el subdominio
-resuelva (falta el CNAME `peers` → `ghs.googlehosted.com` en Cloudflare, que pone el usuario), para
-no dejar un enlace roto.
+https://peers.themarkethub.app). Desplegado cuando el subdominio ya respondía; la configuración del
+servicio quedó como estaba (comparada antes y después).
 
 | Hecho | Pendiente |
 |---|---|
