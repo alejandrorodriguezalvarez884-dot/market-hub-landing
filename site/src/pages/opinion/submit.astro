@@ -1,0 +1,204 @@
+---
+// Write for Opinion: a signed-in reader sends an article in. Sending is not publishing: it is
+// kept for the editor to read, who answers by email. The page also lists what the reader has
+// sent, and lets them take it back.
+import Site from "../../components/Site.astro";
+import { link } from "../../lib/site";
+---
+
+<Site title="Write for Opinion" description="Send Market Hub an article of your own. The editor reads it before anything is published.">
+	<div class="mx-auto max-w-[44rem]">
+		<a href={link("/opinion/")} class="text-[13px] text-muted hover:text-ink-strong"><span aria-hidden="true">←</span> Opinion</a>
+		<h1 class="mt-8 text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Write for Opinion</h1>
+		<p class="mt-3 text-lg leading-relaxed text-ink">Send us an article of your own. It is not published when you send it: the editor
+			reads it first and writes back to you. If it runs, it appears in Opinion signed with the name you choose.</p>
+
+		<section class="sec mt-10" aria-labelledby="how-title">
+			<div class="sec-head"><h2 id="how-title" class="sec-title">How it works</h2></div>
+			<ol class="grid gap-x-8 gap-y-4 text-sm text-ink sm:grid-cols-3">
+				<li><span class="num text-muted">1</span><p class="mt-1"><span class="text-ink-strong">You write it and send it.</span> You need an account, so we know who to answer.</p></li>
+				<li><span class="num text-muted">2</span><p class="mt-1"><span class="text-ink-strong">The editor reads it.</span> Until then nobody else sees it, and you can take it back.</p></li>
+				<li><span class="num text-muted">3</span><p class="mt-1"><span class="text-ink-strong">We write to you.</span> If it runs, it is published with a cover we draw for it.</p></li>
+			</ol>
+		</section>
+
+		<section class="sec mt-10" aria-labelledby="ask-title">
+			<div class="sec-head"><h2 id="ask-title" class="sec-title">What we ask of an article</h2></div>
+			<ul class="list-disc space-y-1.5 pl-5 text-sm text-ink">
+				<li>One argument, stated in the title, in 450 to 1,500 words.</li>
+				<li>Facts with their sources: at least two links to where your figures, dates and quotations come from.</li>
+				<li>Opinion, not advice. Argue that a company or a central bank got it right or wrong; do not tell readers to buy, sell
+					or hold anything, and give no price targets.</li>
+				<li>Your own work, in your own words. Link to what others wrote; do not paste it.</li>
+			</ul>
+		</section>
+
+		<section class="sec mt-10" aria-labelledby="desk-title">
+			<div class="sec-head"><h2 id="desk-title" class="sec-title">Your article</h2></div>
+			<div id="desk"><div class="skeleton h-10"></div><div class="skeleton mt-4 h-64"></div></div>
+		</section>
+
+		<section id="sent" class="sec mt-12" aria-labelledby="sent-title" hidden>
+			<div class="sec-head"><h2 id="sent-title" class="sec-title">What you have sent</h2></div>
+			<ul id="sent-list" class="divide-y divide-line"></ul>
+		</section>
+	</div>
+</Site>
+
+<script>
+	import { ApiError, signedIn, type User } from "../../lib/api";
+	import { add, h, linkTo } from "../../lib/dom";
+	import { articleHref, day, prose, submissions, submit, withdraw, type Desk, type Submission } from "../../lib/opinion";
+	import { link } from "../../lib/site";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const desk = $("desk");
+	const DRAFT = "mh.opinion.draft.v1"; // what is being written, in this browser only, so a closed tab loses nothing
+	type Draft = { title: string; dek: string; body: string; sources: string; tickers: string; byline: string };
+
+	const saved = (): Partial<Draft> => {
+		try {
+			return JSON.parse(localStorage.getItem(DRAFT) ?? "{}");
+		} catch {
+			return {};
+		}
+	};
+	// As the server counts them.
+	const words = (text: string) => (text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").match(/[\p{L}\p{N}_'’%$.,-]*[\p{L}\p{N}_][\p{L}\p{N}_'’%$.,-]*/gu) ?? []).length;
+
+	function visitor() {
+		desk.replaceChildren(add(h("p", "text-sm text-ink"),
+			linkTo(link(`/signin/?next=${encodeURIComponent(location.pathname)}`), "btn btn-primary", "Sign in to write"),
+			h("span", "ml-3 text-muted", "Reading needs no account. Sending an article does.")));
+	}
+
+	function field<K extends "input" | "textarea">(tag: K, label: string, hint: string, attrs: Record<string, string | number | boolean>) {
+		const input = h(tag, "field mt-1.5 w-full");
+		Object.assign(input, attrs);
+		const count = h("span", "num text-[12px] text-muted");
+		const row = add(h("label", "block"), add(h("span", "flex items-baseline justify-between gap-3"), h("span", "text-sm font-medium text-ink-strong", label), count),
+			input, hint ? h("span", "mt-1 block text-[12.5px] leading-snug text-muted", hint) : null);
+		return { row, input, count };
+	}
+
+	function form(user: User, d: Desk) {
+		const was = saved();
+		const [words0, words1] = d.limits.words;
+		const title = field("input", "Title", "It says your argument, not just your subject.", { type: "text", maxLength: d.limits.title[1], required: true, value: was.title ?? "" });
+		const dek = field("textarea", "Summary", "One or two sentences that go under the title.", { rows: 2, maxLength: d.limits.dek[1], required: true, value: was.dek ?? "" });
+		const body = field("textarea", "Text", "Leave an empty line between paragraphs. ## starts a heading, **bold**, *emphasis*, [a link](https://…). No HTML.",
+			{ rows: 18, required: true, value: was.body ?? "", spellcheck: true });
+		body.input.classList.add("min-h-[22rem]", "resize-y", "leading-relaxed", "!text-[15px]");
+		const sources = field("textarea", "Sources", `One web address per line, at least ${d.limits.sources[0]}. You can say what each is: “Jobs report, September | https://…”.`,
+			{ rows: 3, required: true, value: was.sources ?? "", placeholder: "https://…" });
+		const tickers = field("input", "Companies it is about (optional)", "Their tickers, separated by commas.", { type: "text", maxLength: 80, value: was.tickers ?? "", placeholder: "AAPL, MSFT" });
+		const byline = field("input", "Sign it as", "The only thing of you shown with the article, if it is published.", { type: "text", maxLength: d.limits.byline[1], required: true, value: was.byline ?? user.name });
+
+		const box = Object.assign(h("input", "mt-1 h-4 w-4 shrink-0 accent-[var(--color-ink-strong)]"), { type: "checkbox", required: true });
+		const agree = add(h("label", "flex items-start gap-3 text-sm text-ink"), box,
+			add(h("span"), "This article is my own work. Market Hub may edit it for length and clarity and publish it on the site under the name above. I have read the ",
+				linkTo(link("/terms/"), "link", "Terms"), "."));
+
+		// The text can be read as it would be published, before it is sent.
+		const preview = h("div", "mt-1.5 hidden space-y-5 rounded-[3px] border border-line px-5 py-5 text-[17px] leading-[1.7] text-ink");
+		const flip = Object.assign(h("button", "tab-btn", "Preview"), { type: "button" });
+		flip.addEventListener("click", () => {
+			const showing = preview.classList.toggle("hidden") === false;
+			body.input.classList.toggle("hidden", showing);
+			flip.textContent = showing ? "Write" : "Preview";
+			if (showing) preview.replaceChildren(...(body.input.value.trim() ? prose(body.input.value) : [h("p", "text-muted", "Nothing written yet.")]));
+		});
+		body.input.after(preview);
+		body.count.before(flip);
+
+		const counted = () => {
+			title.count.textContent = `${title.input.value.trim().length} / ${d.limits.title[1]}`;
+			dek.count.textContent = `${dek.input.value.trim().length} / ${d.limits.dek[1]}`;
+			const n = words(body.input.value);
+			body.count.textContent = `${n.toLocaleString("en-US")} words · ${words0} to ${words1.toLocaleString("en-US")}`;
+			body.count.classList.toggle("text-down", n > words1);
+		};
+		const keep = () => {
+			counted();
+			try {
+				localStorage.setItem(DRAFT, JSON.stringify({ title: title.input.value, dek: dek.input.value, body: body.input.value, sources: sources.input.value,
+					tickers: tickers.input.value, byline: byline.input.value } satisfies Draft));
+			} catch {
+				// A browser that keeps nothing still sends.
+			}
+		};
+
+		const send = Object.assign(h("button", "btn btn-primary", "Send for review"), { type: "submit" });
+		const note = h("p", "text-[13px] text-down");
+		note.setAttribute("role", "alert");
+		const el = add(h("form", "space-y-6"), title.row, dek.row, body.row, sources.row,
+			add(h("div", "grid gap-6 sm:grid-cols-2"), tickers.row, byline.row), agree,
+			add(h("div", "flex flex-wrap items-center gap-x-4 gap-y-2"), send,
+				h("span", "text-[12.5px] text-muted", `It goes to the editor, not to the site. Up to ${d.per_day} a day.`)), note);
+		el.addEventListener("input", keep);
+		el.addEventListener("submit", async (e) => {
+			e.preventDefault();
+			send.disabled = true;
+			note.textContent = "";
+			try {
+				const made = await submit({ title: title.input.value, dek: dek.input.value, body: body.input.value,
+					sources: sources.input.value.split("\n").map((s) => s.trim()).filter(Boolean),
+					tickers: tickers.input.value.split(/[\s,]+/).filter(Boolean), byline: byline.input.value, agree: box.checked });
+				localStorage.removeItem(DRAFT);
+				done(user, made);
+				list();
+			} catch (err) {
+				send.disabled = false;
+				note.textContent = err instanceof ApiError ? err.message : "The article could not be sent. Nothing was lost: try again.";
+			}
+		});
+		counted();
+		desk.replaceChildren(el);
+	}
+
+	function done(user: User, made: Submission) {
+		const again = Object.assign(h("button", "btn btn-ghost mt-5", "Write another"), { type: "button" });
+		again.addEventListener("click", start);
+		desk.replaceChildren(add(h("div", "rounded-[3px] border border-line-strong px-5 py-5"),
+			h("p", "text-lg font-medium text-ink-strong", "Sent for review."),
+			h("p", "mt-2 text-sm leading-relaxed text-ink", `“${made.title}” is with the editor. It is not public, and it will not be unless we publish it. We will write to ${user.email}.`),
+			again));
+		$("desk-title").scrollIntoView({ block: "start", behavior: "smooth" });
+	}
+
+	function row(a: Submission): HTMLElement {
+		const published = a.status === "published" && a.slug;
+		const state = published ? linkTo(articleHref(a.slug!), "link", "Published") : h("span", "", a.status === "in review" ? "In review" : a.status.charAt(0).toUpperCase() + a.status.slice(1));
+		const back = Object.assign(h("button", "shrink-0 text-[12.5px] text-muted hover:text-down", published ? "Remove this copy" : "Take it back"), { type: "button" });
+		back.addEventListener("click", async () => {
+			if (!confirm(published ? "Remove the copy we keep of this article? The published article stays where it is." : `Take “${a.title}” back? The editor will not read it.`)) return;
+			back.disabled = true;
+			await withdraw(a.id).catch(() => {});
+			list();
+		});
+		return add(h("li", "flex items-start justify-between gap-4 py-3.5"),
+			add(h("div", "min-w-0"), h("p", "truncate text-ink-strong", a.title),
+				add(h("p", "mt-0.5 flex flex-wrap gap-x-2.5 text-[12.5px] text-muted"), h("time", "", `Sent ${day(a.received_utc)}`), h("span", "", `${a.words.toLocaleString("en-US")} words`), state)),
+			back);
+	}
+
+	async function list(d?: Desk) {
+		const { articles } = d ?? (await submissions().catch(() => ({ articles: [] as Submission[] })));
+		$("sent").hidden = !articles.length;
+		$("sent-list").replaceChildren(...articles.map(row));
+	}
+
+	async function start() {
+		const who = await signedIn().catch(() => null);
+		if (!who) return visitor();
+		try {
+			const d = await submissions();
+			list(d);
+			if (!d.open) return desk.replaceChildren(h("p", "text-sm text-ink", "Articles cannot be sent in right now. Come back soon."));
+			form(who.user, d);
+		} catch {
+			desk.replaceChildren(h("p", "text-sm text-ink", "This page is not available right now."));
+		}
+	}
+	start();
+</script>

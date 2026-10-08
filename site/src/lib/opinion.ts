@@ -6,10 +6,17 @@ import { link } from "./site";
 
 export type Source = { title: string; url: string };
 export type Cover = { alt: string; v: string };
-export type Card = { slug: string; title: string; dek: string; kind: string; tags: string[]; tickers: string[]; published_utc: string; minutes: number; cover?: Cover | null };
+export type Card = { slug: string; title: string; dek: string; kind: string; tags: string[]; tickers: string[]; published_utc: string; minutes: number; cover?: Cover | null;
+  author?: string | null }; // who signs it, when a reader wrote it
 export type Article = Card & { body: string; sources: Source[] };
 export type Comment = { id: string; parent_id: string | null; depth: number; created_utc: string; deleted: boolean; name: string; text: string; mine: boolean };
 export type Thread = { comments: Comment[]; signed_in: boolean; moderator: boolean };
+// An article a reader sent in for review, as its author gets it back. It is published only if
+// the editor says so, and then `slug` is where.
+export type Submission = { id: string; title: string; dek: string; body: string; sources: Source[]; tickers: string[]; byline: string; words: number;
+  received_utc: string; status: string; slug: string | null };
+export type Desk = { open: boolean; articles: Submission[]; per_day: number;
+  limits: { title: [number, number]; dek: [number, number]; words: [number, number]; sources: [number, number]; tickers: number; byline: [number, number] } };
 
 export const articles = (limit = 50) => api<{ articles: Card[] }>(`/api/public/opinion?limit=${limit}`);
 export const article = (slug: string) => api<Article>(`/api/public/opinion/item?slug=${encodeURIComponent(slug)}`);
@@ -17,6 +24,11 @@ export const thread = (slug: string) => api<Thread>(`/api/public/opinion/comment
 export const comment = (slug: string, text: string, parent_id: string | null) =>
   api<Comment>("/api/opinion/comments", { method: "POST", body: JSON.stringify({ slug, text, parent_id }) });
 export const removeComment = (id: string) => api<{ deleted: boolean }>(`/api/opinion/comments/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export const submissions = () => api<Desk>("/api/opinion/submissions");
+export const submit = (a: { title: string; dek: string; body: string; sources: string[]; tickers: string[]; byline: string; agree: boolean }) =>
+  api<Submission>("/api/opinion/submissions", { method: "POST", body: JSON.stringify(a) });
+export const withdraw = (id: string) => api<{ withdrawn: boolean }>(`/api/opinion/submissions/${encodeURIComponent(id)}`, { method: "DELETE" });
 
 export const articleHref = (slug: string) => link(`/opinion/article/?slug=${encodeURIComponent(slug)}`);
 export const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
@@ -33,7 +45,8 @@ export function cover(a: Card, cls: string): HTMLImageElement | null {
 // The line over a title: what kind of piece it is, when it was published and how long it takes.
 export function overline(a: Card): HTMLElement {
   return add(h("p", "flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-muted"),
-    h("span", "font-medium text-ink-strong", a.kind), h("time", "", day(a.published_utc)), h("span", "", `${a.minutes} min read`));
+    h("span", "font-medium text-ink-strong", a.kind), a.author ? h("span", "text-ink", `By ${a.author}`) : null,
+    h("time", "", day(a.published_utc)), h("span", "", `${a.minutes} min read`));
 }
 
 // --- The text of an article ---------------------------------------------------------------------

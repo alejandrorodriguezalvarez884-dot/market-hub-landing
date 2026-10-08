@@ -48,6 +48,10 @@
     POST   /api/opinion/comments    {slug, text, parent_id}: comment or answer (signed in)
     GET    /api/opinion/mine        the user's own comments
     DELETE /api/opinion/comments/{id}   take one's own comment down
+    GET    /api/opinion/submissions the articles the user sent in for review, and the form's measures
+    POST   /api/opinion/submissions {title, dek, body, sources, tickers, byline, agree}: send one in.
+                                    It is kept for review and the owner is told; nothing is published
+    DELETE /api/opinion/submissions/{id}   take one back
 
 Market figures come from FMP when there is a key (live.py), else from sample.py; the overview
 names any part that is sample data in "sample_sections". The news comes from news.py.
@@ -92,11 +96,13 @@ from .watch import Watch, default_reader
 from .live import default_markets
 from .news import default_news
 from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
+from . import submissions as submissions_
+from .submissions import Submissions, default_mailer, default_submissions
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
-                     SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, WATCH_PER_IP_PER_HOUR)
+                     SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, SUBMISSIONS_PER_USER_PER_DAY, WATCH_PER_IP_PER_HOUR)
 from .market import Directory, Fmp, MarketUnavailable
 from .tokens import AppTokens, bearer
 from .yahoo import default_market
@@ -164,7 +170,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                insight_writer="default", logins: LoginStore | None = None,
                password_cost: tuple[int, int, int] = accounts_.COST, captcha="default",
                competition_store: CompetitionStore | None = None, clock=None, stock_reader="default",
-               app_redirects: str | None = None) -> FastAPI:
+               app_redirects: str | None = None, submissions: Submissions | None = None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -178,6 +184,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     markets = markets or default_markets(market)
     news = news or default_news(markets, directory)
     opinion = opinion or Opinion(default_opinion())
+    # The articles readers send in: kept for the owner to review, never published from here.
+    submissions = submissions or Submissions(default_submissions(), default_mailer())
     # The accounts with a password of ours. MARKETHUB_PASSWORD_LOGIN=0 leaves Google as the only way in.
     accounts = Accounts(logins or default_logins(), password_cost)
     password_login = os.environ.get("MARKETHUB_PASSWORD_LOGIN", "1").strip() != "0"
@@ -215,6 +223,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     secure = SECURE_COOKIES if secure_cookies is None else secure_cookies
     limiter = RateLimiter(PER_IP_PER_HOUR)
     commenting = RateLimiter(COMMENTS_PER_USER_PER_HOUR)
+    submitting = RateLimiter(SUBMISSIONS_PER_USER_PER_DAY, window=86400.0)
     watching = RateLimiter(WATCH_PER_IP_PER_HOUR)
     # Checking a password is slow on purpose, and an account costs nothing to ask for: both are
     # counted per address they come from.
@@ -298,6 +307,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             # Whether an account can be made here, and the key of the captcha's widget if it takes one.
             "registration": registration,
             "turnstile_site_key": human.site_key if registration == "captcha" else None,
+            # Whether a signed-in reader can send an article in for review here.
+            "submissions": submissions.open,
             "tools": {
                 "earnings_radar": EARNINGS_RADAR_URL or None,
                 "fundamentals_lab": FUNDAMENTALS_LAB_URL or None,
@@ -514,6 +525,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def delete_me(request: Request) -> dict:
         user = current_user(request)
         opinion.forget(user["id"])  # the comments go with the account
+        submissions.forget(user["id"])  # and the articles sent in for review
         community.stop(user["id"])  # and so does the shared portfolio
         competitions.forget(user["id"])  # and the entries to the competition
         accounts.forget(user)  # and its password, if it had one of ours
@@ -838,6 +850,41 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             return {"deleted": opinion.remove(user, comment_id)}
         except PermissionError:
             raise HTTPException(403, "That comment is not yours.") from None
+
+    @app.get("/api/opinion/submissions")
+    def my_submissions(request: Request) -> dict:
+        """The articles the user sent in, as they are kept, and what the form asks of one."""
+        user = current_user(request)
+        return {"open": submissions.open, "articles": submissions.mine(user["id"]), "limits": submissions_.LIMITS,
+                "per_day": SUBMISSIONS_PER_USER_PER_DAY}
+
+    @app.post("/api/opinion/submissions")
+    def submit(request: Request, title: str = Body(max_length=400), dek: str = Body(max_length=1000), body: str = Body(max_length=40000),
+               sources: list = Body(default=[], max_length=40), tickers: list = Body(default=[], max_length=40),
+               byline: str = Body("", max_length=200), agree: bool = Body(False)) -> dict:
+        """An article for review. It is kept and the owner is told: it is not published."""
+        user = current_user(request)
+        allow(request)
+        if not submissions.open:
+            raise HTTPException(503, "Articles cannot be sent in right now.")
+        try:
+            article = submissions_.clean(title, dek, body, sources, tickers, byline, agree, name=user.get("name", ""))
+            submissions.room(user)
+            # Counted only once it could be taken: a text that is too short costs nothing.
+            if not submitting.allow(user["id"]):
+                raise HTTPException(429, "That is the most articles one account can send in a day. Try again tomorrow.")
+            return submissions.send(user, article)
+        except submissions_.Refused as exc:
+            raise HTTPException(400, str(exc)) from None
+        except HTTPException:
+            raise
+        except Exception as exc:  # the bucket did not answer: say so, and log no text
+            log.error("submission not kept: %s", type(exc).__name__)
+            raise HTTPException(503, "The article could not be kept right now. Nothing was sent: try again in a moment.") from None
+
+    @app.delete("/api/opinion/submissions/{submission_id}")
+    def withdraw_submission(request: Request, submission_id: str) -> dict:
+        return {"withdrawn": submissions.withdraw(current_user(request)["id"], submission_id)}
 
     static_dir = static_dir or os.environ.get("MARKETHUB_STATIC_DIR", "")
     if static_dir and Path(static_dir).is_dir():

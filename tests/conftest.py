@@ -14,6 +14,7 @@ from markethub.community import MemoryCommunity
 from markethub.competitions import MemoryCompetitions
 from markethub.market import Company, Directory
 from markethub.opinion import MemoryOpinion, Opinion
+from markethub.submissions import MemorySubmissions, Submissions
 from markethub.users import MemoryUsers
 
 CLIENT_ID = "test-client.apps.googleusercontent.com"
@@ -102,6 +103,29 @@ def opinion():
     return Opinion(MemoryOpinion([ARTICLE]), admins={"owner@gmail.com"})
 
 
+class FakeMailer:
+    """Stands for the owner's mailbox: it keeps what it was asked to send."""
+
+    def __init__(self):
+        self.sent = []
+        self.broken = False
+
+    def send(self, subject, text, reply_to=None):
+        if self.broken:
+            raise OSError("no mail server")
+        self.sent.append({"subject": subject, "text": text, "reply_to": reply_to})
+
+
+@pytest.fixture
+def outbox():
+    return FakeMailer()
+
+
+@pytest.fixture
+def submissions(outbox):
+    return Submissions(MemorySubmissions(), outbox)
+
+
 @pytest.fixture
 def logins():
     return MemoryLogins()
@@ -169,11 +193,11 @@ def reader():
 
 
 @pytest.fixture
-def client(users, market, directory, opinion, shared, writer, logins, captcha, entries, reader):
+def client(users, market, directory, opinion, shared, writer, logins, captcha, entries, reader, submissions):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
                      community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha,
-                     competition_store=entries, stock_reader=reader)
+                     competition_store=entries, stock_reader=reader, submissions=submissions)
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

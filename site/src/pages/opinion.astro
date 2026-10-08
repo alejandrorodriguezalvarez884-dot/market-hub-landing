@@ -1,20 +1,29 @@
 ---
 // Opinion: the articles, newest first. The newest opens the page; the rest follow in two columns.
 import Site from "../components/Site.astro";
+import { link } from "../lib/site";
 ---
 
 <Site title="Opinion" description="Opinion and analysis on the markets, the economy and what companies say, from Market Hub.">
-	<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Opinion</h1>
-	<p class="mt-2 max-w-xl text-ink">What the news means, argued. Read, and answer back.</p>
+	<div class="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+		<div>
+			<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Opinion</h1>
+			<p class="mt-2 max-w-xl text-ink">What the news means, argued. Read, and answer back.</p>
+		</div>
+		<a id="write" href={link("/opinion/submit/")} class="btn btn-ghost" hidden>Write an article</a>
+	</div>
 	<div id="opinion" class="mt-10"><div class="skeleton h-56"></div><div class="skeleton mt-8 h-40"></div></div>
 </Site>
 
 <script>
+	import { config } from "../lib/api";
 	import { add, h, linkTo } from "../lib/dom";
 	import { articleHref, articles, cover, overline, type Card } from "../lib/opinion";
 	import { failed } from "../lib/widgets";
 
 	const root = document.getElementById("opinion")!;
+	// The way in to writing one is shown only where articles are being taken.
+	config().then((c) => (document.getElementById("write")!.hidden = !c.submissions)).catch(() => {});
 	const tags = (a: Card) => (a.tags.length ? add(h("p", "mt-3 flex flex-wrap gap-1.5"), ...a.tags.slice(0, 4).map((t) => h("span", "chip !font-sans", t))) : null);
 
 	// The picture of an article leads to it, as its title does; it is not a second stop for the keyboard.

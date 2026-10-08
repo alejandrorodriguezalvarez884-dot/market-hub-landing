@@ -11,7 +11,7 @@ import App from "../components/App.astro";
 <script>
 	import { api, requireUser, type Portfolio } from "../lib/api";
 	import type { Entry } from "../lib/competition";
-	import { articleHref } from "../lib/opinion";
+	import { articleHref, submissions, type Submission } from "../lib/opinion";
 	import type { Sharing } from "../lib/types";
 	import { add, card, h } from "../lib/dom";
 	import { link } from "../lib/site";
@@ -24,6 +24,7 @@ import App from "../components/App.astro";
 		const mine = await api<{ comments: { slug: string; text: string; created_utc: string }[] }>("/api/opinion/mine").catch(() => ({ comments: [] }));
 		const shared = await api<Sharing>("/api/sharing").catch(() => ({ enabled: false, handle: "", since_utc: null }));
 		const played = await api<{ entries: Entry[] }>("/api/competitions/mine").catch(() => ({ entries: [] }));
+		const sent = await submissions().catch(() => ({ articles: [] as Submission[] }));
 		const month = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 		const own = who.user.provider === "password";
 		const info = card("What we keep", "Everything stored about you, as saved now");
@@ -40,6 +41,9 @@ import App from "../components/App.astro";
 				: "No entries. ", played.entries.length ? null : Object.assign(h("a", "link", "About the competition"), { href: link("/community/competitions/") })),
 			h("dt", "text-muted", "Comments"), h("dd", "text-ink-strong", mine.comments.length
 				? `${mine.comments.length}: under articles they are public, with your first name; in the competition members see them, with the name you play under` : "None"),
+			h("dt", "text-muted", "Articles sent in"), add(h("dd", "text-ink-strong"), sent.articles.length
+				? `${sent.articles.length}, kept for the editor to review with your name and email: ${sent.articles.map((a) => `"${a.title}"`).join(", ")}. ` : "None. ",
+				Object.assign(h("a", "link", sent.articles.length ? "See them or take one back" : "Write for Opinion"), { href: link("/opinion/submit/") })),
 		));
 		if (mine.comments.length) add(info.body, add(h("ul", "mt-3 space-y-1.5 text-[13px]"), ...mine.comments.slice(0, 20).map((c) => {
 			const a = h("a", "link", c.text.length > 80 ? `${c.text.slice(0, 80)}…` : c.text) as HTMLAnchorElement;
@@ -49,7 +53,7 @@ import App from "../components/App.astro";
 		const download = h("button", "btn btn-ghost mt-4", "Download my data (JSON)");
 		download.type = "button";
 		download.addEventListener("click", () => {
-			const blob = new Blob([JSON.stringify({ user: who.user, ...p, sharing: shared, competition: played.entries, comments: mine.comments }, null, 2)], { type: "application/json" });
+			const blob = new Blob([JSON.stringify({ user: who.user, ...p, sharing: shared, competition: played.entries, comments: mine.comments, articles_sent: sent.articles }, null, 2)], { type: "application/json" });
 			const a = h("a") as HTMLAnchorElement;
 			a.href = URL.createObjectURL(blob);
 			a.download = "market-hub-data.json";
@@ -88,7 +92,7 @@ import App from "../components/App.astro";
 		});
 		secret.body.append(form);
 
-		const danger = card("Delete your account", "Removes your positions, watchlist and profile from our database at once, takes your portfolio off the community board, removes your entries to the competition and empties the comments you wrote. Signing in again later starts from zero.");
+		const danger = card("Delete your account", "Removes your positions, watchlist and profile from our database at once, takes your portfolio off the community board, removes your entries to the competition, empties the comments you wrote and removes the articles you sent in for review. Signing in again later starts from zero.");
 		const del = h("button", "btn btn-danger", "Delete my account");
 		del.type = "button";
 		const status = h("p", "mt-2 text-[13px] text-muted");

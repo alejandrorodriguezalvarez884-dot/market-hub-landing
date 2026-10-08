@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-10-07.
+Última actualización: 2026-10-08.
 
 ## Qué se pidió
 
@@ -113,6 +113,67 @@ el navegador del teléfono y lo lleva el portal (`src/markethub/appsignin.py`, q
   400; `finish` con un código inventado, 401.
 - 20 tests nuevos en `tests/test_app_google.py` (Google simulado); 239 en verde.
 - **Sin probar**: elegir una cuenta de Google de verdad y volver a la app, en un teléfono.
+
+### Los lectores envían artículos a revisión (2026-10-08; **sin desplegar**)
+
+El usuario pidió poder subir un artículo propio a Opinión, con este procedimiento: hay que tener
+sesión; el artículo no se publica, se envía a revisión; se guarda en un bucket de GCP y a él le
+llega un correo; tras revisarlo lo dice y se publica a mano desde `market-hub-opinion`.
+
+- **`src/markethub/submissions.py`**: qué se acepta (`clean`: las mismas medidas que exige un
+  artículo publicado: título de 10 a 110 caracteres, resumen de 60 a 260, de 450 a 1.500 palabras,
+  de 2 a 10 fuentes con su dirección, hasta 6 tickers, sin HTML y sin frases de consejo), dónde se
+  guarda (`BucketSubmissions`: `submissions/<id de cuenta>/<id>.json` en
+  `MARKETHUB_SUBMISSIONS_BUCKET`; en local, `data/submissions/`) y el aviso (`SmtpMailer`: un
+  correo en texto plano al dueño con el artículo entero, quién lo envía y dónde quedó). Con el
+  artículo se guarda el id de la cuenta, su nombre, su email, cómo entra y el nombre con el que
+  firma. El texto de un artículo nunca va a un log.
+- **API** (todas piden sesión; valen la cookie y el token de la app): `GET /api/opinion/submissions`
+  (los suyos y las medidas del formulario), `POST /api/opinion/submissions` (enviar),
+  `DELETE /api/opinion/submissions/{id}` (retirarlo). Tres envíos por cuenta y día (uno rechazado
+  no cuenta) y diez guardados a la vez. `DELETE /api/me` borra también sus envíos.
+- **El correo**: sale por SMTP (`SMTP_USER`, `SMTP_HOST`, `SMTP_PORT`; por defecto los de Gmail) y
+  va a `MARKETHUB_REVIEW_EMAIL` o, si no hay, a la primera dirección de `MARKETHUB_ADMINS`. La
+  contraseña **solo está en Secret Manager** (`market-hub-smtp-password`; con Gmail es una
+  "contraseña de aplicación"), como las claves del captcha. Lleva `Reply-To` al autor solo si
+  entró con Google (dirección verificada); de una cuenta propia dice que la dirección no lo está.
+  Si el correo falla, el artículo queda guardado igual y el fallo va al log. También avisa cuando
+  un autor retira un artículo o borra su cuenta.
+- **Sin bucket o sin buzón no se aceptan envíos** en producción (`Submissions.open`, que
+  `/api/config` dice en `submissions`): el botón "Write an article" de `/opinion/` no sale y la
+  página dice que ahora no se pueden enviar. Un servicio desplegado (`MARKETHUB_FIRESTORE=1`) sin
+  bucket no guarda nada en el disco de la instancia (`NoSubmissions`). Decisión del agente: un
+  artículo del que nadie se entera no está "en revisión".
+- **Web**: `/opinion/submit/` (`pages/opinion/submit.astro`), enlazada con el botón "Write an
+  article" de `/opinion/`. Sin sesión explica el procedimiento y manda a `/signin/`. Con sesión:
+  formulario con contadores, vista previa del texto, borrador guardado en el navegador
+  (`localStorage`, `mh.opinion.draft.v1`), casilla de autoría y condiciones, y debajo "What you
+  have sent" con el estado de cada uno y "Take it back". Un artículo publicado se muestra con
+  "By <firma>" (`author`, que pone `market-hub-opinion`).
+- **Privacidad y condiciones**: `/privacy/` dice qué se guarda de un envío, dónde (bucket en la UE
+  y el buzón del editor) y cómo se retira; `/account/` lista los envíos y los incluye en la
+  descarga; `/terms/` gana un párrafo sobre los artículos (obra propia, se revisa antes, licencia
+  para editarlo y publicarlo, se retira si lo pide). **Los textos de `/terms/` y `/privacy/` son
+  una propuesta del agente: el usuario no los ha aprobado todavía.**
+- **Despliegue** (`scripts/deploy-cloudrun.sh`): activa la API de Storage, crea el bucket
+  `<proyecto>-market-hub-submissions` en la región de Firestore (privado, acceso uniforme, sin
+  acceso público), da a la cuenta del servicio `roles/storage.objectAdmin` solo sobre él y pasa
+  las variables. Dependencia nueva: `google-cloud-storage`.
+- 17 tests nuevos en `tests/test_submissions.py`; 260 en verde, `astro check` y build en verde.
+  **Probado en local** en el navegador con una cuenta de prueba (ya borrada): la página sin
+  sesión, el formulario, un envío demasiado corto (el aviso del servidor), la vista previa, el
+  envío, el archivo guardado, la fila en `/account/` y que borrar la cuenta se lleva sus envíos.
+- **Sin probar**: el bucket y el correo de verdad (hace falta desplegar y la contraseña del
+  buzón); el botón "Take it back" pulsado en el navegador (su ruta sí está testeada).
+- **Pendiente del usuario**: crear la contraseña de aplicación y guardarla en el secreto, poner
+  `SMTP_USER` en `.env`, aprobar los textos y decir que se despliegue.
+
+- **Ojo, producción lleva una copia a medias de esto** (revisión `market-hub-00027-wcg`, ver el
+  aviso de la sección siguiente): se desplegó desde la carpeta de trabajo cuando esta función
+  estaba sin acabar. Esa copia responde a `/api/opinion/submissions` y, como el servicio no tiene
+  bucket, **guardaría un envío en el disco de la instancia** (se pierde al reiniciar) y sin avisar
+  a nadie. Ninguna página enlaza ahí. Lo commiteado ya no hace eso (`NoSubmissions`): se corrige
+  con el siguiente despliegue, sea el de esta función o uno desde el commit.
 
 ### La app de móvil crea cuentas (2026-10-08; **desplegado**, revisión `market-hub-00027-wcg`, **con código de más: ver el aviso**)
 

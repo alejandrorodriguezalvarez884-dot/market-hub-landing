@@ -47,9 +47,14 @@ import { link } from "../lib/site";
 			<li>The comments you write under opinion articles. They are public, and they are shown with your first name: not with your
 				surname, your email address or your picture. The comments you write in the competition's discussion are seen by
 				signed-in members only, with the name you play under (your first name, if you have none).</li>
+			<li>If you send an article to Opinion, and only then: its title, summary, text and sources and the name you sign it with,
+				kept together with your account id, your name, your email address and whether you sign in with Google or with a
+				password, so the editor knows who to answer. The editor is sent a copy by email. Nobody else sees it. If it is
+				published, the article shows the name you signed it with and nothing else of you.</li>
 			<li>A session cookie, signed by us, that keeps you signed in for up to 30 days. No advertising or tracking cookies.</li>
 			<li>In your browser only, not with us: on the Watchlist page, which stocks you chose to see (the ones you looked up there
-				among them), how many at a time and how the charts are drawn. Clearing the site's data in your browser removes it.</li>
+				among them), how many at a time and how the charts are drawn. And on the page where you write for Opinion, the article you are
+				writing, until you send it. Clearing the site's data in your browser removes it.</li>
 			<li>Nothing about you in the analysis tools. Fundamentals Lab and the Earnings Radar, on their own subdomains, read the
 				same session cookie only to check that you are signed in; they do not store your name, email or stocks.</li>
 		</ul>
@@ -71,14 +76,19 @@ import { link } from "../lib/site";
 			and not the rest of your list or anything you hold.
 		</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Where it lives</h2>
-		<p>In a Google Cloud Firestore database in the European Union (Belgium region), accessible only to the service.</p>
+		<p>In a Google Cloud Firestore database in the European Union (Belgium region), accessible only to the service. The
+			articles sent in for review are kept apart, in a Google Cloud Storage bucket in the same region that only the
+			service and the editor reach, and in the editor's mailbox.</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Your control</h2>
 		<p>
 			On <a href={link("/account/")} class="link">Account and data</a> you can see and download everything kept about you, and
 			delete your account: that removes it from the database at once, takes your portfolio off the Community page, removes your
 			entries to the competition and empties every comment you wrote. In a month of the competition that has already ended, your
 			line stays where it finished, with no name on it. You can also delete any comment of yours where it stands, and take back
-			an entry until its month starts.
+			an entry until its month starts. An article you sent in can be taken back on
+			<a href={link("/opinion/submit/")} class="link">the page you sent it from</a>, and deleting your account removes
+			the copies kept for review. An article of yours that was already published stays published until you ask us to
+			take it down.
 		</p>
 	</div>
 </Site>

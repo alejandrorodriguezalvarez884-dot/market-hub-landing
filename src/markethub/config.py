@@ -64,6 +64,15 @@ REGISTRATIONS_PER_IP_PER_HOUR = 5
 # Comments a signed-in reader can leave in an hour.
 COMMENTS_PER_USER_PER_HOUR = 20
 
+# --- Readers' articles ---------------------------------------------------------------------
+
+# The bucket the articles readers send in are kept in until they are reviewed (submissions.py).
+# Empty: a folder under DATA_DIR, on a developer's machine.
+SUBMISSIONS_BUCKET = os.environ.get("MARKETHUB_SUBMISSIONS_BUCKET", "").strip()
+# Articles a signed-in reader can send in a day, and how many of theirs are kept at a time.
+SUBMISSIONS_PER_USER_PER_DAY = 3
+SUBMISSIONS_KEPT_PER_USER = 10
+
 # --- News ----------------------------------------------------------------------------------
 
 # Nothing runs on a timer: a visit that finds the news older than this asks for a refresh.
