@@ -22,6 +22,13 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Peers en la navegación de My Hub (2026-10-08; sin desplegar)
+
+En `App.astro`, el enlace `Peers` (Tools) lleva a Peer Map, la herramienta nueva (`market-hub-peers-map`,
+https://peers.themarkethub.app). **En `main`, sin desplegar**: se despliega cuando el subdominio
+resuelva (falta el CNAME `peers` → `ghs.googlehosted.com` en Cloudflare, que pone el usuario), para
+no dejar un enlace roto.
+
 | Hecho | Pendiente |
 |---|---|
 | API (`src/markethub/`): login con Google (`auth.py`), sesión firmada, documento por usuario en Firestore/archivo/memoria (`users.py`), precios de FMP y buscador de la SEC (`market.py`), dashboard (`dashboard.py`), API (`api.py`) con control de `Origin` en las escrituras, borrado de cuenta y límite por IP | Probarla con Google, FMP y Firestore reales (la red del entorno bloquea FMP y la SEC) |
