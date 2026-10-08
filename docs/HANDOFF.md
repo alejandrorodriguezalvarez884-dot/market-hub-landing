@@ -759,7 +759,7 @@ El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
 Añadido el 2026-10-07 (desplegado como `market-hub-00026-qmp`): el episodio 2 de Money 101, la inflación (`gSV_7yoBPF0`), y su Short
 (`4LCtdOLN4DI`), con sus carátulas `inflation.jpg` e `inflation-short.jpg`.
 
-Añadido el 2026-10-08 (**sin desplegar**): las marcas de Instagram y X, que pidió el usuario "para que
+Añadido el 2026-10-08 (desplegado como `market-hub-00029-x6g`, desde una copia limpia del commit): las marcas de Instagram y X, que pidió el usuario "para que
 quede más bonito". `components/SocialMark.astro` las dibuja en línea, en el color del texto (el
 sitio no tiene color de marca de nadie): la de Instagram con trazos propios (cuadro redondeado,
 círculo y punto), la de X y la de YouTube con su trazado. Van en tres sitios: una fila de accesos
@@ -768,7 +768,8 @@ nombre de cada sección, y en los huecos que esperan contenido (la marca en cada
 Instagram; un avatar con la X en cada publicación de X). **La de YouTube no la pidió: es decisión
 del agente**, para que las tres cabeceras sean iguales; va en blanco, que es la versión
 monocroma que sus normas de marca admiten sobre fondo oscuro. Visto en local a 1280 y 375 px,
-sin desbordes.
+sin desbordes. Comprobado en producción: `/media/` sirve los tres accesos, las tres fichas y
+las marcas de los huecos; el resto del servicio, como estaba.
 
 El usuario pidió una pestaña Media con tres secciones grandes: YouTube (por listas de
 reproducción, dejando claro que vendrán más), Instagram y X (las dos, para cuentas que dará más
