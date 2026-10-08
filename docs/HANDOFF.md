@@ -114,6 +114,23 @@ el navegador del teléfono y lo lleva el portal (`src/markethub/appsignin.py`, q
 - 20 tests nuevos en `tests/test_app_google.py` (Google simulado); 239 en verde.
 - **Sin probar**: elegir una cuenta de Google de verdad y volver a la app, en un teléfono.
 
+### La app de móvil crea cuentas (2026-10-08; **sin desplegar**)
+
+El usuario pidió poder crear una cuenta de email desde la app, sin pasar por la web:
+
+- **`POST /api/app/auth/register`** `{email, password, name, captcha}`: la misma puerta que
+  `/api/auth/register` (las dos llaman a `made` en `api.py`: registro cerrado, límite por IP, el
+  captcha antes que nada, las reglas de `accounts.py`), y devuelve `{token, user, new, has_data}`
+  en vez de poner cookie.
+- **`GET /api/app/captcha`**: una página con el widget de Turnstile y nada más
+  (`captcha.app_page`), para que la app la enseñe en un WebView: el widget solo funciona en una
+  página del dominio de su clave. Le pasa el token a la app que la muestra
+  (`ReactNativeWebView.postMessage`); en un navegador no se lo pasa a nadie. 404 donde no se pide
+  captcha (registro abierto o cerrado).
+- 4 tests nuevos en `tests/test_app_tokens.py`; 243 en verde.
+- **Pendiente**: desplegar (hasta entonces la app recibe 404 al crear una cuenta contra el portal
+  público) y probar el widget dentro de la app en un teléfono.
+
 ### Watchlist: muro de gráficas, lectura de cada acción y mapa (2026-10-07; desplegado como `market-hub-00022-l94`)
 
 El usuario pidió una sección nueva en My Hub, entre Analysis y Community: ver las acciones de la
