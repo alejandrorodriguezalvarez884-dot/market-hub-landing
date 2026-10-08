@@ -114,7 +114,19 @@ el navegador del teléfono y lo lleva el portal (`src/markethub/appsignin.py`, q
 - 20 tests nuevos en `tests/test_app_google.py` (Google simulado); 239 en verde.
 - **Sin probar**: elegir una cuenta de Google de verdad y volver a la app, en un teléfono.
 
-### La app de móvil crea cuentas (2026-10-08; **sin desplegar**)
+### La app de móvil crea cuentas (2026-10-08; **desplegado**, revisión `market-hub-00027-wcg`, **con código de más: ver el aviso**)
+
+> **Aviso (2026-10-08).** La revisión `market-hub-00027-wcg` se construyó desde la carpeta de
+> trabajo mientras otra sesión escribía en ella los envíos de artículos de opinión
+> (`submissions.py`, sin commitear). **Producción responde a `/api/opinion/submissions`** (401 sin
+> sesión), una función a medio hacer que no está en ningún commit ni en `/privacy/`; sus páginas
+> (`/opinion/submit/`) no se desplegaron. El servicio no tiene las variables de esa función. Se
+> arregla desplegando desde una copia limpia del commit (`git archive <commit> | tar -x -C <dir>`,
+> copiar `.env`, `scripts/deploy-cloudrun.sh` desde ahí), o al desplegar esa función ya acabada.
+> **Para la próxima: `gcloud run deploy --source .` sube lo que hay en la carpeta, no lo
+> commiteado. Antes de desplegar, `git status` limpio; con otra sesión trabajando en el repo, se
+> despliega desde una copia del commit.**
+
 
 El usuario pidió poder crear una cuenta de email desde la app, sin pasar por la web:
 
@@ -128,8 +140,15 @@ El usuario pidió poder crear una cuenta de email desde la app, sin pasar por la
   (`ReactNativeWebView.postMessage`); en un navegador no se lo pasa a nadie. 404 donde no se pide
   captcha (registro abierto o cerrado).
 - 4 tests nuevos en `tests/test_app_tokens.py`; 243 en verde.
-- **Pendiente**: desplegar (hasta entonces la app recibe 404 al crear una cuenta contra el portal
-  público) y probar el widget dentro de la app en un teléfono.
+- **Comprobado en https://themarkethub.app tras desplegar**: `/api/app/captcha` da la página con
+  el widget y la clave del sitio; `/api/app/auth/register` sin captcha da 400 con el mensaje de
+  siempre, antes de mirar nada más; una escritura sin `Origin` sigue dando 403; `/api/config`
+  sigue en `registration: captcha`; `google/start` con la dirección del túnel del dueño sigue
+  mandando a Google; el servicio conserva variables, secretos, memoria y escalado.
+- El `.env` del equipo Windows no llevaba `MARKETHUB_APP_REDIRECTS` (el resto coincidía con el
+  servicio): se le añadió el valor que el servicio tenía, para no vaciarlo al desplegar.
+- **Pendiente**: quitar de producción el código de más (el aviso de arriba) y probar el widget
+  dentro de la app en un teléfono.
 
 ### Watchlist: muro de gráficas, lectura de cada acción y mapa (2026-10-07; desplegado como `market-hub-00022-l94`)
 
