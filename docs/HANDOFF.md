@@ -174,6 +174,17 @@ SMTP y se quitó entero, commit `d50e9df`).
   allí): que el usuario envíe uno de prueba, lo vea con `make inbox` y lo retire. El botón "Take
   it back" pulsado en el navegador (su ruta sí está testeada).
 
+### Playground en la barra de My Hub (2026-10-08; desplegado como `market-hub-00031-lrs`)
+
+"Tools" de la barra lateral lleva una herramienta más, **Playground**
+(https://playground.themarkethub.app, repo `market-hub-playground`): un tablero de gráficos y
+tablas que se compone pidiéndolo por chat. `PLAYGROUND_URL` en `site/src/lib/site.ts` y
+el enlace en `App.astro`. **`/privacy/` dice** que el Playground no guarda nada (el tablero y la
+conversación viven en la página) y que lo que se escribe en su chat va al mismo modelo de
+Anthropic, con el tablero y los últimos mensajes, sin nombre, email ni nada de la cartera. Desplegado desde una copia limpia del commit, con
+la configuración del servicio idéntica a la de antes. El subdominio estaba esperando su
+certificado de Google al desplegar: hasta que se emita, el enlace no abre.
+
 ### La página de privacidad habla de la app de móvil (2026-10-08; **desplegado**, revisión `market-hub-00030-bgx`)
 
 Antes de publicar la app en Google Play, `/privacy/` dice que existe y qué guarda: nada más en
