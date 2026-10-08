@@ -2,14 +2,15 @@
 
 A signed-in reader writes an article for the opinion section and sends it. Sending is not
 publishing: the article is kept, as it was sent, in a bucket only this service and the owner
-reach, and the owner is told by email. The owner reads it, and an article that is to run is
-published by hand from the market-hub-opinion repo, as every article is. Nothing here publishes.
+reach. The owner reads it there (the market-hub-opinion repo lists what is waiting), and an
+article that is to run is published by hand from that repo, as every article is. Nothing here
+publishes, and nothing is sent anywhere else.
 
 What is kept with an article is what its review needs: the account it came from (its id, to list
-it and to remove it with the account; its email, to answer its author; how it signs in, because
-the address of an account with a password of ours is not verified) and the name its author wants
-it signed with. The author can take it back, and deleting the account removes it. The text of an
-article never goes to a log.
+it and to remove it with the account; its name and email, to know whose it is and to answer its
+author; how it signs in, because the address of an account with a password of ours is not
+verified) and the name its author wants it signed with. The author can take it back, and deleting
+the account removes it. The text of an article never goes to a log.
 """
 
 from __future__ import annotations
@@ -19,11 +20,8 @@ import logging
 import os
 import re
 import secrets
-import smtplib
-import ssl
 import threading
 from datetime import datetime, timezone
-from email.message import EmailMessage
 from pathlib import Path
 from typing import Protocol
 
@@ -46,7 +44,6 @@ ID = re.compile(r"[A-Za-z0-9_\-]{6,40}")
 ACCOUNT = re.compile(r"[A-Za-z0-9_\-]{1,80}")  # an account id is part of the name its articles are kept under
 TICKER = re.compile(r"[A-Z][A-Z0-9.\-]{0,9}")
 ADDRESS = re.compile(r"https?://[^\s<>\"|]{4,400}")
-MAILBOX = re.compile(r"[^@\s<>,;:\"]+@[^@\s<>,;:\"]+\.[^@\s<>,;:\"]+")
 WORD = re.compile(r"\b[\w'’%$.,-]+\b")
 # An article argues; it does not tell a reader what to do with their money.
 ADVICE = re.compile(r"\b(you should (buy|sell|hold)|we recommend|(buy|sell|hold) rating|strong buy|price target of|our (price )?target"
@@ -68,7 +65,7 @@ def words(body: str) -> int:
 
 
 def _line(value) -> str:
-    """One line of text: a title cannot carry a line break into the subject of a message."""
+    """One line of text: a title, a name or an address has no line breaks."""
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
@@ -126,17 +123,12 @@ def clean(title, dek, body, sources, tickers, byline, agreed, name: str = "") ->
 
 
 class SubmissionStore(Protocol):
-    local: bool  # a developer's machine: nobody is waiting for the message
-
     def put(self, doc: dict) -> None: ...
     def by(self, user_id: str) -> list[dict]: ...
     def delete(self, user_id: str, id_: str) -> bool: ...
-    def where(self, doc: dict) -> str: ...
 
 
 class MemorySubmissions:
-    local = True
-
     def __init__(self):
         self.kept: dict[tuple[str, str], dict] = {}
 
@@ -149,14 +141,9 @@ class MemorySubmissions:
     def delete(self, user_id: str, id_: str) -> bool:
         return self.kept.pop((user_id, id_), None) is not None
 
-    def where(self, doc: dict) -> str:
-        return f"memory:submissions/{doc['user_id']}/{doc['id']}.json"
-
 
 class FileSubmissions:
     """For local development only: data/submissions/<account>/<id>.json."""
-
-    local = True
 
     def __init__(self, root: Path | None = None):
         self.root = Path(root or DATA_DIR / "submissions")
@@ -182,14 +169,9 @@ class FileSubmissions:
         path.unlink()
         return True
 
-    def where(self, doc: dict) -> str:
-        return str(self._path(doc["user_id"], doc["id"]))
-
 
 class BucketSubmissions:
     """A Cloud Storage bucket: submissions/<account>/<id>.json, one object per article."""
-
-    local = False
 
     def __init__(self, bucket: str = SUBMISSIONS_BUCKET):
         from google.cloud import storage
@@ -217,15 +199,11 @@ class BucketSubmissions:
             return False
         return True
 
-    def where(self, doc: dict) -> str:
-        return f"gs://{self.name}/{self._path(doc['user_id'], doc['id'])}"
-
 
 class NoSubmissions:
     """A deployed service that was given no bucket: it takes no articles, and keeps none on a
     disk that is gone with the instance."""
 
-    local = False
     closed = True
 
     def put(self, doc: dict) -> None:
@@ -237,9 +215,6 @@ class NoSubmissions:
     def delete(self, user_id: str, id_: str) -> bool:
         return False
 
-    def where(self, doc: dict) -> str:
-        return ""
-
 
 def default_submissions() -> SubmissionStore:
     if SUBMISSIONS_BUCKET:
@@ -248,111 +223,17 @@ def default_submissions() -> SubmissionStore:
     return NoSubmissions() if os.environ.get("MARKETHUB_FIRESTORE") == "1" else FileSubmissions()
 
 
-# --- Telling the owner ----------------------------------------------------------------------------
-
-
-class Mailer(Protocol):
-    def send(self, subject: str, text: str, reply_to: str | None = None) -> None: ...
-
-
-class SmtpMailer:
-    """A message to the owner through a mail server that takes a user and a password: the owner's
-    own mailbox (Gmail with an app password) or any provider's relay."""
-
-    def __init__(self, host: str, port: int, user: str, password: str, sender: str, to: str):
-        self.host, self.port, self.user, self.password, self.sender, self.to = host, port, user, password, sender, to
-
-    def send(self, subject: str, text: str, reply_to: str | None = None) -> None:
-        message = EmailMessage()
-        message["Subject"], message["From"], message["To"] = subject, self.sender, self.to
-        if reply_to:
-            message["Reply-To"] = reply_to
-        message.set_content(text)
-        secure = ssl.create_default_context()
-        if self.port == 465:
-            server = smtplib.SMTP_SSL(self.host, self.port, timeout=15, context=secure)
-        else:
-            server = smtplib.SMTP(self.host, self.port, timeout=15)
-        with server:
-            if self.port != 465:
-                server.starttls(context=secure)
-            server.login(self.user, self.password)
-            server.send_message(message)
-
-
-def default_mailer() -> Mailer | None:
-    """The owner's mailbox, when the environment names one: SMTP_USER and SMTP_PASSWORD, and who
-    reads the articles (MARKETHUB_REVIEW_EMAIL; else the first of MARKETHUB_ADMINS)."""
-    env = lambda name, default="": os.environ.get(name, default).strip()  # noqa: E731
-    user, password = env("SMTP_USER"), env("SMTP_PASSWORD")
-    to = env("MARKETHUB_REVIEW_EMAIL") or env("MARKETHUB_ADMINS").split(",")[0].strip()
-    if not (user and password and to):
-        return None
-    return SmtpMailer(env("SMTP_HOST", "smtp.gmail.com"), int(env("SMTP_PORT", "587") or 587), user, password,
-                      env("MARKETHUB_MAIL_FROM") or user, to)
-
-
-def _account(doc: dict) -> str:
-    how = "Google, a verified address" if doc.get("provider") == "google" else "an account with a password: the address is NOT verified"
-    return f"{doc.get('account_name', '')} <{doc.get('email', '')}> ({how})"
-
-
-def review_message(doc: dict, where: str) -> tuple[str, str]:
-    """What the owner gets: the article whole, who sent it and where it is kept."""
-    sources = "\n".join(f"- {s['title']} | {s['url']}" for s in doc["sources"])
-    text = "\n".join([
-        "A reader sent an article to Opinion for review. It is NOT published.",
-        "",
-        f"Title:     {doc['title']}",
-        f"Signed as: {doc['byline']}",
-        f"Account:   {_account(doc)}",
-        f"Sent:      {doc['received_utc']}",
-        f"Words:     {doc['words']}",
-        f"Tickers:   {', '.join(doc['tickers']) or 'none'}",
-        f"Id:        {doc['id']}",
-        f"Kept at:   {where}",
-        "",
-        "--- Summary ---",
-        doc["dek"],
-        "",
-        "--- Text ---",
-        doc["body"],
-        "",
-        "--- Sources ---",
-        sources,
-        "",
-        "To publish it, or to turn it down, go through the market-hub-opinion repo (its README says how).",
-    ])
-    return f"[Market Hub] Article for review: {doc['title']}", text
-
-
-def gone_message(doc: dict, why: str) -> tuple[str, str]:
-    return (f"[Market Hub] Article withdrawn: {doc['title']}",
-            f"The article \"{doc['title']}\" (id {doc['id']}, sent {doc['received_utc']}, signed as {doc['byline']}) is no longer kept: {why}.\n"
-            "If it was not published yet, there is nothing left to review.")
-
-
 # --- The desk -------------------------------------------------------------------------------------
 
 
 class Submissions:
-    def __init__(self, store: SubmissionStore, mailer: Mailer | None = None, kept_per_user: int = SUBMISSIONS_KEPT_PER_USER):
-        self.store, self.mailer, self.kept_per_user = store, mailer, kept_per_user
+    def __init__(self, store: SubmissionStore, kept_per_user: int = SUBMISSIONS_KEPT_PER_USER):
+        self.store, self.kept_per_user = store, kept_per_user
 
     @property
     def open(self) -> bool:
-        """Articles are taken only where they can be kept and the owner will hear of them."""
-        return not getattr(self.store, "closed", False) and (bool(self.mailer) or self.store.local)
-
-    def _tell(self, message: tuple[str, str], reply_to: str | None = None) -> bool:
-        if not self.mailer:
-            return False
-        try:
-            self.mailer.send(*message, reply_to=reply_to)
-        except Exception as exc:  # the article is kept all the same: the owner finds it in the bucket
-            log.error("submission mail failed: %s", type(exc).__name__)
-            return False
-        return True
+        """Articles are taken only where there is somewhere to keep them."""
+        return not getattr(self.store, "closed", False)
 
     @staticmethod
     def _view(doc: dict) -> dict:
@@ -367,16 +248,13 @@ class Submissions:
             raise Refused(f"You have {self.kept_per_user} articles with us already. Take one back before sending another.")
 
     def send(self, user: dict, article: dict) -> dict:
-        """Keep an article that ``clean`` passed, and tell the owner."""
+        """Keep an article that ``clean`` passed, for the owner to review."""
         self.room(user)
-        email = str(user.get("email") or "")
-        doc = {**article, "id": secrets.token_urlsafe(9), "user_id": user["id"], "email": email, "account_name": _line(user.get("name"))[:120],
-               "provider": user.get("provider", "google"), "received_utc": _now(), "status": IN_REVIEW, "slug": None}
+        doc = {**article, "id": secrets.token_urlsafe(9), "user_id": user["id"], "email": _line(user.get("email"))[:300],
+               "account_name": _line(user.get("name"))[:120], "provider": user.get("provider", "google"),
+               "received_utc": _now(), "status": IN_REVIEW, "slug": None}
         self.store.put(doc)
-        # Answering goes to the author only where Google vouches for the address.
-        verified = doc["provider"] == "google" and MAILBOX.fullmatch(email)
-        told = self._tell(review_message(doc, self.store.where(doc)), reply_to=email if verified else None)
-        log.info("article received words=%s mailed=%s", doc["words"], told)
+        log.info("article received words=%s", doc["words"])
         return self._view(doc)
 
     def mine(self, user_id: str) -> list[dict]:
@@ -389,11 +267,7 @@ class Submissions:
         """Its author takes an article back: the copy kept for review is removed."""
         if not ACCOUNT.fullmatch(user_id) or not ID.fullmatch(id_):
             return False
-        doc = next((d for d in self.store.by(user_id) if d["id"] == id_), None)
-        if not doc or not self.store.delete(user_id, id_):
-            return False
-        self._tell(gone_message(doc, "its author took it back"))
-        return True
+        return self.store.delete(user_id, id_)
 
     def forget(self, user_id: str) -> int:
         """Deleting an account removes the articles it sent."""
@@ -401,6 +275,5 @@ class Submissions:
             return 0
         mine = self.store.by(user_id)
         for doc in mine:
-            if self.store.delete(user_id, doc["id"]):
-                self._tell(gone_message(doc, "its author deleted their account"))
+            self.store.delete(user_id, doc["id"])
         return len(mine)

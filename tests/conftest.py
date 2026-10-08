@@ -103,27 +103,9 @@ def opinion():
     return Opinion(MemoryOpinion([ARTICLE]), admins={"owner@gmail.com"})
 
 
-class FakeMailer:
-    """Stands for the owner's mailbox: it keeps what it was asked to send."""
-
-    def __init__(self):
-        self.sent = []
-        self.broken = False
-
-    def send(self, subject, text, reply_to=None):
-        if self.broken:
-            raise OSError("no mail server")
-        self.sent.append({"subject": subject, "text": text, "reply_to": reply_to})
-
-
 @pytest.fixture
-def outbox():
-    return FakeMailer()
-
-
-@pytest.fixture
-def submissions(outbox):
-    return Submissions(MemorySubmissions(), outbox)
+def submissions():
+    return Submissions(MemorySubmissions())
 
 
 @pytest.fixture

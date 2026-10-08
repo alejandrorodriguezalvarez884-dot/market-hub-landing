@@ -19,12 +19,8 @@
 #   printf '%s' '<key>' | gcloud secrets versions add market-hub-turnstile-secret --data-file=-
 #
 # Readers send articles in for review (/opinion/submit/). They are kept in a bucket this script
-# makes (private, in the same region as the database) and the owner is told by email, through the
-# mail server named in .env (SMTP_USER; SMTP_HOST and SMTP_PORT default to Gmail's). Its password
-# is not in .env: it lives in Secret Manager (market-hub-smtp-password). For a Gmail mailbox it is
-# an "app password" (myaccount.google.com/apppasswords), never the account's own:
-#   printf '%s' '<app password>' | gcloud secrets versions add market-hub-smtp-password --data-file=-
-# Without SMTP_USER or without that secret, the page says articles cannot be sent in.
+# makes (private, in the same region as the database), where the owner reads them: nothing is
+# published from here. The market-hub-opinion repo lists what is waiting (`make inbox`).
 #
 # Optional overrides: GCP_PROJECT, GCP_REGION, SERVICE_NAME, MAX_INSTANCES, FIRESTORE_LOCATION,
 # FIRESTORE_DATABASE, SUBMISSIONS_BUCKET.
@@ -69,15 +65,9 @@ PASSWORD_LOGIN="$(env_value MARKETHUB_PASSWORD_LOGIN)"
 # Where the phone app's Google sign-in may send its code besides the installed app (appsignin.py).
 APP_REDIRECTS="$(env_value MARKETHUB_APP_REDIRECTS)"
 [[ "$APP_REDIRECTS" != *"|"* ]] || fail "MARKETHUB_APP_REDIRECTS in $ENV_FILE cannot contain '|'."
-# Readers' articles: where they are kept, and the mailbox that tells the owner (submissions.py).
+# Readers' articles: the bucket they are kept in (submissions.py).
 SUBMISSIONS_BUCKET="${SUBMISSIONS_BUCKET:-$(env_value MARKETHUB_SUBMISSIONS_BUCKET)}"
 SUBMISSIONS_BUCKET="${SUBMISSIONS_BUCKET:-$GCP_PROJECT-market-hub-submissions}"
-SMTP_USER="$(env_value SMTP_USER)"
-SMTP_HOST="$(env_value SMTP_HOST)"
-SMTP_PORT="$(env_value SMTP_PORT)"
-REVIEW_EMAIL="$(env_value MARKETHUB_REVIEW_EMAIL)"
-MAIL_FROM="$(env_value MARKETHUB_MAIL_FROM)"
-[[ "$SMTP_USER$SMTP_HOST$SMTP_PORT$REVIEW_EMAIL$MAIL_FROM" != *"|"* ]] || fail "The mail settings in $ENV_FILE cannot contain '|'."
 [[ "$GOOGLE_CLIENT_ID" == *.apps.googleusercontent.com ]] || fail "GOOGLE_CLIENT_ID in $ENV_FILE is not an OAuth client id."
 [[ ${#SESSION_SECRET} -ge 32 ]] || fail "SESSION_SECRET in $ENV_FILE must be at least 32 characters."
 [[ -n "$FMP_KEY" || "$MARKET_DATA" != "fmp" ]] || fail "MARKET_DATA=fmp needs FMP_API_KEY in $ENV_FILE."
@@ -167,14 +157,6 @@ if ! gcp storage buckets describe "gs://$SUBMISSIONS_BUCKET" >/dev/null 2>&1; th
   gcp storage buckets create "gs://$SUBMISSIONS_BUCKET" --location="$FIRESTORE_LOCATION"     --uniform-bucket-level-access --public-access-prevention >/dev/null
 fi
 grant "storage buckets" "gs://$SUBMISSIONS_BUCKET" roles/storage.objectAdmin
-# The mailbox's password is only ever in Secret Manager, like the captcha's keys.
-if [[ -n "$SMTP_USER" ]] && gcp secrets describe market-hub-smtp-password >/dev/null 2>&1; then
-  grant secrets market-hub-smtp-password roles/secretmanager.secretAccessor
-  SECRETS="$SECRETS,SMTP_PASSWORD=market-hub-smtp-password:latest"
-  echo "→ Readers' articles: on, the owner is told from $SMTP_USER"
-else
-  echo "note: no SMTP_USER in $ENV_FILE or no market-hub-smtp-password in Secret Manager: readers cannot send articles in."
-fi
 
 echo "→ Building with Cloud Build and deploying '$SERVICE_NAME' to $GCP_REGION (a few minutes)"
 gcp run deploy "$SERVICE_NAME" \
@@ -188,7 +170,7 @@ gcp run deploy "$SERVICE_NAME" \
   --max-instances "$MAX_INSTANCES" \
   --timeout 60 \
   --set-secrets "$SECRETS" \
-  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL|MARKETHUB_COOKIE_DOMAIN=$COOKIE_DOMAIN|MARKETHUB_ADMINS=$ADMINS|MARKETHUB_PASSWORD_LOGIN=${PASSWORD_LOGIN:-1}|MARKET_DATA=${MARKET_DATA:-yahoo}|MARKETHUB_APP_REDIRECTS=$APP_REDIRECTS|MARKETHUB_SUBMISSIONS_BUCKET=$SUBMISSIONS_BUCKET|SMTP_USER=$SMTP_USER|SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}|SMTP_PORT=${SMTP_PORT:-587}|MARKETHUB_REVIEW_EMAIL=$REVIEW_EMAIL|MARKETHUB_MAIL_FROM=$MAIL_FROM"
+  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL|MARKETHUB_COOKIE_DOMAIN=$COOKIE_DOMAIN|MARKETHUB_ADMINS=$ADMINS|MARKETHUB_PASSWORD_LOGIN=${PASSWORD_LOGIN:-1}|MARKET_DATA=${MARKET_DATA:-yahoo}|MARKETHUB_APP_REDIRECTS=$APP_REDIRECTS|MARKETHUB_SUBMISSIONS_BUCKET=$SUBMISSIONS_BUCKET"
 
 URL="$(gcp run services describe "$SERVICE_NAME" --region "$GCP_REGION" --format 'value(status.url)')"
 if curl -fsS "$URL/api/health" >/dev/null; then

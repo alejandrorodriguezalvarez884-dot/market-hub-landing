@@ -50,7 +50,7 @@
     DELETE /api/opinion/comments/{id}   take one's own comment down
     GET    /api/opinion/submissions the articles the user sent in for review, and the form's measures
     POST   /api/opinion/submissions {title, dek, body, sources, tickers, byline, agree}: send one in.
-                                    It is kept for review and the owner is told; nothing is published
+                                    It is kept for the owner to review; nothing is published
     DELETE /api/opinion/submissions/{id}   take one back
 
 Market figures come from FMP when there is a key (live.py), else from sample.py; the overview
@@ -97,7 +97,7 @@ from .live import default_markets
 from .news import default_news
 from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
 from . import submissions as submissions_
-from .submissions import Submissions, default_mailer, default_submissions
+from .submissions import Submissions, default_submissions
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
@@ -185,7 +185,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     news = news or default_news(markets, directory)
     opinion = opinion or Opinion(default_opinion())
     # The articles readers send in: kept for the owner to review, never published from here.
-    submissions = submissions or Submissions(default_submissions(), default_mailer())
+    submissions = submissions or Submissions(default_submissions())
     # The accounts with a password of ours. MARKETHUB_PASSWORD_LOGIN=0 leaves Google as the only way in.
     accounts = Accounts(logins or default_logins(), password_cost)
     password_login = os.environ.get("MARKETHUB_PASSWORD_LOGIN", "1").strip() != "0"
@@ -862,7 +862,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def submit(request: Request, title: str = Body(max_length=400), dek: str = Body(max_length=1000), body: str = Body(max_length=40000),
                sources: list = Body(default=[], max_length=40), tickers: list = Body(default=[], max_length=40),
                byline: str = Body("", max_length=200), agree: bool = Body(False)) -> dict:
-        """An article for review. It is kept and the owner is told: it is not published."""
+        """An article for review. It is kept for the owner to read: it is not published."""
         user = current_user(request)
         allow(request)
         if not submissions.open:

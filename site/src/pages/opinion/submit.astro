@@ -1,7 +1,7 @@
 ---
 // Write for Opinion: a signed-in reader sends an article in. Sending is not publishing: it is
-// kept for the editor to read, who answers by email. The page also lists what the reader has
-// sent, and lets them take it back.
+// kept for the editor to read. The page also lists what the reader has sent, says what became
+// of each, and lets them take it back.
 import Site from "../../components/Site.astro";
 import { link } from "../../lib/site";
 ---
@@ -11,14 +11,14 @@ import { link } from "../../lib/site";
 		<a href={link("/opinion/")} class="text-[13px] text-muted hover:text-ink-strong"><span aria-hidden="true">←</span> Opinion</a>
 		<h1 class="mt-8 text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Write for Opinion</h1>
 		<p class="mt-3 text-lg leading-relaxed text-ink">Send us an article of your own. It is not published when you send it: the editor
-			reads it first and writes back to you. If it runs, it appears in Opinion signed with the name you choose.</p>
+			reads it first. If it runs, it appears in Opinion signed with the name you choose.</p>
 
 		<section class="sec mt-10" aria-labelledby="how-title">
 			<div class="sec-head"><h2 id="how-title" class="sec-title">How it works</h2></div>
 			<ol class="grid gap-x-8 gap-y-4 text-sm text-ink sm:grid-cols-3">
-				<li><span class="num text-muted">1</span><p class="mt-1"><span class="text-ink-strong">You write it and send it.</span> You need an account, so we know who to answer.</p></li>
+				<li><span class="num text-muted">1</span><p class="mt-1"><span class="text-ink-strong">You write it and send it.</span> You need an account, so we know whose it is.</p></li>
 				<li><span class="num text-muted">2</span><p class="mt-1"><span class="text-ink-strong">The editor reads it.</span> Until then nobody else sees it, and you can take it back.</p></li>
-				<li><span class="num text-muted">3</span><p class="mt-1"><span class="text-ink-strong">We write to you.</span> If it runs, it is published with a cover we draw for it.</p></li>
+				<li><span class="num text-muted">3</span><p class="mt-1"><span class="text-ink-strong">This page tells you.</span> If it runs, it is published with a cover we draw for it.</p></li>
 			</ol>
 		</section>
 
@@ -145,7 +145,7 @@ import { link } from "../../lib/site";
 					sources: sources.input.value.split("\n").map((s) => s.trim()).filter(Boolean),
 					tickers: tickers.input.value.split(/[\s,]+/).filter(Boolean), byline: byline.input.value, agree: box.checked });
 				localStorage.removeItem(DRAFT);
-				done(user, made);
+				done(made);
 				list();
 			} catch (err) {
 				send.disabled = false;
@@ -156,12 +156,12 @@ import { link } from "../../lib/site";
 		desk.replaceChildren(el);
 	}
 
-	function done(user: User, made: Submission) {
+	function done(made: Submission) {
 		const again = Object.assign(h("button", "btn btn-ghost mt-5", "Write another"), { type: "button" });
 		again.addEventListener("click", start);
 		desk.replaceChildren(add(h("div", "rounded-[3px] border border-line-strong px-5 py-5"),
 			h("p", "text-lg font-medium text-ink-strong", "Sent for review."),
-			h("p", "mt-2 text-sm leading-relaxed text-ink", `“${made.title}” is with the editor. It is not public, and it will not be unless we publish it. We will write to ${user.email}.`),
+			h("p", "mt-2 text-sm leading-relaxed text-ink", `“${made.title}” is with the editor. It is not public, and it will not be unless we publish it. This page will say what became of it.`),
 			again));
 		$("desk-title").scrollIntoView({ block: "start", behavior: "smooth" });
 	}
