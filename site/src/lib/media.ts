@@ -42,8 +42,20 @@ export const YOUTUBE = {
   upcoming: 2,
 };
 
-// The accounts whose posts the page will show. Empty until the owner names them.
-export const INSTAGRAM = { handle: "" };
+export interface Reel {
+  code: string; // Instagram's code of the reel: instagram.com/reel/<code>/
+  title: string;
+  length: string; // as a clock: "0:44"
+  cover: string; // a file in site/public/media/: the cover of the Short it is
+}
+
+// Market Hub's account on Instagram and its reels, newest first. Kept by hand, like the videos: a
+// reel is added once it is on Instagram (its address is in the video's published.json), with the
+// cover of its Short, so that the page asks nothing of Instagram.
+export const INSTAGRAM = { handle: "the_market_hub_app", reels: [] as Reel[] };
+
+// The account whose posts the page will show. Empty until the owner names it.
 export const X = { handle: "" };
 
 export const shortUrl = (id: string) => `https://www.youtube.com/shorts/${id}`;
+export const reelUrl = (code: string) => `https://www.instagram.com/reel/${code}/`;

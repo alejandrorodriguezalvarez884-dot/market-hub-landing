@@ -1,11 +1,11 @@
 ---
 // Media: what Market Hub publishes outside the portal. YouTube, playlist by playlist, with a
-// player; then Instagram and X, each waiting for its account. The covers are our own files: the
-// page asks nothing of YouTube until a visitor presses play. Each place carries its mark, in the
-// colour of the page's own text.
+// player; then Instagram, its reels as links, and X, waiting for its account. The covers are our
+// own files: the page asks nothing of YouTube until a visitor presses play, and nothing of
+// Instagram at all. Each place carries its mark, in the colour of the page's own text.
 import Site from "../components/Site.astro";
 import SocialMark from "../components/SocialMark.astro";
-import { INSTAGRAM, X, YOUTUBE, shortUrl } from "../lib/media";
+import { INSTAGRAM, X, YOUTUBE, reelUrl, shortUrl } from "../lib/media";
 import { link } from "../lib/site";
 
 const cover = (file: string) => link(`/media/${file}`);
@@ -125,14 +125,33 @@ const places = [
 				? <a href={`https://www.instagram.com/${INSTAGRAM.handle}/`} class="sec-note link" rel="noopener" target="_blank">@{INSTAGRAM.handle}</a>
 				: <span class="sec-note">Account coming soon</span>}
 		</div>
-		<p class="max-w-2xl text-ink">The posts of Market Hub's Instagram account will be shown here: one idea in a picture, the short way into each video.</p>
-		<ul class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-hidden="true">
-			{Array.from({ length: 4 }, (_, n) => (
-				<li class:list={["waiting grid aspect-square place-items-center rounded-sm text-faint", n === 3 && "sm:hidden lg:grid"]}>
-					<SocialMark name="instagram" class:list={["h-9 w-9", n > 0 && "opacity-40"]} />
-				</li>
-			))}
-		</ul>
+		{INSTAGRAM.reels.length > 0 ? (
+			<>
+				<p class="max-w-2xl text-ink">Each video's short cut, as a reel: one idea in under a minute.</p>
+				<ul class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+					{INSTAGRAM.reels.map((r) => (
+						<li>
+							<a href={reelUrl(r.code)} class="group block" rel="noopener" target="_blank">
+								<img src={cover(r.cover)} alt="" class="aspect-[9/16] w-full rounded-sm object-cover" width="540" height="960" loading="lazy" />
+								<span class="mt-2 block text-[13px] leading-snug text-ink group-hover:text-ink-strong">{r.title}</span>
+								<span class="num mt-0.5 block text-[12px] text-muted">{r.length}</span>
+							</a>
+						</li>
+					))}
+				</ul>
+			</>
+		) : (
+			<>
+				<p class="max-w-2xl text-ink">The reels of Market Hub's Instagram account will be shown here: one idea in under a minute, the short way into each video.</p>
+				<ul class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4" aria-hidden="true">
+					{Array.from({ length: 4 }, (_, n) => (
+						<li class:list={["waiting grid aspect-square place-items-center rounded-sm text-faint", n === 3 && "sm:hidden lg:grid"]}>
+							<SocialMark name="instagram" class:list={["h-9 w-9", n > 0 && "opacity-40"]} />
+						</li>
+					))}
+				</ul>
+			</>
+		)}
 	</section>
 
 	<section id="x" class="sec mt-16 !pt-5">

@@ -783,6 +783,16 @@ El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
 
 ### Media (2026-10-06; desplegada como `market-hub-00016-gjv`)
 
+Añadido el 2026-10-08, **sin desplegar**: la cuenta de Instagram, `the_market_hub_app`
+(`INSTAGRAM.handle`), con su enlace en la cabecera de la sección, y el sitio de sus reels:
+`INSTAGRAM.reels` en `lib/media.ts`, hoy vacío. Un reel se añade a mano cuando se publica (lo
+sube `make instagram` en `the-market-hub-media`, que deja su dirección en el `published.json` del
+vídeo): su código, el título y la duración del Short y la carátula del Short, que ya está en
+`site/public/media/`. Sale como los Shorts, una carátula nuestra que enlaza al reel: **la página
+no pide nada a Instagram**, así que `/privacy/` no cambia por esto. Sin reels, la sección sigue
+con sus huecos y dice que se enseñarán ahí. Es la propuesta del agente frente al incrustado
+oficial de Instagram, que carga su script; el usuario no la ha confirmado. Visto en local.
+
 Añadido el 2026-10-07 (desplegado como `market-hub-00026-qmp`): el episodio 2 de Money 101, la inflación (`gSV_7yoBPF0`), y su Short
 (`4LCtdOLN4DI`), con sus carátulas `inflation.jpg` e `inflation-short.jpg`.
 
