@@ -167,19 +167,25 @@ SMTP y se quitó entero, commit `d50e9df`).
   allí): que el usuario envíe uno de prueba, lo vea con `make inbox` y lo retire. El botón "Take
   it back" pulsado en el navegador (su ruta sí está testeada).
 
-### La app de móvil crea cuentas (2026-10-08; **desplegado**, revisión `market-hub-00027-wcg`, **con código de más: ver el aviso**)
+### La página de privacidad habla de la app de móvil (2026-10-08; **sin desplegar**)
 
-> **Aviso (2026-10-08).** La revisión `market-hub-00027-wcg` se construyó desde la carpeta de
-> trabajo mientras otra sesión escribía en ella los envíos de artículos de opinión
-> (`submissions.py`, sin commitear). **Producción responde a `/api/opinion/submissions`** (401 sin
-> sesión), una función a medio hacer que no está en ningún commit ni en `/privacy/`; sus páginas
-> (`/opinion/submit/`) no se desplegaron. El servicio no tiene las variables de esa función. Se
-> arregla desplegando desde una copia limpia del commit (`git archive <commit> | tar -x -C <dir>`,
-> copiar `.env`, `scripts/deploy-cloudrun.sh` desde ahí), o al desplegar esa función ya acabada.
-> **Para la próxima: `gcloud run deploy --source .` sube lo que hay en la carpeta, no lo
-> commiteado. Antes de desplegar, `git status` limpio; con otra sesión trabajando en el repo, se
-> despliega desde una copia del commit.**
+Antes de publicar la app en Google Play, `/privacy/` dice que existe y qué guarda: nada más en
+el servidor; en el teléfono, solo la sesión (el token firmado, con nombre y email, en el llavero),
+que se quita al salir; ningún kit de anuncios ni de analítica; ningún permiso pedido al usuario;
+Google por el navegador del teléfono y el mismo captcha al crear una cuenta. Es la dirección que
+se da a Play como política de privacidad (`market-hub-mobile/store/google-play/LISTING.md`).
+`astro check` y el build en verde. **Pendiente**: desplegar.
 
+### La app de móvil crea cuentas (2026-10-08; **desplegado**, revisión `market-hub-00027-wcg`)
+
+> **Lo que pasó al desplegarlo (2026-10-08).** La revisión `market-hub-00027-wcg` se construyó
+> desde la carpeta de trabajo mientras otra sesión escribía en ella los envíos de artículos de
+> opinión, sin commitear, y parte de ese código salió a producción a medio hacer. Quedó resuelto
+> cuando esa función se terminó y se desplegó desde una copia limpia de su commit
+> (`market-hub-00029-x6g`). **Para la próxima: `gcloud run deploy --source .` sube lo que hay
+> en la carpeta, no lo commiteado. `git status` justo antes de lanzar; con otra sesión
+> trabajando en el repo, se despliega desde una copia del commit (`git archive <commit> | tar -x
+> -C <dir>`, copiar `.env`, `scripts/deploy-cloudrun.sh` desde ahí).**
 
 El usuario pidió poder crear una cuenta de email desde la app, sin pasar por la web:
 
