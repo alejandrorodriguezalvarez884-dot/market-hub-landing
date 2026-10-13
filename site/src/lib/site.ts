@@ -2,6 +2,8 @@
 export const SITE_NAME = "Market Hub";
 export const REPO_URL = "https://github.com/alejandrorodriguezalvarez884-dot/market-hub-landing";
 export const AUTHOR_URL = "https://alejandrorodriguez.dev/";
+// Where readers reach us: published on /contact/, which the app and its store pages link to.
+export const CONTACT_EMAIL = "alejandrorodriguezalvarez884@gmail.com";
 
 // The analysis tools are sections of the portal on its subdomains: the header names them and a
 // company's page links to the same company in each.

@@ -1,0 +1,26 @@
+---
+import Site from "../components/Site.astro";
+import { CONTACT_EMAIL, link } from "../lib/site";
+---
+
+<Site title="Contact" description="How to reach Market Hub: help with the site or the app, a comment to report, or your data.">
+	<div class="max-w-3xl space-y-5 text-[14px] leading-relaxed text-ink">
+		<h1 class="text-2xl font-bold text-ink-strong">Contact</h1>
+		<p>Market Hub, the site and its app for phones, is made and run by one person. Write to{" "}
+			<a href={`mailto:${CONTACT_EMAIL}`} class="link">{CONTACT_EMAIL}</a> and a person reads it.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">Help</h2>
+		<p>Something does not work, a figure looks wrong, or you cannot get into your account: say what you did and what you
+			saw, and on which page or screen. We cannot send you a new password, because we never keep the one you typed, but
+			we can help you start again.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">A comment or a member to report</h2>
+		<p>Under every comment that is not yours there is <strong>Report</strong> and <strong>Block</strong>, on the site and in
+			the app. A reported comment is hidden from you at once and we review it; one that breaks the{" "}
+			<a href={link("/terms/")} class="link">Terms</a> is removed, and we may close the account of somebody who keeps writing them.
+			Blocking a member hides everything they write from you. If that is not enough, or it is about something other than a
+			comment, write to the address above.</p>
+		<h2 class="pt-2 text-lg font-bold text-ink-strong">Your data</h2>
+		<p>What we keep and why is on the <a href={link("/privacy/")} class="link">Privacy</a> page. You can see it, download it
+			and delete your account yourself on <a href={link("/account/")} class="link">Account and data</a>, or in the app under
+			More. If you cannot, write to us from the address of the account and we do it for you.</p>
+	</div>
+</Site>
