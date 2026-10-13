@@ -35,6 +35,7 @@ from zoneinfo import ZoneInfo
 
 from . import sample
 from .community import HANDLE, RESERVED, SAMPLE_NAMES, handle_key
+from .opinion import publishable
 from .config import (COMPETITION_CACHE_SECONDS, COMPETITION_ENTRANTS, COMPETITION_PICKS_MAX, COMPETITION_PICKS_MIN,
                      COMPETITION_SETTLE_DAYS, COMPETITION_WEIGHT_MAX, COMPETITION_WEIGHT_MIN, DATA_DIR, FIRESTORE_DATABASE)
 from .holdings import BENCHMARK, INDICES
@@ -367,7 +368,7 @@ class Competitions:
         if not HANDLE.fullmatch(handle):
             raise Refused("Pick a name of 3 to 20 letters, digits, spaces, hyphens or underscores.")
         key = handle_key(handle)
-        if key in {handle_key(r) for r in RESERVED} or key in {handle_key(n) for n in SAMPLE_NAMES}:
+        if key in {handle_key(r) for r in RESERVED} or key in {handle_key(n) for n in SAMPLE_NAMES} or not publishable(handle):
             raise Refused("That name is not available.")
         others = [e for e in self.store.entries(month) if e["user_id"] != user_id]
         if any(e.get("handle_key") == key for e in others) or (self.taken and self.taken(key, user_id)):

@@ -30,11 +30,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
-export const me = () => api<{ user: User; has_data: boolean }>("/api/me");
+export const me = () => api<{ user: User; has_data: boolean; moderator?: boolean }>("/api/me");
 export const config = () => api<Config>("/api/config");
 
 // Who is signed in, or null. Pages that need a user send the visitor to the sign-in page.
-export async function signedIn(): Promise<{ user: User; has_data: boolean } | null> {
+export async function signedIn(): Promise<{ user: User; has_data: boolean; moderator?: boolean } | null> {
   try {
     return await me();
   } catch (e) {
@@ -43,7 +43,7 @@ export async function signedIn(): Promise<{ user: User; has_data: boolean } | nu
   }
 }
 
-export async function requireUser(): Promise<{ user: User; has_data: boolean }> {
+export async function requireUser(): Promise<{ user: User; has_data: boolean; moderator?: boolean }> {
   const who = await signedIn();
   if (!who) {
     location.replace(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/signin/?next=${encodeURIComponent(location.pathname + location.search)}`);

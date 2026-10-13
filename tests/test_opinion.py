@@ -87,7 +87,7 @@ def test_only_its_author_or_the_owner_takes_a_comment_down(client, opinion):
     first, second = thread(client)["comments"]
     # Its place stays, empty, so the answer under it keeps its sense. No answering it any more.
     assert first == {"id": mine["id"], "parent_id": None, "depth": 0, "created_utc": first["created_utc"], "deleted": True,
-                     "name": "", "text": "", "mine": False}
+                     "hidden": None, "name": "", "text": "", "mine": False}
     assert second["id"] == reply["id"] and post(client, "To a ghost", mine["id"]).status_code == 400
     # The owner's address is the one in MARKETHUB_ADMINS.
     assert opinion.can_moderate({"email": "Owner@gmail.com"}) and not opinion.can_moderate({"email": "user1001@gmail.com"})

@@ -31,6 +31,7 @@ from . import sample
 from .config import (COMMUNITY_MEMBERS, COMMUNITY_REFRESH_PER_VISIT, COMMUNITY_STALE_SECONDS, DATA_DIR,
                      FIRESTORE_DATABASE)
 from .market import MarketUnavailable
+from .opinion import publishable
 
 PERIODS = ["1d", "1m", "3m", "ytd", "1y"]
 HANDLE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9_\-]| (?! )){1,18}[A-Za-z0-9]")
@@ -193,7 +194,7 @@ class Community:
         if not HANDLE.fullmatch(handle):
             raise Refused("Pick a name of 3 to 20 letters, digits, spaces, hyphens or underscores.")
         key = handle_key(handle)
-        if key in {handle_key(r) for r in RESERVED}:
+        if key in {handle_key(r) for r in RESERVED} or not publishable(handle):
             raise Refused("That name is not available.")
         if not any(r["weight"] for r in d["positions"]):
             raise Refused("Add a position first: there is nothing to share yet.")

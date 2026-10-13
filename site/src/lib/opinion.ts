@@ -9,7 +9,12 @@ export type Cover = { alt: string; v: string };
 export type Card = { slug: string; title: string; dek: string; kind: string; tags: string[]; tickers: string[]; published_utc: string; minutes: number; cover?: Cover | null;
   author?: string | null }; // who signs it, when a reader wrote it
 export type Article = Card & { body: string; sources: Source[] };
-export type Comment = { id: string; parent_id: string | null; depth: number; created_utc: string; deleted: boolean; name: string; text: string; mine: boolean };
+// `hidden` says why a comment that is there is not shown to this reader: they blocked its author,
+// they reported it, or it is held until the owner has looked at it. `reports` is for the owner.
+export type Comment = { id: string; parent_id: string | null; depth: number; created_utc: string; deleted: boolean; name: string; text: string; mine: boolean;
+  hidden?: "blocked" | "reported" | "held" | null; reports?: number };
+export type Blocked = { key: string; name: string; since_utc: string };
+export type Reported = { id: string; slug: string; name: string; text: string; created_utc: string; reports: number; held: boolean };
 export type Thread = { comments: Comment[]; signed_in: boolean; moderator: boolean };
 // An article a reader sent in for review, as its author gets it back. It is published only if
 // the editor says so, and then `slug` is where.
@@ -24,6 +29,14 @@ export const thread = (slug: string) => api<Thread>(`/api/public/opinion/comment
 export const comment = (slug: string, text: string, parent_id: string | null) =>
   api<Comment>("/api/opinion/comments", { method: "POST", body: JSON.stringify({ slug, text, parent_id }) });
 export const removeComment = (id: string) => api<{ deleted: boolean }>(`/api/opinion/comments/${encodeURIComponent(id)}`, { method: "DELETE" });
+// Any comment of any thread: say it should not be there, or stop seeing what its author writes.
+export const reportComment = (id: string) => api<{ reported: boolean }>(`/api/comments/${encodeURIComponent(id)}/report`, { method: "POST" });
+export const blockAuthor = (comment_id: string) => api<{ blocked: boolean }>("/api/blocks", { method: "POST", body: JSON.stringify({ comment_id }) });
+export const blocked = () => api<{ blocked: Blocked[] }>("/api/blocks");
+export const unblock = (key: string) => api<{ unblocked: boolean }>(`/api/blocks/${encodeURIComponent(key)}`, { method: "DELETE" });
+// For the owner: the reported comments, and saying one stays.
+export const reported = () => api<{ comments: Reported[] }>("/api/moderation/reports");
+export const keepComment = (id: string) => api<{ kept: boolean }>(`/api/moderation/reports/${encodeURIComponent(id)}/keep`, { method: "POST" });
 
 export const submissions = () => api<Desk>("/api/opinion/submissions");
 export const submit = (a: { title: string; dek: string; body: string; sources: string[]; tickers: string[]; byline: string; agree: boolean }) =>

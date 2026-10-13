@@ -10,6 +10,14 @@ What is kept of a comment's author is their account id (to let them delete it, a
 their comments with their account) and the first name shown next to it. Nothing else of the
 account is shown: no email, no picture, no surname. A deleted comment stays as an empty place in
 its thread, so the answers under it keep their sense. Comment texts are never logged.
+
+A reader can report a comment and can block its author. A reported comment is no longer shown to
+whoever reported it; reported by two readers, it is shown to nobody until the owner has looked at
+it, and the owner keeps it or takes it down. A blocked author's comments are not shown to whoever
+blocked them, anywhere. What is kept: with a comment, the account ids of who reported it; and a
+block as a document of its own (who blocked whom, the name the comment was shown under, when).
+Both go with the account of whoever made them, and a block goes with the blocked account too.
+A comment in language nobody should have to read is not taken at all.
 """
 
 from __future__ import annotations
@@ -31,6 +39,8 @@ COMMENT_ID = re.compile(r"[A-Za-z0-9_\-]{6,40}")
 COMMENT_MAX = 2000  # characters
 DEPTH_MAX = 6  # an answer to an answer to an answer...: below this the thread reads no more
 PER_ARTICLE_MAX = 1000
+HOLD_AT = 2  # reported by this many readers, a comment is hidden from everybody until it is reviewed
+BLOCKS_MAX = 200  # authors one reader can block
 FRONT_CACHE_SECONDS = 60
 COVERS_KEPT = 48  # covers held in memory, so a picture is read from the store once
 # Threads that hang from something other than an article keep their comments in the same store,
@@ -41,6 +51,21 @@ MEMBERS_ONLY = "competition-"
 
 class Refused(ValueError):
     """A comment that cannot be taken, with the reason to tell its author."""
+
+
+# Words a comment is not published with: slurs and the coarsest insults, in English and in
+# Spanish, as whole words. It is a floor, not the moderation: the rest is reported and reviewed.
+_UNPUBLISHED = re.compile(r"(?<![a-z])(?:" + "|".join((
+    "n[i1]gg(?:er|a)s?", "f[a4]gg?[o0]ts?", "k[i1]kes?", "sp[i1]cs?", "ch[i1]nks?", "tr[a4]nn(?:y|ies)", "r[e3]t[a4]rd(?:s|ed)?",
+    "c[u*]nts?", "wh[o0]res?", "sl[u*]ts?", "f[u*]ck(?:er|ers|ing|ed|s)?", "m[o0]therf[u*]ck(?:er|ers|ing)?", "b[i1]tch(?:es)?",
+    "assh[o0]les?", "kill yourself", "kys",
+    "maric[oó]n(?:es)?", "put[ao]s?", "hijo(?:s)? de puta", "hijueputa", "zorras?", "subnormal(?:es)?", "gilipollas", "cabr[oó]n(?:es)?",
+    "sudacas?", "panchitos?", "mátate", "matate",
+)) + r")(?![a-z])", re.IGNORECASE)
+
+
+def publishable(text: str) -> bool:
+    return not _UNPUBLISHED.search(text)
 
 
 def _now() -> str:
@@ -58,6 +83,11 @@ class OpinionStore(Protocol):
     def comment(self, id_: str) -> dict | None: ...
     def put_comment(self, comment: dict) -> None: ...
     def comments_by(self, user_id: str) -> list[dict]: ...
+    def reported(self) -> list[dict]: ...  # the comments somebody has reported
+    def reported_by(self, user_id: str) -> list[dict]: ...
+    def blocks(self, field: str, user_id: str) -> list[dict]: ...  # field: "by" (who blocked) or "of" (who is blocked)
+    def put_block(self, block: dict) -> None: ...
+    def delete_block(self, id_: str) -> None: ...
 
 
 class MemoryOpinion:
@@ -65,6 +95,7 @@ class MemoryOpinion:
         self.articles = {a["slug"]: a for a in articles or []}
         self.covers: dict[str, bytes] = {}
         self.kept: dict[str, dict] = {}
+        self.blocked: dict[str, dict] = {}
 
     def front(self) -> list[dict]:
         cards = [{k: v for k, v in a.items() if k not in ("body", "sources")} for a in self.articles.values()]
@@ -88,6 +119,21 @@ class MemoryOpinion:
 
     def comments_by(self, user_id: str) -> list[dict]:
         return [dict(c) for c in self.kept.values() if c.get("user_id") == user_id]
+
+    def reported(self) -> list[dict]:
+        return [dict(c) for c in self.kept.values() if c.get("reported")]
+
+    def reported_by(self, user_id: str) -> list[dict]:
+        return [dict(c) for c in self.kept.values() if user_id in (c.get("reported_by") or [])]
+
+    def blocks(self, field: str, user_id: str) -> list[dict]:
+        return [dict(b) for b in self.blocked.values() if b.get(field) == user_id]
+
+    def put_block(self, block: dict) -> None:
+        self.blocked[block["id"]] = dict(block)
+
+    def delete_block(self, id_: str) -> None:
+        self.blocked.pop(id_, None)
 
 
 class FileOpinion:
@@ -129,6 +175,27 @@ class FileOpinion:
     def comments_by(self, user_id: str) -> list[dict]:
         return [c for c in self._all() if c.get("user_id") == user_id]
 
+    def reported(self) -> list[dict]:
+        return [c for c in self._all() if c.get("reported")]
+
+    def reported_by(self, user_id: str) -> list[dict]:
+        return [c for c in self._all() if user_id in (c.get("reported_by") or [])]
+
+    def blocks(self, field: str, user_id: str) -> list[dict]:
+        folder = self.root / "blocks"
+        every = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(folder.glob("*.json"))] if folder.is_dir() else []
+        return [b for b in every if b.get(field) == user_id]
+
+    def put_block(self, block: dict) -> None:
+        with self._lock:
+            path = self.root / "blocks" / f"{block['id']}.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(block), encoding="utf-8")
+
+    def delete_block(self, id_: str) -> None:
+        if COMMENT_ID.fullmatch(id_):
+            (self.root / "blocks" / f"{id_}.json").unlink(missing_ok=True)
+
 
 class FirestoreOpinion:
     def __init__(self, database: str = FIRESTORE_DATABASE):
@@ -137,10 +204,12 @@ class FirestoreOpinion:
 
         self.client = firestore.Client(database=database)
         self.where = lambda field, value: FieldFilter(field, "==", value)
+        self.holds = lambda field, value: FieldFilter(field, "array_contains", value)
         self.state = self.client.collection("opinion_state").document("front")
         self.articles = self.client.collection("opinion")
         self.covers = self.client.collection("opinion_covers")
         self.kept = self.client.collection("opinion_comments")
+        self.blocked = self.client.collection("opinion_blocks")
 
     def front(self) -> list[dict]:
         snap = self.state.get()
@@ -166,6 +235,21 @@ class FirestoreOpinion:
 
     def comments_by(self, user_id: str) -> list[dict]:
         return [s.to_dict() for s in self.kept.where(filter=self.where("user_id", user_id)).stream()]
+
+    def reported(self) -> list[dict]:
+        return [s.to_dict() for s in self.kept.where(filter=self.where("reported", True)).limit(PER_ARTICLE_MAX).stream()]
+
+    def reported_by(self, user_id: str) -> list[dict]:
+        return [s.to_dict() for s in self.kept.where(filter=self.holds("reported_by", user_id)).stream()]
+
+    def blocks(self, field: str, user_id: str) -> list[dict]:
+        return [s.to_dict() for s in self.blocked.where(filter=self.where(field, user_id)).limit(BLOCKS_MAX * 5).stream()]
+
+    def put_block(self, block: dict) -> None:
+        self.blocked.document(block["id"]).set(block)
+
+    def delete_block(self, id_: str) -> None:
+        self.blocked.document(id_).delete()
 
 
 def default_opinion() -> OpinionStore:
@@ -217,18 +301,36 @@ class Opinion:
         be made with any address, so its email proves nothing."""
         return bool(user and user.get("provider", "google") == "google" and str(user.get("email", "")).lower() in self.admins)
 
-    def _view(self, c: dict, user: dict | None) -> dict:
-        """A comment as readers get it: never the author's account id."""
+    def _view(self, c: dict, user: dict | None, blocked: frozenset[str] = frozenset(), moderator: bool = False) -> dict:
+        """A comment as readers get it: never the author's account id, nor who reported it.
+        ``hidden`` says why a comment that is there is not shown to this reader: they blocked
+        its author, they reported it, or it is held until the owner has looked at it."""
         gone = bool(c.get("deleted"))
-        return {"id": c["id"], "parent_id": c.get("parent_id"), "depth": c.get("depth", 0), "created_utc": c["created_utc"],
-                "deleted": gone, "name": "" if gone else c.get("name", ""), "text": "" if gone else c.get("text", ""),
+        reporters = c.get("reported_by") or []
+        hidden = None
+        if not gone and user and c.get("user_id") in blocked:
+            hidden = "blocked"
+        elif not gone and user and user["id"] in reporters:
+            hidden = "reported"
+        elif not gone and len(reporters) >= HOLD_AT and not moderator:
+            hidden = "held"
+        blank = gone or bool(hidden)
+        view = {"id": c["id"], "parent_id": c.get("parent_id"), "depth": c.get("depth", 0), "created_utc": c["created_utc"],
+                "deleted": gone, "hidden": hidden, "name": "" if blank else c.get("name", ""), "text": "" if blank else c.get("text", ""),
                 "mine": bool(user and not gone and c.get("user_id") == user["id"])}
+        if moderator and not gone:
+            view["reports"] = len(reporters)
+        return view
+
+    def _blocked_by(self, user: dict | None) -> frozenset[str]:
+        return frozenset(b["of"] for b in self.store.blocks("by", user["id"])) if user else frozenset()
 
     def comments(self, slug: str, user: dict | None = None) -> list[dict]:
         """A thread, oldest first: the page nests it by ``parent_id``."""
         if not SLUG.fullmatch(slug):
             return []
-        return [self._view(c, user) for c in sorted(self.store.comments(slug), key=lambda c: c["created_utc"])]
+        blocked, moderator = self._blocked_by(user), self.can_moderate(user)
+        return [self._view(c, user, blocked, moderator) for c in sorted(self.store.comments(slug), key=lambda c: c["created_utc"])]
 
     def add(self, user: dict, slug: str, text: str, parent_id: str | None = None) -> dict:
         """A comment under an article."""
@@ -246,6 +348,8 @@ class Opinion:
             raise Refused("Write something first.")
         if len(text) > COMMENT_MAX:
             raise Refused(f"A comment can have up to {COMMENT_MAX} characters.")
+        if not publishable(text):
+            raise Refused("That has language we do not publish. Say it another way.")
         depth = 0
         if parent_id:
             parent = self.store.comment(parent_id) if COMMENT_ID.fullmatch(str(parent_id)) else None
@@ -262,7 +366,73 @@ class Opinion:
         return self._view(comment, user)
 
     def _erase(self, c: dict) -> None:
-        self.store.put_comment({**c, "deleted": True, "text": "", "name": "", "user_id": ""})
+        self.store.put_comment({**c, "deleted": True, "text": "", "name": "", "user_id": "", "reported": False, "reported_by": []})
+
+    def _there(self, id_: str) -> dict | None:
+        c = self.store.comment(id_) if COMMENT_ID.fullmatch(str(id_)) else None
+        return c if c and not c.get("deleted") else None
+
+    # --- Reporting a comment, and blocking its author ------------------------------------------
+
+    def report(self, user: dict, id_: str) -> bool:
+        """A reader says a comment should not be there. It is hidden from them at once, and from
+        everybody when ``HOLD_AT`` readers have said so, until the owner keeps it or takes it down."""
+        c = self._there(id_)
+        if not c:
+            raise Refused("That comment is no longer there.")
+        if c.get("user_id") == user["id"]:
+            raise Refused("That is your own comment: you can delete it.")
+        reporters = list(c.get("reported_by") or [])
+        if user["id"] not in reporters:
+            self.store.put_comment({**c, "reported": True, "reported_by": [*reporters, user["id"]]})
+        return True
+
+    def reports(self, user: dict) -> list[dict]:
+        """For the owner: the reported comments, the most reported first."""
+        if not self.can_moderate(user):
+            raise PermissionError("Only the owner reviews reports.")
+        waiting = [c for c in self.store.reported() if not c.get("deleted") and c.get("reported_by")]
+        return [{"id": c["id"], "slug": c["slug"], "name": c.get("name", ""), "text": c.get("text", ""), "created_utc": c["created_utc"],
+                 "reports": len(c["reported_by"]), "held": len(c["reported_by"]) >= HOLD_AT}
+                for c in sorted(waiting, key=lambda c: (-len(c["reported_by"]), c["created_utc"]))]
+
+    def keep(self, user: dict, id_: str) -> bool:
+        """The owner has looked at a reported comment and it stays: its reports are dropped."""
+        if not self.can_moderate(user):
+            raise PermissionError("Only the owner reviews reports.")
+        c = self._there(id_)
+        if not c:
+            return False
+        self.store.put_comment({**c, "reported": False, "reported_by": []})
+        return True
+
+    def block(self, user: dict, id_: str) -> bool:
+        """A reader stops seeing whatever the author of a comment writes. The author is named by
+        one of their comments: readers never have anybody's account id."""
+        c = self._there(id_)
+        if not c:
+            raise Refused("That comment is no longer there.")
+        if c.get("user_id") == user["id"]:
+            raise Refused("That is your own comment.")
+        mine = self.store.blocks("by", user["id"])
+        if any(b["of"] == c["user_id"] for b in mine):
+            return True
+        if len(mine) >= BLOCKS_MAX:
+            raise Refused(f"You can block up to {BLOCKS_MAX} members. Unblock one first, on your account page.")
+        self.store.put_block({"id": secrets.token_urlsafe(9), "by": user["id"], "of": c["user_id"], "name": c.get("name", "")[:30], "created_utc": _now()})
+        return True
+
+    def blocked(self, user_id: str) -> list[dict]:
+        """Who a reader has blocked, newest first: the name their comment was shown under, and a
+        key to unblock them with. Never their account id."""
+        return [{"key": b["id"], "name": b.get("name", ""), "since_utc": b["created_utc"]}
+                for b in sorted(self.store.blocks("by", user_id), key=lambda b: b["created_utc"], reverse=True)]
+
+    def unblock(self, user_id: str, key: str) -> bool:
+        found = [b for b in self.store.blocks("by", user_id) if b["id"] == key]
+        for b in found:
+            self.store.delete_block(b["id"])
+        return bool(found)
 
     def remove(self, user: dict, id_: str) -> bool:
         """Its author, or the owner, takes a comment down. Its place in the thread stays, empty."""
@@ -285,4 +455,10 @@ class Opinion:
         mine = [c for c in self.store.comments_by(user_id) if not c.get("deleted")]
         for c in mine:
             self._erase(c)
+        # What they reported is no longer reported by them, and no block of theirs or of them stays.
+        for c in self.store.reported_by(user_id):
+            left = [r for r in c.get("reported_by") or [] if r != user_id]
+            self.store.put_comment({**c, "reported_by": left, "reported": bool(left)})
+        for b in [*self.store.blocks("by", user_id), *self.store.blocks("of", user_id)]:
+            self.store.delete_block(b["id"])
         return len(mine)

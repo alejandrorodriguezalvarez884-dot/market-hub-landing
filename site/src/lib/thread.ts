@@ -4,7 +4,7 @@
 import { ApiError } from "./api";
 import { add, h } from "./dom";
 import { timeAgo } from "./format";
-import type { Comment, Thread } from "./opinion";
+import { blockAuthor, keepComment, reportComment, type Comment, type Thread } from "./opinion";
 
 export type ThreadSource = {
   load: () => Promise<Thread>;
@@ -17,6 +17,8 @@ export type ThreadSource = {
 };
 
 const DEPTH_MAX = 6; // as the server's: below this a thread is answered further up
+// What stands where a comment is not shown to this reader.
+const HIDDEN = { blocked: "From a member you blocked", reported: "You reported this comment", held: "Hidden while it is reviewed" };
 
 // Fills `els` with the thread and keeps it current. Returns the function that reads it again.
 export function mountThread(els: { composer: HTMLElement; list: HTMLElement; count?: HTMLElement }, src: ThreadSource): () => Promise<void> {
@@ -52,13 +54,14 @@ export function mountThread(els: { composer: HTMLElement; list: HTMLElement; cou
   function one(c: Comment, t: Thread, children: Map<string | null, Comment[]>): HTMLElement {
     const el = h("div", "pt-5");
     el.id = `c-${c.id}`;
+    const blank = c.deleted || !!c.hidden;
     const head = add(h("p", "flex flex-wrap items-center gap-x-2.5 text-[12.5px] text-muted"),
-      c.deleted ? h("span", "", "Deleted") : add(h("span", "flex items-center gap-2 font-medium text-ink-strong"),
+      blank ? h("span", "", c.hidden ? HIDDEN[c.hidden] : "Deleted") : add(h("span", "flex items-center gap-2 font-medium text-ink-strong"),
         h("span", "flex h-6 w-6 items-center justify-center rounded-full bg-raised text-[11px]", c.name.charAt(0).toUpperCase()), c.name),
       h("time", "num", timeAgo(c.created_utc)));
     const actions = h("p", "mt-1.5 flex gap-4 text-[12.5px] text-muted");
     const slot = h("div", "mt-3");
-    if (!c.deleted) {
+    if (!blank) {
       if (t.signed_in && c.depth < DEPTH_MAX) {
         const reply = Object.assign(h("button", "hover:text-ink-strong", "Answer"), { type: "button" });
         reply.addEventListener("click", () => {
@@ -76,8 +79,31 @@ export function mountThread(els: { composer: HTMLElement; list: HTMLElement; cou
         });
         actions.append(del);
       }
+      if (t.signed_in && !c.mine) {
+        const act = (label: string, sure: string, run: () => Promise<unknown>) => {
+          const b = Object.assign(h("button", "hover:text-ink-strong", label), { type: "button" });
+          b.addEventListener("click", async () => {
+            if (!confirm(sure)) return;
+            await run().catch((err) => alert(err instanceof ApiError ? err.message : "That did not work. Try again."));
+            load();
+          });
+          return b;
+        };
+        actions.append(
+          act("Report", "Report this comment? You will stop seeing it, and we will review it.", () => reportComment(c.id)),
+          act("Block", `Block ${c.name}? You will stop seeing their comments. You can unblock them on your account page.`, () => blockAuthor(c.id)));
+      }
+      // The owner sees how many readers reported a comment, and says it stays (or deletes it).
+      if (t.moderator && c.reports) {
+        const keep = Object.assign(h("button", "hover:text-ink-strong", "Keep"), { type: "button" });
+        keep.addEventListener("click", async () => {
+          await keepComment(c.id).catch(() => {});
+          load();
+        });
+        actions.append(h("span", "text-warn", `Reported ×${c.reports}`), keep);
+      }
     }
-    add(el, head, c.deleted ? null : h("p", "mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink", c.text), actions, slot);
+    add(el, head, blank ? null : h("p", "mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink", c.text), actions, slot);
     const under = children.get(c.id) ?? [];
     // Answers hang from a rule at the left of what they answer, as deep as the thread goes.
     if (under.length) el.append(add(h("div", "ml-1.5 border-l border-line pl-4 sm:ml-3 sm:pl-5"), ...under.map((x) => one(x, t, children))));
@@ -85,13 +111,14 @@ export function mountThread(els: { composer: HTMLElement; list: HTMLElement; cou
   }
 
   function show(t: Thread) {
-    const live = t.comments.filter((c) => !c.deleted).length;
+    const live = t.comments.filter((c) => !c.deleted && !c.hidden).length;
     if (els.count) els.count.textContent = live ? `${live}` : "";
     els.composer.replaceChildren(t.signed_in ? composer(null) : src.visitor?.() ?? "");
     const children = new Map<string | null, Comment[]>();
     for (const c of t.comments) children.set(c.parent_id, [...(children.get(c.parent_id) ?? []), c]);
-    // A deleted comment with nothing under it leaves no trace.
-    const kept = (c: Comment): boolean => !c.deleted || (children.get(c.id) ?? []).some(kept);
+    // A deleted comment with nothing under it leaves no trace, and neither does one this reader
+    // blocked or reported. One of their own that is held stays, so they know.
+    const kept = (c: Comment): boolean => (!c.deleted && (!c.hidden || c.mine)) || (children.get(c.id) ?? []).some(kept);
     for (const [k, list] of children) children.set(k, list.filter(kept));
     const top = [...(children.get(null) ?? [])].reverse(); // the newest conversation first; its answers in order
     els.list.replaceChildren(...(top.length ? top.map((c) => one(c, t, children)) : [h("p", "text-sm text-muted", src.none ?? "No comments yet. Be the first.")]));

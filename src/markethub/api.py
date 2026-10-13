@@ -50,6 +50,12 @@
     POST   /api/opinion/comments    {slug, text, parent_id}: comment or answer (signed in)
     GET    /api/opinion/mine        the user's own comments
     DELETE /api/opinion/comments/{id}   take one's own comment down
+    POST   /api/comments/{id}/report    say a comment should not be there (any thread, signed in)
+    GET    /api/blocks              the members the user has blocked
+    POST   /api/blocks              {comment_id}: stop seeing what its author writes
+    DELETE /api/blocks/{key}        unblock one
+    GET    /api/moderation/reports  the reported comments (the owner)
+    POST   /api/moderation/reports/{id}/keep   a reported comment stays (the owner)
     GET    /api/opinion/submissions the articles the user sent in for review, and the form's measures
     POST   /api/opinion/submissions {title, dek, body, sources, tickers, byline, agree}: send one in.
                                     It is kept for the owner to review; nothing is published
@@ -554,7 +560,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def me(request: Request) -> dict:
         user = current_user(request)
         doc = load(user)
-        return {"user": user, "has_data": bool(doc.get("positions") or doc.get("watchlist"))}
+        # "moderator" is the owner: the account page then shows the comments readers reported.
+        return {"user": user, "has_data": bool(doc.get("positions") or doc.get("watchlist")), "moderator": opinion.can_moderate(user)}
 
     @app.delete("/api/me")
     def delete_me(request: Request) -> dict:
@@ -885,6 +892,48 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             return {"deleted": opinion.remove(user, comment_id)}
         except PermissionError:
             raise HTTPException(403, "That comment is not yours.") from None
+
+    @app.post("/api/comments/{comment_id}/report")
+    def report_comment(request: Request, comment_id: str) -> dict:
+        """Any comment of any thread the reader can see. Who reported what is never told to anybody."""
+        user = current_user(request)
+        if not commenting.allow(user["id"]):
+            raise HTTPException(429, "That is a lot in an hour. Try again later.")
+        try:
+            return {"reported": opinion.report(user, comment_id)}
+        except Refused as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.get("/api/blocks")
+    def my_blocks(request: Request) -> dict:
+        return {"blocked": opinion.blocked(current_user(request)["id"])}
+
+    @app.post("/api/blocks")
+    def block_author(request: Request, comment_id: str = Body(embed=True, max_length=40)) -> dict:
+        """The author of a comment, named by the comment: nobody is ever handed an account's id."""
+        user = current_user(request)
+        try:
+            return {"blocked": opinion.block(user, comment_id)}
+        except Refused as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.delete("/api/blocks/{key}")
+    def unblock_author(request: Request, key: str) -> dict:
+        return {"unblocked": opinion.unblock(current_user(request)["id"], key)}
+
+    @app.get("/api/moderation/reports")
+    def reported_comments(request: Request) -> dict:
+        try:
+            return {"comments": opinion.reports(current_user(request))}
+        except PermissionError:
+            raise HTTPException(403, "Only the owner reviews reports.") from None
+
+    @app.post("/api/moderation/reports/{comment_id}/keep")
+    def keep_comment(request: Request, comment_id: str) -> dict:
+        try:
+            return {"kept": opinion.keep(current_user(request), comment_id)}
+        except PermissionError:
+            raise HTTPException(403, "Only the owner reviews reports.") from None
 
     @app.get("/api/opinion/submissions")
     def my_submissions(request: Request) -> dict:
