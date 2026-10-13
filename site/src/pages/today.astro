@@ -1,108 +1,872 @@
 ---
-// Today: where the US market is in its day, one chart, every move of the day on one ruler, the
-// sectors and the latest news.
+// Today: the day told from top to bottom, a part at a time as the page is scrolled. Where the US
+// market is in its day and its four indices; the session as a line the scroll draws; the sectors'
+// order today against the year's; every instrument on one scale; the widest moves; the headlines.
+// The tables of all of it are on the Markets page.
 import MarketSession from "../components/MarketSession.astro";
 import Site from "../components/Site.astro";
 import { link } from "../lib/site";
+
+const onward = [
+	{ href: link("/markets/"), name: "Markets", about: "Every instrument, in tables" },
+	{ href: link("/news/"), name: "News", about: "Every headline, day by day" },
+	{ href: link("/opinion/"), name: "Opinion", about: "What we make of it" },
+];
 ---
 
-<Site title="Today" description="The market at a glance: indices, rates, commodities, currencies and sectors on one scale, with charts and the analysis tools of Market Hub.">
-	<h1 class="sr-only">Today</h1>
-	<MarketSession />
+<Site title="Today" description="The market's day, told as you scroll: where the session is, how it went minute by minute, the sectors, every instrument on one scale, the widest moves and the headlines.">
+	<div class="today">
+		<div id="progress" class="progress" aria-hidden="true"></div>
+		<nav id="rail" class="rail" aria-label="On this page"></nav>
 
-	<!-- Two columns on a wide screen; on a narrow one the blocks follow the order-N classes. -->
-	<div class="mt-12 flex flex-col gap-x-14 gap-y-12 lg:mt-16 lg:grid lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
-		<div class="contents lg:block lg:space-y-12">
-		<section class="sec order-1" aria-labelledby="chart-title">
-			<div class="sec-head">
-				<h2 id="chart-title" class="sec-title">&nbsp;</h2>
-				<a id="chart-link" class="sec-note hover:text-ink-strong" hidden>Full page →</a>
+		<section id="now" class="hero" data-chapter="Now">
+			<h1 class="sr-only">Today</h1>
+			<div class="flex flex-1 items-center py-6"><MarketSession /></div>
+			<div>
+				<div id="figures" class="figures">
+					{[0, 1, 2, 3].map(() => <span class="skeleton block h-[5.5rem]"></span>)}
+				</div>
+				<div class="mt-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-[12.5px] text-muted">
+					<p id="as-of">&nbsp;</p>
+					<a id="cue" href="#day" class="cue">The day, below<span aria-hidden="true"></span></a>
+				</div>
 			</div>
-			<div id="chart-figure" class="mb-4 min-h-[44px]"><span class="skeleton block h-9 w-56"></span></div>
-			<div id="main-chart" class="min-h-[480px]"></div>
 		</section>
 
-		<section class="sec order-3" aria-labelledby="sectors-title">
-			<div class="sec-head">
-				<h2 id="sectors-title" class="sec-title">US sectors</h2>
+		<section id="day" class="chapter" data-chapter="Session">
+			<div id="day-stage" class="stage">
+				<div class="stage-pin">
+					<header class="chapter-head" data-rv>
+						<p class="chapter-no">01</p>
+						<div class="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
+							<h2 class="chapter-title">The session, minute by minute</h2>
+							<p id="day-date" class="sec-note">&nbsp;</p>
+						</div>
+					</header>
+					<div class="mt-5 flex flex-wrap items-end justify-between gap-x-10 gap-y-3">
+						<div class="flex min-h-[2.6rem] flex-wrap items-baseline gap-x-4 gap-y-1">
+							<span id="day-value" class="num text-[2.1rem] leading-none text-ink-strong sm:text-[2.6rem]"><span class="skeleton block h-9 w-44"></span></span>
+							<span id="day-change" class="num"></span>
+							<span id="day-time" class="num text-[13px] text-muted"></span>
+						</div>
+						<div id="day-tabs" class="tabs" role="tablist" aria-label="Index"></div>
+					</div>
+					<div class="relative mt-4 min-h-0 flex-1">
+						<div id="day-chart" class="absolute inset-0"></div>
+						<p id="day-hint" class="day-hint" aria-hidden="true">Keep scrolling: the line follows you</p>
+					</div>
+					<div class="mt-3 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
+						<dl id="day-facts" class="day-facts"></dl>
+						<a id="day-link" class="sec-note hover:text-ink-strong" hidden>Full page →</a>
+					</div>
+				</div>
 			</div>
-			<div id="sectors" style="--track: 240px"><div class="skeleton h-72"></div></div>
 		</section>
-		</div>
 
-		<div class="contents lg:block lg:space-y-12">
-		<section class="sec order-2" aria-labelledby="ruler-title">
-			<div class="sec-head">
-				<h2 id="ruler-title" class="sec-title">Today, on one scale</h2>
-				<span class="sec-note">Pick a row to chart it</span>
+		<section id="sectors" class="chapter" data-chapter="Sectors">
+			<header class="chapter-head" data-rv>
+				<p class="chapter-no">02</p>
+				<h2 id="sectors-title" class="chapter-title">The sectors: today's order against the year's</h2>
+			</header>
+			<div class="split">
+				<div class="split-side">
+					<div id="breadth" class="min-h-[5rem]"></div>
+					<p class="mt-7 max-w-sm text-ink" data-rv>Each line joins a sector's place today to its place this year. Point at a sector to follow it.</p>
+				</div>
+				<div id="slope"><div class="skeleton h-96"></div></div>
 			</div>
-			<div id="ruler" class="ruler"><div class="skeleton h-[420px]"></div></div>
 		</section>
 
-		<section id="latest" class="sec order-4" aria-labelledby="latest-title" hidden>
-			<div class="sec-head">
-				<h2 id="latest-title" class="sec-title">Latest news</h2>
-				<a href={link("/news/")} class="sec-note hover:text-ink-strong">All news →</a>
+		<section id="scale" class="chapter" data-chapter="One scale">
+			<header class="chapter-head" data-rv>
+				<p class="chapter-no">03</p>
+				<h2 id="scale-title" class="chapter-title">Everything on one scale</h2>
+			</header>
+			<div class="split">
+				<div class="split-side">
+					<p class="max-w-sm text-ink" data-rv>Zero is in the middle. What fell is to its left, what rose is to its right, and the length is the size of the move.</p>
+					<div id="scale-tabs" class="tabs mt-6" role="tablist" aria-label="Span" data-rv></div>
+					<dl id="scale-ends" class="mt-8 grid grid-cols-2 gap-x-8 gap-y-7 lg:grid-cols-1" data-rv></dl>
+				</div>
+				<div id="ruler"><div class="skeleton h-[560px]"></div></div>
 			</div>
-			<div id="latest-list"></div>
 		</section>
-		</div>
+
+		<section id="movers" class="chapter" data-chapter="Movers">
+			<header class="chapter-head" data-rv>
+				<p class="chapter-no">04</p>
+				<div class="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
+					<h2 id="movers-title" class="chapter-title">The widest moves of the day</h2>
+					<p class="sec-note">US-listed stocks and funds above $5, as the data provider lists them</p>
+				</div>
+			</header>
+			<div id="tug" class="mt-8"><div class="skeleton h-72"></div></div>
+			<h3 class="mb-4 mt-14 text-[13px] text-muted" data-rv>Most traded</h3>
+			<div id="traded"></div>
+		</section>
+
+		<section id="news" class="chapter" data-chapter="Headlines" hidden>
+			<header class="chapter-head" data-rv>
+				<p class="chapter-no">05</p>
+				<div class="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
+					<h2 class="chapter-title">The day in headlines</h2>
+					<a href={link("/news/")} class="sec-note hover:text-ink-strong">All news →</a>
+				</div>
+			</header>
+			<div id="news-body" class="mt-8 grid gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+				<div id="news-lead"></div>
+				<div id="news-list"></div>
+			</div>
+			<div id="opinion" class="mt-16" hidden>
+				<div class="sec-head" data-rv>
+					<h3 class="text-[13px] text-muted">From Opinion</h3>
+					<a href={link("/opinion/")} class="sec-note hover:text-ink-strong">All opinion →</a>
+				</div>
+				<div id="opinion-list" class="grid gap-x-10 gap-y-10 md:grid-cols-3"></div>
+			</div>
+		</section>
+
+		<nav class="chapter grid md:grid-cols-3" aria-label="More of the market">
+			{onward.map((o, i) => (
+				<a href={o.href} class="onward" data-rv style={`--i:${i}`}>
+					<span class="block text-[13px] text-muted">{o.about}</span>
+					<span class="mt-1 flex items-baseline justify-between gap-4 text-[1.5rem] font-medium tracking-tight text-ink-strong">{o.name}<span class="onward-arrow" aria-hidden="true">→</span></span>
+				</a>
+			))}
+		</nav>
 	</div>
 </Site>
 
-<script>
-	import { add, h } from "../lib/dom";
-	import { change, level, signedPct, toneClass } from "../lib/format";
-	import { news, overview, watchNews, type Snapshot } from "../lib/market";
-	import { newsLine } from "../lib/news";
-	import { tvChart, type Chart } from "../lib/tv";
-	import { failed, flagSample, quoteHref, rateItem, rulerAxis, rulerGroup, rulerRow, rulerScale, sectorRuler, snapshotItem } from "../lib/widgets";
-
-	const $ = (id: string) => document.getElementById(id)!;
-	let chart: Chart | null = null;
-
-	// The instrument in the chart: its name, level and move above it, its row marked on the ruler.
-	function pick(s: Snapshot) {
-		$("chart-title").textContent = s.name;
-		$("chart-figure").replaceChildren(add(h("div", "flex flex-wrap items-baseline gap-x-4"),
-			h("span", "num text-[2rem] leading-none text-ink-strong", level(s.price, s.kind)),
-			h("span", `num ${toneClass(s.change_pct)}`, `${change(s.change, s.kind)} (${signedPct(s.change_pct, 2)})`),
-			h("span", "text-[13px] text-muted", "today")));
-		const a = $("chart-link") as HTMLAnchorElement;
-		a.href = quoteHref(s.symbol);
-		a.hidden = false;
-		document.querySelectorAll<HTMLElement>("#ruler [data-key]").forEach((r) => r.setAttribute("aria-pressed", String(r.dataset.key === s.symbol)));
-		if (chart) chart.setSymbol(s.symbol);
-		else chart = tvChart($("main-chart"), { symbol: s.symbol, range: "1D", height: 480 });
+<style is:global>
+	/* The page comes in a part at a time. Every movement here is a transform or an opacity, eased
+	   the same way, and none of it happens for a reader who asked for less motion. */
+	.today {
+		--ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+		--head: 56px; /* the site's header, measured by the page */
+	}
+	.today [data-rv] {
+		opacity: 0;
+		transform: translateY(14px);
+		transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+		transition-delay: calc(var(--i, 0) * 55ms);
+	}
+	.today [data-rv].in {
+		opacity: 1;
+		transform: none;
 	}
 
-	// The newest items, when there are any that are not placeholders. The block stays out otherwise.
-	watchNews(() => news({ limit: 6 }), (n) => {
-		$("latest").hidden = n.sample || !n.items.length;
-		$("latest-list").replaceChildren(...n.items.map(newsLine));
-	}).catch(() => {});
+	/* How far down the page the reader is: a line under the window's top edge, and, where there is
+	   room beside the page, a ruler with a tick for each part and the logo's dot travelling along it. */
+	.progress {
+		position: fixed;
+		inset: 0 0 auto 0;
+		z-index: 60;
+		height: 2px;
+		background: var(--color-ink-strong);
+		transform: scaleX(var(--p, 0));
+		transform-origin: 0 50%;
+	}
+	.rail {
+		--gap: 40px;
+		display: none;
+		position: fixed;
+		z-index: 40;
+		top: 50%;
+		left: max(16px, calc(50vw - 620px - 132px));
+		transform: translateY(-50%);
+		border-left: 1px solid var(--color-line-strong);
+	}
+	@media (min-width: 1500px) {
+		.rail {
+			display: block;
+		}
+	}
+	.rail a {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		height: var(--gap);
+		font-size: 12.5px;
+		color: var(--color-faint);
+		transition: color 0.3s;
+	}
+	.rail a::before {
+		content: "";
+		width: 8px;
+		height: 1px;
+		background: currentColor;
+		transition: width 0.4s var(--ease);
+	}
+	.rail a:hover,
+	.rail a[aria-current="true"] {
+		color: var(--color-ink-strong);
+	}
+	.rail a[aria-current="true"]::before {
+		width: 18px;
+	}
+	.rail-dot {
+		position: absolute;
+		left: -4.5px;
+		top: calc(var(--gap) / 2 - 4px);
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--color-ink-strong);
+		transform: translateY(calc(var(--at, 0) * var(--gap)));
+	}
 
-	overview()
+	/* The top of the page fills the window: the session's dial, and the four indices under it. */
+	.hero {
+		display: flex;
+		flex-direction: column;
+		min-height: calc(100svh - var(--head) - 5.5rem);
+	}
+	@media (min-width: 1024px) {
+		.hero #session-dial {
+			width: 13rem;
+			height: 13rem;
+		}
+	}
+	.figures {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1.75rem 2rem;
+		border-top: 1px solid var(--color-line-strong);
+		padding-top: 1.25rem;
+	}
+	@media (min-width: 1024px) {
+		.figures {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			column-gap: 3.5rem;
+		}
+	}
+	.cue {
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+		transition: opacity 0.4s, color 0.2s;
+	}
+	.cue:hover {
+		color: var(--color-ink-strong);
+	}
+	.cue span {
+		width: 1px;
+		height: 22px;
+		background: currentColor;
+		transform-origin: 50% 0;
+		animation: cue 1.9s var(--ease) infinite;
+	}
+	@keyframes cue {
+		0% { transform: scaleY(0); opacity: 1; }
+		55% { transform: scaleY(1); opacity: 1; }
+		100% { transform: scaleY(1); opacity: 0; }
+	}
+
+	/* A part of the page: a rule that is drawn across, its number and its title. */
+	.chapter {
+		margin-top: 7rem;
+		scroll-margin-top: calc(var(--head) + 1.25rem);
+	}
+	@media (min-width: 1024px) {
+		.chapter {
+			margin-top: 10rem;
+		}
+	}
+	.chapter-head {
+		position: relative;
+		padding-top: 14px;
+	}
+	.today .chapter-head[data-rv] {
+		transform: none;
+	}
+	.chapter-head::before {
+		content: "";
+		position: absolute;
+		inset: 0 0 auto 0;
+		height: 1px;
+		background: var(--color-line-strong);
+		transform: scaleX(0);
+		transform-origin: 0 50%;
+		transition: transform 1.1s var(--ease);
+	}
+	.chapter-head.in::before {
+		transform: none;
+	}
+	.chapter-no {
+		font-family: var(--font-mono);
+		font-size: 12.5px;
+		color: var(--color-muted);
+	}
+	.chapter-title {
+		margin-top: 4px;
+		max-width: 22em;
+		font-size: clamp(1.45rem, 1rem + 1.5vw, 2.05rem);
+		font-weight: 500;
+		line-height: 1.15;
+		letter-spacing: -0.015em;
+		color: var(--color-ink-strong);
+		text-wrap: balance;
+	}
+	/* A part in two columns: what it is and how to read it stays in view while its rows go by. */
+	.split {
+		display: grid;
+		gap: 2.5rem 3.5rem;
+		margin-top: 2rem;
+	}
+	@media (min-width: 1024px) {
+		.split {
+			grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+			align-items: start;
+		}
+		.split-side {
+			position: sticky;
+			top: calc(var(--head) + 2.5rem);
+		}
+	}
+
+	/* The session: a tall stretch of page with the chart held in the window while it goes by, so
+	   that scrolling it draws the line. Without the line, or without motion, it is a plain block. */
+	.stage {
+		height: 230vh;
+	}
+	.stage-pin {
+		position: sticky;
+		top: calc(var(--head) + 14px);
+		display: flex;
+		flex-direction: column;
+		height: calc(100svh - var(--head) - 28px);
+		max-height: 800px;
+	}
+	.stage.flat {
+		height: auto;
+	}
+	.stage.flat .stage-pin {
+		position: static;
+		height: 600px;
+	}
+	.stage.flat .day-hint {
+		display: none;
+	}
+	.day-hint {
+		position: absolute;
+		inset: 42% 74px auto 0;
+		text-align: center;
+		font-size: 13px;
+		color: var(--color-muted);
+		pointer-events: none;
+		opacity: var(--hint, 1);
+		transition: opacity 0.3s;
+	}
+	.day-mark {
+		opacity: 0;
+		transition: opacity 0.45s;
+	}
+	.day-mark.in {
+		opacity: 1;
+	}
+	.day-halo {
+		transform-box: fill-box;
+		transform-origin: center;
+	}
+	.is-last .day-halo {
+		animation: day-halo 2.2s ease-out infinite;
+	}
+	@keyframes day-halo {
+		from { transform: scale(0.5); opacity: 1; }
+		to { transform: scale(2); opacity: 0; }
+	}
+	.day-facts {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px 28px;
+		font-size: 13px;
+	}
+	.day-facts div {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		opacity: 0.3;
+		transition: opacity 0.5s;
+	}
+	.day-facts div.in {
+		opacity: 1;
+	}
+	.day-facts dt {
+		color: var(--color-muted);
+	}
+
+	/* A mark of the ruler that moves: it leaves zero when its row is reached, and goes from one
+	   place to another when the span changes. */
+	.today .track.live .track-stem {
+		left: 50%;
+		width: 50%;
+		transform: scaleX(0);
+		transform-origin: 0 50%;
+		transition: transform 0.9s var(--ease), background-color 0.4s;
+	}
+	.today .track.live .track-dot {
+		left: 50%;
+		opacity: 0;
+		transition: left 0.9s var(--ease), opacity 0.3s, background-color 0.4s;
+	}
+	.today .track.live.set .track-dot {
+		opacity: 1;
+	}
+	.today .track.live:not(.set) .track-stem {
+		opacity: 0;
+	}
+	.figure .track {
+		width: 100%;
+	}
+	#ruler .ruler {
+		--track: clamp(132px, 24vw, 320px);
+	}
+
+	/* The sectors' two orders and the lines between them. */
+	.slope {
+		display: grid;
+		grid-template-columns: minmax(0, max-content) minmax(64px, 1fr) minmax(0, max-content);
+		column-gap: 8px;
+	}
+	.slope-head {
+		padding-bottom: 8px;
+		font-size: 12.5px;
+		color: var(--color-muted);
+	}
+	.slope-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		width: 100%;
+		font-size: 14px;
+		transition: opacity 0.25s;
+	}
+	.slope-lines {
+		display: block;
+		width: 100%;
+		overflow: visible;
+	}
+	.slope-line {
+		opacity: 0.75;
+		transition: opacity 0.25s;
+	}
+	.slope-path {
+		stroke-dasharray: 1;
+		stroke-dashoffset: 1;
+		transition: stroke-dashoffset 1.2s var(--ease) calc(var(--i, 0) * 60ms + 200ms), stroke-width 0.2s;
+	}
+	.slope-end {
+		opacity: 0;
+		transition: opacity 0.3s calc(var(--i, 0) * 60ms + 1200ms);
+	}
+	.slope-lines.in .slope-path {
+		stroke-dashoffset: 0;
+	}
+	.slope-lines.in .slope-end {
+		opacity: 1;
+	}
+	.slope.dim .slope-row:not(.on),
+	.slope.dim .slope-line:not(.on) {
+		opacity: 0.2;
+	}
+	.slope .slope-line.on {
+		opacity: 1;
+	}
+	.slope-line.on .slope-path {
+		stroke-width: 2.5;
+	}
+
+	/* The widest moves: falls to the left of one line and rises to its right, on a wide screen. */
+	.tug {
+		display: grid;
+		gap: 2.5rem 0;
+	}
+	.movers-title {
+		margin-bottom: 6px;
+		font-size: 13px;
+		color: var(--color-muted);
+	}
+	.mover {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		padding: 7px 0;
+		font-size: 14px;
+	}
+	.mover:hover {
+		background: var(--color-raised);
+	}
+	.mover-name {
+		flex: 0 0 40%;
+		min-width: 0;
+	}
+	.mover-zone {
+		display: flex;
+		flex: 1;
+		align-items: center;
+		gap: 10px;
+		min-width: 0;
+	}
+	.mover-bar {
+		flex: none;
+		width: calc(var(--w) * (100% - 5rem));
+		min-width: 2px;
+		height: 18px;
+		transform: scaleX(0);
+		transform-origin: 0 50%;
+		transition: transform 1s var(--ease) calc(var(--i, 0) * 70ms + 120ms);
+	}
+	.rises .mover-bar {
+		background: var(--color-up-soft);
+		border-right: 2px solid var(--color-up);
+	}
+	.falls .mover-bar {
+		background: var(--color-down-soft);
+		border-right: 2px solid var(--color-down);
+	}
+	.mover.in .mover-bar {
+		transform: none;
+	}
+	@media (min-width: 1024px) {
+		.tug {
+			grid-template-columns: 1fr 1fr;
+		}
+		.falls {
+			order: -1;
+			border-right: 1px solid var(--color-line-strong);
+		}
+		.falls .movers-title {
+			padding-right: 14px;
+			text-align: right;
+		}
+		.rises .movers-title {
+			padding-left: 14px;
+		}
+		.falls .mover-zone,
+		.rises .mover {
+			flex-direction: row-reverse;
+		}
+		.rises .mover-name {
+			text-align: right;
+		}
+		.falls .mover-bar {
+			border-right: 0;
+			border-left: 2px solid var(--color-down);
+			transform-origin: 100% 50%;
+		}
+	}
+	.volume-bar {
+		display: block;
+		width: calc(var(--w) * 100%);
+		height: 100%;
+		background: var(--color-ink);
+		transform: scaleX(0);
+		transform-origin: 0 50%;
+		transition: transform 0.9s var(--ease) calc(var(--i, 0) * 60ms + 150ms);
+	}
+	.in .volume-bar {
+		transform: none;
+	}
+
+	/* A picture settles into its frame as it comes in. */
+	.today .frame {
+		overflow: hidden;
+		border-radius: 0.375rem;
+	}
+	.today .frame img {
+		transform: scale(1.06);
+		transition: transform 1.4s var(--ease);
+	}
+	.today .in .frame img,
+	.today .in.frame img {
+		transform: none;
+	}
+
+	.onward {
+		display: block;
+		border-top: 1px solid var(--color-line-strong);
+		padding: 16px 0 28px;
+	}
+	@media (min-width: 768px) {
+		.onward + .onward {
+			border-left: 1px solid var(--color-line);
+			padding-left: 24px;
+		}
+		.onward {
+			padding-right: 24px;
+		}
+	}
+	.onward-arrow {
+		color: var(--color-muted);
+		transition: transform 0.3s var(--ease), color 0.2s;
+	}
+	.onward:hover .onward-arrow {
+		color: var(--color-ink-strong);
+		transform: translateX(6px);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.today [data-rv],
+		.today .frame img,
+		.chapter-head::before,
+		.mover-bar,
+		.volume-bar {
+			opacity: 1;
+			transform: none;
+			transition: none;
+		}
+		.slope-path {
+			stroke-dashoffset: 0;
+			transition: none;
+		}
+		.slope-end {
+			opacity: 1;
+			transition: none;
+		}
+		.today .track.live .track-stem,
+		.today .track.live .track-dot {
+			transition: none;
+		}
+		.cue span,
+		.is-last .day-halo {
+			animation: none;
+		}
+	}
+</style>
+
+<script>
+	import { add, h, linkTo } from "../lib/dom";
+	import { clock, dayChart, type Day, type Reading } from "../lib/daychart";
+	import { change, level, signedPct, toneClass } from "../lib/format";
+	import { chartData, news, overview, watchNews, type ChartData, type Kind, type NewsItem, type Snapshot } from "../lib/market";
+	import { count, onScroll, reveal, rv, scrolled, still } from "../lib/motion";
+	import { articleHref, byline, cover, newsLine, picture } from "../lib/news";
+	import { articles, cover as opinionCover, articleHref as opinionHref, overline } from "../lib/opinion";
+	import { status } from "../lib/session";
+	import { SPANS, breadth, figure, liveRuler, sectorSlope, shortName, tug, traded, type Span } from "../lib/today";
+	import { failed, flagSample, quoteHref, rulerScale, sectorRuler } from "../lib/widgets";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const page = document.querySelector<HTMLElement>(".today")!;
+	const clamp = (v: number) => Math.min(1, Math.max(0, v));
+
+	// --- Where the reader is ---------------------------------------------------------------------
+
+	// The rail has a tick for each part that is on the page; its dot is as far between two ticks
+	// as the window is between the two parts.
+	let chapters: HTMLElement[] = [];
+	function rail() {
+		chapters = [...page.querySelectorAll<HTMLElement>("[data-chapter]")].filter((c) => !c.hidden);
+		$("rail").replaceChildren(h("span", "rail-dot"), ...chapters.map((c) => linkTo(`#${c.id}`, "", c.dataset.chapter)));
+	}
+	rail();
+	onScroll(() => {
+		const head = document.querySelector("header")!.getBoundingClientRect().height;
+		page.style.setProperty("--head", `${head}px`);
+		const room = document.documentElement.scrollHeight - innerHeight;
+		$("progress").style.setProperty("--p", String(room > 0 ? clamp(scrollY / room) : 0));
+		$("cue").style.opacity = scrollY > 60 ? "0" : "";
+		const tops = chapters.map((c) => c.getBoundingClientRect().top - innerHeight * 0.45);
+		const i = Math.max(0, tops.filter((t) => t <= 0).length - 1);
+		const next = tops[i + 1] ?? page.getBoundingClientRect().bottom - innerHeight * 0.45;
+		const at = i + (tops[i] <= 0 && next > tops[i] ? clamp(-tops[i] / (next - tops[i])) : 0);
+		$("rail").style.setProperty("--at", at.toFixed(3));
+		[...$("rail").querySelectorAll("a")].forEach((a, j) => a.setAttribute("aria-current", String(j === i)));
+	});
+	reveal(page);
+
+	// --- The session, drawn by the scroll --------------------------------------------------------
+
+	const stage = $("day-stage");
+	let day: Day | null = null;
+	let kind: Kind = "index";
+	let live = false; // the line ends at this moment, not at a close
+	const facts: { el: HTMLElement; time: number }[] = [];
+
+	function read(r: Reading) {
+		if (!day) return;
+		const diff = r.value - day.prev;
+		$("day-value").textContent = level(r.value, kind);
+		$("day-change").textContent = `${change(diff, kind)} (${signedPct(day.prev ? diff / day.prev : null, 2)})`;
+		$("day-change").className = `num ${toneClass(diff)}`;
+		$("day-time").textContent = r.last ? (live ? "Latest" : `${clock(r.time)} · close`) : clock(r.time);
+	}
+	const chart = dayChart($("day-chart"), read);
+
+	// How much of the line is drawn: nothing until the chart is half way up the window, all of it
+	// a little before the page lets go of the chart.
+	function drawn(): number {
+		if (stage.classList.contains("flat")) return 1;
+		const r = stage.getBoundingClientRect();
+		const [from, to] = [innerHeight * 0.55, innerHeight * 1.2 - r.height];
+		return clamp((from - r.top) / (from - to));
+	}
+	onScroll(() => {
+		const f = drawn();
+		chart.draw(f);
+		page.style.setProperty("--hint", f > 0.02 ? "0" : "1");
+		const time = day ? day.open.time + (day.last.time - day.open.time) * f : 0;
+		for (const fact of facts) fact.el.classList.toggle("in", f > 0 && time >= fact.time);
+	});
+
+	const sessions = new Map<string, Promise<ChartData>>();
+	let asked = "";
+	function session(s: Snapshot) {
+		asked = s.symbol;
+		$("day-tabs").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.key === s.symbol)));
+		const a = $("day-link") as HTMLAnchorElement;
+		a.href = quoteHref(s.symbol);
+		a.hidden = false;
+		if (!sessions.has(s.symbol)) sessions.set(s.symbol, chartData(s.symbol, "1D"));
+		sessions.get(s.symbol)!.then((d) => {
+			if (asked !== s.symbol) return;
+			kind = d.kind;
+			day = chart.set(d);
+			if (!day) throw new Error("no session");
+			const date = new Date(day.open.time * 1000);
+			live = status().session === "open" && date.toISOString().slice(0, 10) === new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+			$("day-date").textContent = `${date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })} · New York time${d.sample ? " · sample figures" : ""}`;
+			const fact = (name: string, value: number, time?: number) => {
+				const el = add(h("div"), h("dt", "", name), h("dd", "num text-ink-strong", level(value, kind)), time ? h("dd", "num text-muted", clock(time)) : null);
+				facts.push({ el, time: time ?? 0 });
+				return el;
+			};
+			facts.length = 0;
+			$("day-facts").replaceChildren(fact("Previous close", day.prev), fact("Open", day.open.value, day.open.time),
+				fact("High", day.high.value, day.high.time), fact("Low", day.low.value, day.low.time));
+			stage.classList.toggle("flat", still());
+			scrolled(); // the stage has changed size
+		}).catch(() => {
+			if (asked !== s.symbol) return;
+			day = null;
+			stage.classList.add("flat");
+			$("day-value").textContent = s.name;
+			$("day-change").textContent = $("day-time").textContent = "";
+			$("day-facts").replaceChildren();
+			failed($("day-chart"), "The line of this session is not available right now.");
+		});
+	}
+
+	// --- The day's figures -----------------------------------------------------------------------
+
+	overview(true)
 		.then((o) => {
-			const onPick = (s: Snapshot) => pick(s);
+			$("as-of").textContent = `Figures read ${new Date(o.as_of).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}. They can be delayed.`;
 
-			const charted = [...o.indices, ...o.commodities, ...o.currencies, ...o.crypto];
-			const scale = rulerScale(charted.map((s) => s.change_pct));
-			const rows = (items: Snapshot[]) => items.map((s) => rulerRow(snapshotItem(s, onPick), scale));
-			$("ruler").replaceChildren(
-				add(h("div", "ruler-row !py-0"), h("span"), h("span", "hidden sm:block"), rulerAxis(scale), h("span")),
-				...rulerGroup("Stock indices", rows(o.indices)),
-				...rulerGroup("Treasury yields", o.rates.map((s) => rulerRow(rateItem(s), scale))),
-				...rulerGroup("Commodities", rows(o.commodities)),
-				...rulerGroup("Currencies", rows(o.currencies)),
-				...rulerGroup("Crypto", rows(o.crypto)));
-			$("sectors").replaceChildren(sectorRuler(o.sectors));
-			pick(o.indices.find((s) => s.symbol === "SPX") ?? charted[0]);
+			// The four US indices: at the top of the page, and each with its session below.
+			const us = ["SPX", "NDX", "DJI", "RUT"].map((k) => o.indices.find((s) => s.symbol === k)).filter((s) => !!s);
+			const four = us.length ? us : o.indices.slice(0, 4);
+			const scale = rulerScale(four.map((s) => s.change_pct));
+			const go = (s: Snapshot) => (session(s), $("day").scrollIntoView({ behavior: still() ? "auto" : "smooth" }));
+			$("figures").replaceChildren(...four.map((s, i) => figure(s, scale, i, () => go(s))));
+			reveal($("figures"), 0);
+			$("day-tabs").replaceChildren(...four.map((s) => {
+				const b = h("button", "tab-btn", shortName(s));
+				b.type = "button";
+				b.dataset.key = s.symbol;
+				b.setAttribute("role", "tab");
+				b.addEventListener("click", () => session(s));
+				return b;
+			}));
+			if (o.intraday === false || !four.length) {
+				stage.classList.add("flat");
+				failed($("day-chart"), "The line of the session is not available right now.");
+				$("day-value").replaceChildren();
+			} else session(four[0]);
 
-			flagSample(o, ["indices", "rates", "commodities", "currencies", "crypto"], $("ruler-title"));
+			// The sectors: how many are up, and their order today against the year's.
+			$("breadth").replaceChildren(breadth(o.sectors));
+			$("slope").replaceChildren(o.sectors.every((s) => typeof s.return_ytd === "number") ? sectorSlope(o.sectors) : sectorRuler(o.sectors));
+
+			// Everything on one scale, over the span the reader picks.
+			const ruler = liveRuler(o);
+			$("ruler").replaceChildren(ruler.el);
+			const end = (name: string, s: Snapshot | null, v: number | null | undefined) => {
+				const fig = h("dd", `num mt-0.5 text-[1.5rem] leading-tight ${toneClass(v)}`);
+				if (typeof v === "number") count(fig, 0, v, (x) => signedPct(x, 2), 600);
+				else fig.textContent = "—";
+				return add(h("div"), h("dt", "text-[13px] text-muted", name), h("dd", "mt-1 truncate text-ink-strong", s?.name ?? "—"), fig);
+			};
+			const show = (span: Span) => {
+				$("scale-tabs").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.key === span.key)));
+				const ends = ruler.show(span);
+				$("scale-ends").replaceChildren(end("Furthest right", ends.top, ends.top && ends.of(ends.top)), end("Furthest left", ends.bottom, ends.bottom && ends.of(ends.bottom)));
+			};
+			$("scale-tabs").replaceChildren(...SPANS.filter((s) => s.key === "day" || [...o.indices, ...o.commodities].some((x) => typeof s.of(x) === "number")).map((s) => {
+				const b = h("button", "tab-btn", s.label);
+				b.type = "button";
+				b.dataset.key = s.key;
+				b.setAttribute("role", "tab");
+				b.addEventListener("click", () => show(s));
+				return b;
+			}));
+			show(SPANS[0]);
+
+			// The widest moves and the most traded.
+			$("tug").replaceChildren(tug(o.movers.losers, o.movers.gainers));
+			$("traded").replaceChildren(traded(o.movers.active));
+
+			flagSample(o, ["indices"], $("as-of"));
 			flagSample(o, ["sectors"], $("sectors-title"));
+			flagSample(o, ["indices", "rates", "commodities", "currencies", "crypto"], $("scale-title"));
+			flagSample(o, ["movers"], $("movers-title"));
+			reveal(page);
+			scrolled();
 		})
 		.catch(() => {
-			for (const id of ["chart-figure", "ruler", "sectors"]) failed($(id));
+			stage.classList.add("flat");
+			for (const id of ["figures", "day-chart", "slope", "ruler", "tug"]) failed($(id));
+			$("day-value").replaceChildren();
 		});
+
+	// --- The headlines -----------------------------------------------------------------------------
+
+	// The part is on the page when it has something: news that are not placeholders, or articles.
+	function headlines() {
+		const lone = !!$("news-body").hidden;
+		$("news").hidden = lone && !!$("opinion").hidden;
+		$("opinion").classList.toggle("mt-16", !lone);
+		$("opinion").classList.toggle("mt-8", lone);
+		rail();
+		reveal($("news"));
+		scrolled();
+	}
+	$("news-body").hidden = true;
+
+	// The first item with a picture leads, with its picture and its summary; the rest are lines.
+	function lead(n: NewsItem): HTMLElement {
+		const src = cover(n);
+		return add(rv(linkTo(articleHref(n), "group block")),
+			src ? add(h("div", "frame mb-4"), picture(src, "aspect-video w-full")) : null,
+			byline(n),
+			h("h3", "mt-2 max-w-[30em] text-[1.45rem] font-medium leading-tight tracking-tight text-ink-strong group-hover:underline", n.title),
+			n.summary ? h("p", "mt-2 max-w-[40rem] text-ink", n.summary) : null);
+	}
+	// The items written from the day's figures stay out: the page above is those figures.
+	watchNews(() => news({ limit: 16 }), (n) => {
+		const told = n.items.filter((i) => i.layer !== "market");
+		const items = n.sample ? [] : told.length ? told : n.items;
+		$("news-body").hidden = !items.length;
+		if (items.length) {
+			const first = items.find((i) => cover(i)) ?? items[0];
+			$("news-lead").replaceChildren(lead(first));
+			$("news-list").replaceChildren(...items.filter((i) => i !== first).slice(0, 5).map((i, turn) => rv(newsLine(i), turn + 1)));
+		}
+		headlines();
+	}).catch(() => {});
+
+	articles(3)
+		.then(({ articles: list }) => {
+			$("opinion").hidden = !list.length;
+			$("opinion-list").replaceChildren(...list.map((a, i) => {
+				const img = opinionCover(a, "aspect-video w-full");
+				return add(rv(linkTo(opinionHref(a.slug), "group block"), i),
+					img ? add(h("div", "frame mb-3"), img) : null,
+					overline(a),
+					h("h4", "mt-1.5 text-[1.0625rem] font-medium leading-snug text-ink-strong group-hover:underline", a.title),
+					h("p", "mt-1.5 text-sm text-ink", a.dek));
+			}));
+			headlines();
+		})
+		.catch(() => {});
 </script>
