@@ -13,6 +13,7 @@ from markethub.api import create_app
 from markethub.community import MemoryCommunity
 from markethub.competitions import MemoryCompetitions
 from markethub.market import Company, Directory
+from markethub.instagram import MemoryPosts, Posts
 from markethub.opinion import MemoryOpinion, Opinion
 from markethub.submissions import MemorySubmissions, Submissions
 from markethub.users import MemoryUsers
@@ -175,11 +176,17 @@ def reader():
 
 
 @pytest.fixture
-def client(users, market, directory, opinion, shared, writer, logins, captcha, entries, reader, submissions):
+def posts():
+    """What the account posted on Instagram, as the-market-hub-media publishes it: empty until a test fills it."""
+    return MemoryPosts()
+
+
+@pytest.fixture
+def client(users, market, directory, opinion, shared, writer, logins, captcha, entries, reader, submissions, posts):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
                      community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha,
-                     competition_store=entries, stock_reader=reader, submissions=submissions)
+                     competition_store=entries, stock_reader=reader, submissions=submissions, posts=Posts(posts))
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

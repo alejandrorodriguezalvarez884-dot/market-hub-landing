@@ -3,6 +3,8 @@
 // published.json), with a cover in site/public/media/ drawn by us, so that the page asks nothing
 // of YouTube until a visitor presses play.
 
+import { API, api } from "./api";
+
 export interface Video {
   id: string; // YouTube's id of the video: youtu.be/<id>
   title: string;
@@ -44,28 +46,24 @@ export const YOUTUBE = {
   upcoming: 2,
 };
 
-export interface Reel {
-  code: string; // Instagram's code of the reel: instagram.com/reel/<code>/
-  title: string;
-  length: string; // as a clock: "0:44"
-  cover: string; // a file in site/public/media/: the cover of the Short it is
-}
+// Market Hub's account on Instagram. Its posts are not kept here: the page asks the portal for the
+// latest ones (posts(), below).
+export const INSTAGRAM = { handle: "the_market_hub_app" };
 
-// Market Hub's account on Instagram and its reels, newest first. Kept by hand, like the videos: a
-// reel is added once it is on Instagram (its address is in the video's published.json), with the
-// cover of its Short, so that the page asks nothing of Instagram.
-export const INSTAGRAM = {
-  handle: "the_market_hub_app",
-  reels: [
-    { code: "DeblQgIDhWo", title: "The credit card minimum that takes eleven years", length: "0:43", cover: "debt-short.jpg" },
-    { code: "DebfgEUIAad", title: "The hundred-dollar bill that lost half its value in a drawer", length: "0:44", cover: "inflation-short.jpg" },
-    { code: "DebfWHpAKyE", title: "The lily pad riddle most people get wrong", length: "0:41", cover: "compound-interest-short.jpg" },
-    { code: "DebfPiLgQwO", title: "Nobody taught you this in school", length: "0:49", cover: "money-101-trailer-short.jpg" },
-  ] as Reel[],
-};
+// A post of the account, whatever it is: a reel, a picture, an album.
+export type Post = { id: string; code: string; url: string; kind: "reel" | "video" | "photo" | "album"; text: string; posted_utc: string;
+  cover: { v: string; upright: boolean } };
+
+// What the account last posted, newest first. The portal does not ask Instagram: the-market-hub-media
+// reads the account's posts and publishes them into the portal's store, each with its cover, so
+// this page asks nothing of Instagram either.
+export const posts = (limit = 12) => api<{ posts: Post[]; handle: string; read_utc: string | null }>(`/api/public/instagram?limit=${limit}`);
+// A cover's address names its version: a browser keeps it for good.
+export const postCover = (p: Post) => `${API}/api/public/instagram/cover?id=${encodeURIComponent(p.id)}&v=${encodeURIComponent(p.cover.v)}`;
+// Where a post is opened. Only an address on Instagram is followed; anything else leads to the account.
+export const postUrl = (p: Post) => (/^https:\/\/www\.instagram\.com\/[A-Za-z0-9_\-\/.]+$/.test(p.url) ? p.url : `https://www.instagram.com/${INSTAGRAM.handle}/`);
 
 // The account whose posts the page will show. Empty until the owner names it.
 export const X = { handle: "" };
 
 export const shortUrl = (id: string) => `https://www.youtube.com/shorts/${id}`;
-export const reelUrl = (code: string) => `https://www.instagram.com/reel/${code}/`;
