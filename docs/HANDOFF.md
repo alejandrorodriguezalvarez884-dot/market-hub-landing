@@ -22,6 +22,35 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### La app abre las herramientas dentro de sí (2026-10-13; **desplegado**, revisión `market-hub-00037-cbm`)
+
+El usuario pidió que la app liste las cuatro herramientas de My Hub y que se abran dentro de la
+app, no en el navegador. Dos cambios aquí:
+
+- **`/api/config` nombra las cuatro** (`tools`): además de `earnings_radar` y `fundamentals_lab`,
+  `peer_map` y `playground` (`PEER_MAP_URL` y `PLAYGROUND_URL` en `config.py`, con las direcciones
+  de `site/src/lib/site.ts` por defecto). La app lista lo que el portal nombra.
+- **El puente de sesión** (`src/markethub/appweb.py`, que lo explica): las herramientas solo
+  admiten a quien trae la cookie `mh_session`, y la app no tiene cookie, tiene su token. La página
+  que la app abre dentro de sí empieza en **`GET /api/app/web/enter?to=<herramienta>`** con
+  `Authorization: Bearer <token>` en la cabecera de esa única petición: el portal comprueba el
+  token, pone la cookie de sesión y devuelve una página que sigue a la herramienta. Sin token
+  bueno no hay cookie (401), y solo se sigue a una dirección de una herramienta que el portal
+  nombra (`ToolPages`: mismo esquema y mismo host; nada de `@`, de otro puerto ni de otro sitio).
+  El token no va en ninguna dirección ni llega a la herramienta: la página siguiente es otra
+  petición. **Es la única ruta de `/api/app/` que pone cookie** (dicho en `CLAUDE.md`), y una
+  página ajena no puede usarla para dejar un navegador con sesión, porque un enlace no añade esa
+  cabecera. Las herramientas no se tocan.
+- `/privacy/` dice que para esa página se pone la misma cookie de sesión y que no se guarda (la
+  app la abre sin almacén: `incognito`).
+- **Tests**: `tests/test_app_web.py` (15) y uno en `test_api.py` para las cuatro herramientas.
+- **Visto en local**, de punta a punta: Fundamentals Lab en este equipo detrás del login del
+  portal local (configuraciones `mobile-api` y `mobile-tool` de `.claude/launch.json` del
+  workspace, con un secreto de sesión solo de este equipo) rechaza sin sesión y admite con la
+  cookie del puente; y abierto desde la app en el simulador de iPhone, con su sesión.
+- **Sin ver**: las otras tres herramientas dentro de la app (Peer Map y Playground no están en
+  este workspace; todas llevan la misma cookie y, se supone, el mismo menú), y Android.
+
 ### Contacto publicado (2026-10-13; **desplegado**, revisión `market-hub-00036-l7k`)
 
 La página `/contact/` (`site/src/pages/contact.astro`) da el email de contacto que eligió el
