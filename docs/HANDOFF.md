@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Portada nueva: la cartera leída por IA, con el vídeo arriba (2026-10-13; **desplegado**, revisión `market-hub-00042-f4b`)
+### Portada nueva: la cartera leída por IA, con el vídeo arriba (2026-10-13; **desplegado**, revisión `market-hub-00043-6ss`)
 
 El usuario pidió una propuesta nueva de portada con un enlace para descargar la app en el App
 Store, y sobre la primera versión (un recorrido página a página, con capturas) pidió tres
@@ -59,6 +59,9 @@ Así queda `site/src/pages/index.astro`:
   (todo igual; ningún secreto recibió versión nueva). En producción la portada sirve el titular
   nuevo, el vídeo se reproduce, las tres capturas de la app cargan y los cuatro enlaces al App
   Store están; sin errores en la consola salvo el 401 de `/api/me` de quien no ha entrado.
+- **Los textos comerciales, desplegados el 2026-10-13** a petición del usuario
+  (`market-hub-00043-6ss`), tras comparar otra vez `.env` con el servicio: en producción la
+  portada no nombra ningún modelo ni proveedor y lleva los textos nuevos.
 - Comprobado en local con Chrome a 1440 y a 390, sin sesión y con ella (los botones pasan a
   "Open My Hub"): sin desbordes ni errores. `astro check` y build en verde. Sin probar en
   Safari ni en un teléfono real.
