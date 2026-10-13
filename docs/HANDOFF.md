@@ -45,7 +45,7 @@ que lo explica:
   que lo dice: con el portal desplegado de hoy, la app nueva no lo enseña.
 - **Dicho antes de guardarlo**: `/privacy/` (qué llega de una cuenta de Apple) y `/account/`.
   `CLAUDE.md` nombra la tercera forma de entrar.
-- **Tests**: `tests/test_app_apple.py` (16), con una clave hecha para la prueba en el papel de
+- **Tests**: `tests/test_app_apple.py` (15), con una clave hecha para la prueba en el papel de
   Apple: el camino entero, el nombre que se da una vez, el email escondido, borrar la cuenta, y
   lo que se rechaza (otra app, Expo Go, otro emisor, caducado, sin `nonce` o con uno ajeno o
   viejo, firmado por otro, sin firma).
