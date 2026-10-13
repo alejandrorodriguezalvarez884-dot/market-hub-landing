@@ -18,6 +18,8 @@
     POST   /api/app/auth/google/finish    {code, verifier}: the app's token (appsignin.py)
     POST   /api/app/auth/apple/begin      the nonce of one sign-in with Apple
     POST   /api/app/auth/apple            {identity_token, name}: Apple's token -> the app's token (applesignin.py)
+    POST   /api/app/auth/apple/revoke     {identity_token, authorization_code}: before deleting an Apple
+                                    account, have Apple forget the app for it (applerevoke.py)
     GET    /api/app/web/enter       ?to=  the app's own page, on its way to a tool: the app's token for
                                     the session cookie the tools ask for (appweb.py)
     GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
@@ -109,6 +111,7 @@ from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
 from . import submissions as submissions_
 from .submissions import Submissions, default_submissions
 from . import applesignin
+from .applerevoke import AppleRevoker, NotRevoked, default_revoker
 from .appweb import ToolPages, entering_page
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
@@ -183,7 +186,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                password_cost: tuple[int, int, int] = accounts_.COST, captcha="default",
                competition_store: CompetitionStore | None = None, clock=None, stock_reader="default",
                app_redirects: str | None = None, submissions: Submissions | None = None,
-               apple_verifier: applesignin.Verifier | None = None) -> FastAPI:
+               apple_verifier: applesignin.Verifier | None = None, apple_revoker: AppleRevoker | None | str = "default") -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -248,6 +251,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     # Sign in with Apple takes no key of ours: Apple's own, published, check its tokens.
     apple_flow = applesignin.AppleFlow(secret)
     apple_checks = apple_verifier or applesignin.AppleKeys()
+    # Has Apple forget the app for an account that is being deleted. None without the developer's key.
+    revoker = default_revoker() if apple_revoker == "default" else apple_revoker
     # The tools the app may open inside itself, signed in (appweb.py).
     tool_pages = ToolPages([EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, PEER_MAP_URL, PLAYGROUND_URL])
 
@@ -324,6 +329,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             "password_login": password_login,
             # The phone app shows Apple's button only where its token is taken.
             "apple_sign_in": True,
+            # Whether deleting an Apple account takes one more confirmation on the phone, to tell Apple.
+            "apple_revocation": revoker is not None,
             # Whether an account can be made here, and the key of the captcha's widget if it takes one.
             "registration": registration,
             "turnstile_site_key": human.site_key if registration == "captcha" else None,
@@ -562,6 +569,33 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         users.put(a.id, touch(doc, email=user["email"], name=user["name"], picture="", provider="apple"))
         log.info("sign-in ok (app, apple) new=%s", new)
         return {"user": user, "new": new, "has_data": bool(doc.get("positions") or doc.get("watchlist")), "token": tokens.issue(user)}
+
+    @app.post("/api/app/auth/apple/revoke")
+    def app_apple_revoke(request: Request, identity_token: str = Body(embed=True, max_length=8192),
+                         authorization_code: str = Body(embed=True, max_length=2048)) -> dict:
+        """Before an Apple account is deleted: its owner has just confirmed on the phone, and Apple
+        is told to forget the app for it. Only for the account that is signed in. Nothing is kept."""
+        allow(request)
+        user = current_user(request)
+        if user.get("provider") != "apple":
+            raise HTTPException(400, "This account does not sign in with Apple.")
+        if revoker is None:
+            raise HTTPException(404, "There is nothing to tell Apple here.")
+        try:
+            a = applesignin.verify(identity_token, apple_flow, apple_checks)
+        except InvalidToken as exc:
+            log.info("apple revoke refused: %s", exc)
+            raise HTTPException(401, "Sign in with Apple could not be verified.") from None
+        if not secrets.compare_digest(a.id, str(user["id"])):
+            log.info("apple revoke refused: another account")
+            raise HTTPException(401, "That is not the Apple account you are signed in with.")
+        try:
+            revoker.revoke(authorization_code)
+        except NotRevoked as exc:
+            log.info("apple revoke failed: %s", exc)
+            raise HTTPException(502, "Apple could not be told. Your account can still be deleted.") from None
+        log.info("apple revoke ok")
+        return {"revoked": True}
 
     @app.get("/api/app/web/enter")
     def app_web_enter(request: Request, to: str = Query(max_length=600)) -> Response:

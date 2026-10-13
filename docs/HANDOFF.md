@@ -22,6 +22,30 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Borrar una cuenta de Apple se lo dice a Apple (2026-10-13; **código hecho, sin clave y sin desplegar**)
+
+Apple pide ("should") que una app con su login revoque el token del usuario cuando este borra
+la cuenta: si no, la app sigue saliendo en su iPhone entre las que usan su cuenta de Apple. El
+usuario eligió hacerlo **sin guardar nada**. Lo lleva `src/markethub/applerevoke.py`:
+
+- Al borrar una cuenta de Apple, la app hace que el iPhone pida confirmar otra vez (Face ID) y
+  manda lo que Apple le da a **`POST /api/app/auth/apple/revoke`** `{identity_token,
+  authorization_code}`. El portal comprueba el token de identidad como al entrar y que sea **de la
+  misma cuenta que tiene la sesión**, cambia el código por un token en `appleid.apple.com/auth/token`
+  y lo revoca en `/auth/revoke`. Ni el código ni el token se guardan ni van al log. La app borra
+  la cuenta después (`DELETE /api/me`), haya ido bien o no: borrar no depende de Apple.
+- Esas dos llamadas van firmadas (un JWT ES256 de cinco minutos, hecho a mano con `cryptography`)
+  con la **clave de Sign in with Apple** del desarrollador: un `.p8` que solo está en Secret
+  Manager (`market-hub-apple-signin-key`, llega como `APPLE_PRIVATE_KEY`), más `APPLE_KEY_ID` y
+  `APPLE_TEAM_ID` en `.env` (no son secretos). `scripts/deploy-cloudrun.sh` lo enchufa si están
+  las tres cosas; si no, el portal dice `apple_revocation: false` en `/api/config`, la ruta da
+  404 y la app borra la cuenta sin el paso de Apple.
+- `/privacy/` lo dice. Tests: los seis últimos de `tests/test_app_apple.py` (21 en total), con
+  un Apple de mentira que solo responde a lo que va firmado con la clave.
+- **Falta**: que el usuario registre y descargue la clave en Apple Developer (está a un clic),
+  subirla a Secret Manager, poner `APPLE_KEY_ID` y `APPLE_TEAM_ID` en `.env`, desplegar, y
+  probarlo con una cuenta de Apple de verdad desde la app (build 4).
+
 ### La app abre las herramientas dentro de sí (2026-10-13; **desplegado**, revisión `market-hub-00037-cbm`)
 
 El usuario pidió que la app liste las cuatro herramientas de My Hub y que se abran dentro de la

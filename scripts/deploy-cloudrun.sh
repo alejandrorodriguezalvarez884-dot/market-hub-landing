@@ -18,6 +18,13 @@
 # make such an account (Google still works). To store or change one:
 #   printf '%s' '<key>' | gcloud secrets versions add market-hub-turnstile-secret --data-file=-
 #
+# Sign in with Apple, in the phone app, needs nothing here. Telling Apple that an account was
+# deleted does (applerevoke.py): the developer's key for Sign in with Apple, a .p8 file that is
+# only ever in Secret Manager (market-hub-apple-signin-key), and in .env its id and the team's
+# (APPLE_KEY_ID, APPLE_TEAM_ID: neither is a secret). To store the key, from the file as downloaded:
+#   gcloud secrets create market-hub-apple-signin-key --replication-policy automatic
+#   gcloud secrets versions add market-hub-apple-signin-key --data-file=AuthKey_<id>.p8
+#
 # Readers send articles in for review (/opinion/submit/). They are kept in a bucket this script
 # makes (private, in the same region as the database), where the owner reads them: nothing is
 # published from here. The market-hub-opinion repo lists what is waiting (`make inbox`).
@@ -65,6 +72,9 @@ PASSWORD_LOGIN="$(env_value MARKETHUB_PASSWORD_LOGIN)"
 # Where the phone app's Google sign-in may send its code besides the installed app (appsignin.py).
 APP_REDIRECTS="$(env_value MARKETHUB_APP_REDIRECTS)"
 [[ "$APP_REDIRECTS" != *"|"* ]] || fail "MARKETHUB_APP_REDIRECTS in $ENV_FILE cannot contain '|'."
+# What Apple's revocation is signed as (applerevoke.py); the key itself is in Secret Manager.
+APPLE_KEY_ID="$(env_value APPLE_KEY_ID)"
+APPLE_TEAM_ID="$(env_value APPLE_TEAM_ID)"
 # Readers' articles: the bucket they are kept in (submissions.py).
 SUBMISSIONS_BUCKET="${SUBMISSIONS_BUCKET:-$(env_value MARKETHUB_SUBMISSIONS_BUCKET)}"
 SUBMISSIONS_BUCKET="${SUBMISSIONS_BUCKET:-$GCP_PROJECT-market-hub-submissions}"
@@ -151,6 +161,17 @@ else
   echo "note: no Turnstile keys in Secret Manager: nobody can make an account with a password (Google sign-in is not affected)."
 fi
 
+# The key for Sign in with Apple is only ever in Secret Manager, like the captcha's.
+APPLE_VARS=""
+if [[ -n "$APPLE_KEY_ID" && -n "$APPLE_TEAM_ID" ]] && gcp secrets describe market-hub-apple-signin-key >/dev/null 2>&1; then
+  grant secrets market-hub-apple-signin-key roles/secretmanager.secretAccessor
+  SECRETS="$SECRETS,APPLE_PRIVATE_KEY=market-hub-apple-signin-key:latest"
+  APPLE_VARS="|APPLE_KEY_ID=$APPLE_KEY_ID|APPLE_TEAM_ID=$APPLE_TEAM_ID"
+  echo "→ Deleting an Apple account tells Apple: on (key from Secret Manager)"
+else
+  echo "note: no Sign in with Apple key in Secret Manager, or no APPLE_KEY_ID and APPLE_TEAM_ID in $ENV_FILE: deleting an Apple account does not tell Apple."
+fi
+
 # The articles readers send in. The bucket is private, and only this service's account writes to it.
 echo "→ Bucket for readers' articles (gs://$SUBMISSIONS_BUCKET, $FIRESTORE_LOCATION)"
 if ! gcp storage buckets describe "gs://$SUBMISSIONS_BUCKET" >/dev/null 2>&1; then
@@ -170,7 +191,7 @@ gcp run deploy "$SERVICE_NAME" \
   --max-instances "$MAX_INSTANCES" \
   --timeout 60 \
   --set-secrets "$SECRETS" \
-  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL|MARKETHUB_COOKIE_DOMAIN=$COOKIE_DOMAIN|MARKETHUB_ADMINS=$ADMINS|MARKETHUB_PASSWORD_LOGIN=${PASSWORD_LOGIN:-1}|MARKET_DATA=${MARKET_DATA:-yahoo}|MARKETHUB_APP_REDIRECTS=$APP_REDIRECTS|MARKETHUB_SUBMISSIONS_BUCKET=$SUBMISSIONS_BUCKET"
+  --set-env-vars "^|^MARKETHUB_FIRESTORE=1|MARKETHUB_FIRESTORE_DATABASE=$FIRESTORE_DATABASE|GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|EARNINGS_RADAR_URL=$EARNINGS_RADAR_URL|FUNDAMENTALS_LAB_URL=$FUNDAMENTALS_LAB_URL|MARKETHUB_COOKIE_DOMAIN=$COOKIE_DOMAIN|MARKETHUB_ADMINS=$ADMINS|MARKETHUB_PASSWORD_LOGIN=${PASSWORD_LOGIN:-1}|MARKET_DATA=${MARKET_DATA:-yahoo}|MARKETHUB_APP_REDIRECTS=$APP_REDIRECTS|MARKETHUB_SUBMISSIONS_BUCKET=$SUBMISSIONS_BUCKET$APPLE_VARS"
 
 URL="$(gcp run services describe "$SERVICE_NAME" --region "$GCP_REGION" --format 'value(status.url)')"
 if curl -fsS "$URL/api/health" >/dev/null; then

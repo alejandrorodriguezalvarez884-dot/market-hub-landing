@@ -3,18 +3,23 @@ app's token back. The token is checked against Apple's published keys; here a ke
 test stands for Apple's, and no test touches the network."""
 
 import base64
+import json
 import time
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
+from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 from fastapi.testclient import TestClient
 from google.auth import crypt, jwt
 
 from conftest import CLIENT_ID, fake_verifier
 from markethub import applesignin
 from markethub.api import create_app
+from markethub.applerevoke import REVOKE, TOKEN, AppleRevoker, NotRevoked
+from markethub.tokens import AppTokens
 from markethub.applesignin import APP_AUDIENCE, ISSUER, AppleFlow, AppleKeys, shown_name
 
 SUB = "001234.0a1b2c3d4e5f60718293a4b5c6d7e8f9.1234"
@@ -58,13 +63,58 @@ def apple():
     return Apple()
 
 
+class AppleAccounts:
+    """Stands for Apple's token and revoke endpoints. It only answers a request signed with the
+    developer's key, takes a code once, and remembers what it was asked to revoke."""
+
+    def __init__(self):
+        self.key = ec.generate_private_key(ec.SECP256R1())
+        self.pem = self.key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+        self.codes = {"code-1": "refresh-1"}
+        self.revoked: list[tuple[str, str]] = []
+        self.secrets: list[dict] = []
+        self.down = False
+
+    def signed(self, secret: str) -> bool:
+        head, body, signature = secret.split(".")
+        raw = base64.urlsafe_b64decode(signature + "=" * (-len(signature) % 4))
+        self.key.public_key().verify(encode_dss_signature(int.from_bytes(raw[:32], "big"), int.from_bytes(raw[32:], "big")),
+                                     f"{head}.{body}".encode(), ec.ECDSA(hashes.SHA256()))  # raises if it is not ours
+        unpack = lambda part: json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))  # noqa: E731
+        self.secrets.append(unpack(head) | unpack(body))
+        return True
+
+    def client(self) -> httpx.Client:
+        def answer(request: httpx.Request) -> httpx.Response:
+            if self.down:
+                raise httpx.ConnectError("down")
+            form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
+            assert form["client_id"] == APP_AUDIENCE and self.signed(form["client_secret"])
+            if str(request.url) == TOKEN:
+                assert form["grant_type"] == "authorization_code"
+                token = self.codes.pop(form["code"], None)  # a code is good once
+                return httpx.Response(200, json={"refresh_token": token, "access_token": "a"}) if token else httpx.Response(400, json={"error": "invalid_grant"})
+            assert str(request.url) == REVOKE
+            self.revoked.append((form["token"], form["token_type_hint"]))
+            return httpx.Response(200)
+        return httpx.Client(transport=httpx.MockTransport(answer))
+
+    def revoker(self) -> AppleRevoker:
+        return AppleRevoker("TEAM123456", "KEYID12345", self.pem, client=self.client())
+
+
 @pytest.fixture
-def service(users, market, directory, apple):
+def accounts():
+    return AppleAccounts()
+
+
+@pytest.fixture
+def service(users, market, directory, apple, accounts):
     """The service as the phone reaches it: no cookie, no Origin."""
     apple.down = False
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier, client_id=CLIENT_ID,
                      session_secret="test-secret", secure_cookies=False, insight_writer=None, stock_reader=None,
-                     apple_verifier=AppleKeys(apple.client()))
+                     apple_verifier=AppleKeys(apple.client()), apple_revoker=accounts.revoker())
     return TestClient(app)
 
 
@@ -199,3 +249,71 @@ def test_when_apples_keys_cannot_be_read_nobody_signs_in_and_the_ones_kept_still
         assert warm(apple.token("n"))["sub"] == SUB
     finally:
         apple.down = False
+
+
+# --- Deleting an Apple account: Apple is told ------------------------------------------------------
+
+
+def revoke(phone, token, identity, code="code-1"):
+    return phone.post("/api/app/auth/apple/revoke", json={"identity_token": identity, "authorization_code": code},
+                      headers={"authorization": f"Bearer {token}"} if token else {})
+
+
+def test_before_an_apple_account_is_deleted_apple_revokes_its_token(phone, apple, accounts, users):
+    assert phone.get("/api/config").json()["apple_revocation"] is True
+    token = enter(phone, apple.token(nonce(phone)), name="Ana").json()["token"]
+    r = revoke(phone, token, apple.token(nonce(phone)))
+    assert r.status_code == 200 and r.json() == {"revoked": True} and "set-cookie" not in r.headers
+    assert accounts.revoked == [("refresh-1", "refresh_token")]
+    # Signed as Apple asks: by the team, for the app, good for a few minutes, with the key's id.
+    for said in accounts.secrets:
+        assert said["alg"] == "ES256" and said["kid"] == "KEYID12345" and said["iss"] == "TEAM123456"
+        assert said["sub"] == APP_AUDIENCE and said["aud"] == ISSUER and 0 < said["exp"] - said["iat"] <= 600
+    # Nothing of it is kept, and the account is still there until it is deleted.
+    assert "refresh" not in str(users.get(OURS)) and "code-1" not in str(users.get(OURS))
+    assert phone.delete("/api/me", headers={"authorization": f"Bearer {token}"}).json() == {"deleted": True}
+
+
+def test_only_the_account_that_is_signed_in_has_its_token_revoked(phone, apple, accounts):
+    token = enter(phone, apple.token(nonce(phone))).json()["token"]
+    other = apple.token(nonce(phone), sub="009999.ffffffffffffffffffffffffffffffff.0001")
+    assert revoke(phone, token, other).status_code == 401
+    assert revoke(phone, token, apple.token("made-up")).status_code == 401  # not a nonce of ours
+    assert revoke(phone, None, apple.token(nonce(phone))).status_code == 401  # nobody signed in
+    assert accounts.revoked == [] and accounts.codes == {"code-1": "refresh-1"}  # Apple was not even asked
+
+
+def test_an_account_that_does_not_sign_in_with_apple_has_nothing_to_revoke(service, apple, accounts):
+    token = AppTokens("test-secret", 3600).issue({"id": "mh_someone", "email": "x@example.com", "name": "X", "picture": "", "provider": "password"})
+    assert revoke(service, token, apple.token(nonce(service))).status_code == 400 and accounts.revoked == []
+
+
+def test_when_apple_does_not_take_the_code_the_app_is_told_and_can_still_delete(phone, apple, accounts):
+    token = enter(phone, apple.token(nonce(phone))).json()["token"]
+    assert revoke(phone, token, apple.token(nonce(phone)), code="used-or-made-up").status_code == 502
+    accounts.down = True
+    assert revoke(phone, token, apple.token(nonce(phone))).status_code == 502
+    assert accounts.revoked == []
+    assert phone.delete("/api/me", headers={"authorization": f"Bearer {token}"}).json() == {"deleted": True}
+
+
+def test_without_the_developers_key_there_is_nothing_to_tell_apple(users, market, directory, apple):
+    app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier, client_id=CLIENT_ID, session_secret="test-secret",
+                     secure_cookies=False, insight_writer=None, stock_reader=None, apple_verifier=AppleKeys(apple.client()), apple_revoker=None)
+    phone = TestClient(app)
+    assert phone.get("/api/config").json()["apple_revocation"] is False
+    token = enter(phone, apple.token(nonce(phone))).json()["token"]
+    assert revoke(phone, token, apple.token(nonce(phone))).status_code == 404
+
+
+def test_the_revoker_takes_only_the_kind_of_key_apple_gives(accounts):
+    with pytest.raises(ValueError):
+        rsa_pem = rsa.generate_private_key(public_exponent=65537, key_size=2048).private_bytes(
+            serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+        AppleRevoker("T", "K", rsa_pem)
+    # A key that reached the environment with its line breaks written out still loads.
+    escaped = AppleRevoker("TEAM123456", "KEYID12345", accounts.pem.replace("\n", "\\n"), client=accounts.client())
+    escaped.revoke("code-1")
+    assert accounts.revoked == [("refresh-1", "refresh_token")]
+    with pytest.raises(NotRevoked):
+        escaped.revoke("code-1")  # a code is good once

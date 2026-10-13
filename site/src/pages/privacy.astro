@@ -32,7 +32,9 @@ import { link } from "../lib/site";
 			<li>From your Google account, when you sign in with it: your account id, name, email address and profile picture.</li>
 			<li>From your Apple account, when you sign in with it in the app for iPhone: an account id Apple makes for us alone,
 				the email address Apple gives us (your own, or one of Apple's relay addresses if you chose to hide it) and the
-				name you let it share, if any. No picture, and no password.</li>
+				name you let it share, if any. No picture, and no password. When you delete such an account, the app has your
+				iPhone ask you once more, and with what Apple hands it we tell Apple to stop listing the app under your Apple
+				account. We keep neither that nor any token of Apple's.</li>
 			<li>If you make an account with an email and a password instead: the email address and the name you give, and a scrambled
 				form of the password (a salted scrypt hash) from which it cannot be read back. We never keep the password as you typed
 				it. We do not check that the address is yours, and we cannot send you a new password if you forget it. When you
