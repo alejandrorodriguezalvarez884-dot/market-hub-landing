@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Today se cuenta al hacer scroll (2026-10-13; **sin desplegar**)
+### Today se cuenta al hacer scroll (2026-10-13; **desplegado**, revisión `market-hub-00041-lcd`)
 
 El usuario pidió rehacer Today: se parecía demasiado a Markets (la misma regla, los mismos
 sectores, la misma llamada) y la quería más interactiva, con las cosas saliendo según se baja.
@@ -61,6 +61,11 @@ Ahora Today es el día contado por capítulos y Markets sigue siendo las tablas.
   el selector de periodo, el resaltado de sectores, los titulares y Opinión (con una copia de lo
   público de producción en una carpeta temporal), sin errores en la consola. `astro check` y
   build en verde.
+- **Desplegado el 2026-10-13 a petición del usuario**, tras comparar `.env` con el servicio
+  (variables, secretos, memoria y escalado iguales: ningún secreto recibió versión nueva).
+  Comprobado en producción: `/today/` sirve la página nueva sin errores en la consola, con la
+  línea del S&P 500 (72 barras de Yahoo), los once sectores con su año, la regla, los
+  movimientos, los titulares y los tres artículos de Opinión; la portada lleva la captura nueva.
 - **Sin comprobar**: `prefers-reduced-motion` en un navegador de verdad (solo en la captura con
   Chrome sin interfaz), Safari y un teléfono real.
 - **Pendiente, si se quiere**: la película de la portada enseña de Today el dial y la regla,
