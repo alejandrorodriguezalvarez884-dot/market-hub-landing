@@ -22,6 +22,55 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Today se cuenta al hacer scroll (2026-10-13; **sin desplegar**)
+
+El usuario pidió rehacer Today: se parecía demasiado a Markets (la misma regla, los mismos
+sectores, la misma llamada) y la quería más interactiva, con las cosas saliendo según se baja.
+Ahora Today es el día contado por capítulos y Markets sigue siendo las tablas. Todo en
+`site/src/pages/today.astro` (página, estilos propios y orquestación) y tres piezas nuevas:
+
+- **`lib/motion.ts`**: lo que entra al llegar a ello (`data-rv`, `reveal`, `reached`), las cifras
+  que cuentan hasta su valor (`count`) y un único oyente del scroll (`onScroll`). Con
+  `prefers-reduced-motion` todo sale en su sitio, sin movimiento.
+- **`lib/daychart.ts`**: la sesión como una línea SVG propia, sobre el cierre anterior (verde por
+  encima, rojo por debajo), que **se dibuja con el scroll**: el capítulo es un tramo alto de
+  página (`.stage`, 230vh) con el gráfico fijo (`position: sticky`) mientras pasa. La cifra de
+  arriba va leyendo el nivel y la hora de la punta; el máximo y el mínimo se nombran cuando la
+  línea los pasa; el puntero lee cualquier momento ya dibujado. Los datos son las barras de 5
+  minutos de `/api/public/chart?range=1D` (Yahoo), con pestañas para los cuatro índices de
+  EE. UU. Si no hay barras intradía, el capítulo queda como un bloque normal con su aviso.
+- **`lib/today.ts`**: las cuatro cifras de arriba (cuentan desde el cierre anterior; pulsar una
+  lleva a su sesión), los sectores como **dos órdenes unidos por líneas** (el de hoy y el del
+  año; señalar un sector deja sola su línea), la regla con **selector de periodo** (`Today ·
+  1 month · This year · 1 year`: las marcas se deslizan a su sitio nuevo y al lado se dice qué
+  queda más a la derecha y más a la izquierda) y los mayores movimientos como barras a los dos
+  lados de una línea (caídas a la izquierda, subidas a la derecha), con los más negociados.
+- **Titulares**: la noticia principal con su imagen y cinco más (sin las tres que el código
+  escribe con las cifras del día: la página ya es esas cifras), y los tres últimos artículos
+  de Opinión. El capítulo no sale si no hay ni lo uno ni lo otro.
+- **Dónde está el lector**: una línea fina arriba y, con sitio al lado de la página (≥1500 px),
+  una regla con una marca por capítulo y el punto del logo recorriéndola.
+- **Fuera de Today**: el widget de TradingView (sigue en la ficha de valor, a la que lleva "Full
+  page →") y la regla de sectores (sigue en Markets). Today pide ahora `overview?detail=1`, la
+  misma respuesta que Markets, por los retornos de la regla. `global.css` no se ha tocado: no
+  hay nada que copiar a las herramientas.
+- La portada describe la página nueva y lleva una captura nueva (`site/public/shots/today.jpg`,
+  hecha con el Chrome del equipo sobre el portal en local con precios de Yahoo).
+- **Comprobado en local** con precios reales de Yahoo y con cifras de ejemplo, en escritorio
+  (1440 y 1680), a 820×620 y en móvil (375): el dibujo con el scroll, las pestañas de índice,
+  el selector de periodo, el resaltado de sectores, los titulares y Opinión (con una copia de lo
+  público de producción en una carpeta temporal), sin errores en la consola. `astro check` y
+  build en verde.
+- **Sin comprobar**: `prefers-reduced-motion` en un navegador de verdad (solo en la captura con
+  Chrome sin interfaz), Safari y un teléfono real.
+- **Pendiente, si se quiere**: la película de la portada enseña de Today el dial y la regla,
+  que siguen en la página, pero nada de lo nuevo (la sesión que se dibuja, los sectores);
+  cambiar su escena es `film/film.js` y `make film`.
+- **Tests**: 321 en verde y uno que falla sin relación con esto
+  (`test_nothing_is_shared_until_its_owner_says_so_and_then_only_weights`: busca los dígitos del
+  valor de la cartera como texto en el tablero de Community y el 2026-10-13 coincidían por
+  casualidad dentro de otro número de las cifras de ejemplo). No se ha tocado.
+
 ### Borrar una cuenta de Apple se lo dice a Apple (2026-10-13; **desplegado**, revisión `market-hub-00039-fgv`)
 
 Apple pide ("should") que una app con su login revoque el token del usuario cuando este borra
