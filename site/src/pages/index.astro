@@ -1,141 +1,366 @@
 ---
-// The landing page: what Market Hub is, a film about it, and each of its parts with the way in. It
-// asks the data provider for nothing, so a visit to it costs no market-data calls. The film is
-// drawn and scored by code (film/, `make film`); it is no recording of the site.
+// The landing page. It says one thing first: your portfolio, read by AI, with the film beside
+// it. Then what that reading is (personal, to the point, written by the newest models), the
+// rest of Market Hub in three lines, and what the site commits to. It asks the data provider
+// for nothing, so a visit to it costs no market-data calls.
+// The film is drawn and scored by code (film/, `make film`); it is no recording of the site.
 import Site from "../components/Site.astro";
-import { FUNDAMENTALS_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
+import { APP_STORE_URL, FUNDAMENTALS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
 
-const parts = [
+// What the reading of a portfolio is. What the model receives is what /privacy/ says it does.
+const reading = [
+	["Personal", "Made from what you hold", "It reads your own positions and their weights: how you stand against the indices, how concentrated you are, which sectors weigh most and how the whole moves. Every stock you follow gets a reading of its own."],
+	["To the point", "A page of figures, in a few sentences", "The code computes every number, the same way for everyone. The model only puts them into words, so what you read in a minute is what the figures say."],
+	["State of the art", "The newest models, and only what they need", "The readings are written by Claude, Anthropic's latest generation of language models. It receives tickers, weights and returns: never your name, your shares or what they are worth."],
+];
+// The rest of Market Hub, each part in a line and the ways into it.
+const rest = [
 	{
-		name: "Today",
-		title: "The day, told as you scroll",
-		text: "It opens with where the US session is and its four indices. Scroll, and the session draws itself minute by minute; then come the sectors' order today against the year's, every index, yield, commodity, currency and crypto on one ruler, the widest moves and the headlines.",
-		href: link("/today/"),
-		cta: "Open Today",
-		shot: "today",
+		title: "Any company, in depth",
+		text: "Four AI tools open with your account: a company's numbers and its latest results read for you, its closest peers on a map, and a board of charts you build by asking for it.",
+		links: [["Fundamentals Lab", `${FUNDAMENTALS_URL}/`], ["Earnings Radar", `${RADAR_URL}/`], ["Peer Map", `${PEERS_URL}/`], ["Playground", `${PLAYGROUND_URL}/`]],
 	},
 	{
-		name: "Markets",
-		title: "The tables behind it",
-		text: "Each market with its level, the day's move and its return over a month, the year so far and twelve months. Then the eleven US sectors, and the stocks that moved and traded the most.",
-		href: link("/markets/"),
-		cta: "Open Markets",
-		shot: "markets",
+		title: "The market, every day",
+		text: "The day's session as it happened, every market in tables, the news at its source, opinion and video. Open to anyone, with no account.",
+		links: [["Today", link("/today/")], ["Markets", link("/markets/")], ["News", link("/news/")], ["Opinion", link("/opinion/")], ["Media", link("/media/")]],
 	},
 	{
-		name: "Fundamentals Lab",
-		title: "Every number of a company, on one page",
-		text: "Statements, margins and returns on capital. Valuation against the company's own history. The multiples the stock would trade at if the analysts' consensus is met. The technical picture, and up to five companies side by side. An AI reading says what the numbers show.",
-		href: `${FUNDAMENTALS_URL}/`,
-		cta: "Open Fundamentals",
-		shot: "fundamentals",
-	},
-	{
-		name: "Earnings Radar",
-		title: "What a company just said in its results",
-		text: "Its latest results release is fetched from the SEC and read on the spot by a decision model. Was guidance raised or cut, how strong does the quarter read, is demand weakening, which themes come up. Every answer carries its probability.",
-		href: `${RADAR_URL}/`,
-		cta: "Open Earnings",
-		shot: "earnings",
+		title: "In your pocket",
+		text: "My Hub as an app for iPhone: your portfolio, its readings and the four tools, inside it.",
+		links: [["Download on the App Store", APP_STORE_URL]],
 	},
 ];
 const promises = [
-	["It describes. It does not advise.", "No buy or sell calls, no price targets, no predictions. The site says what the numbers and the filings show, and stops there."],
+	["It describes. It does not advise.", "No buy or sell calls, no price targets, no predictions. The AI says what the numbers and the filings show, and stops there."],
 	["The numbers come from code.", "Prices, statements and ratios are computed the same way for every company. The AI comments on them and invents none."],
 	["What you add is yours.", "My Hub keeps your name and email and the stocks you add. Never your password as you typed it, and you can delete all of it at any time."],
 ];
+const phones = [
+	{ shot: "analysis", alt: "The Analysis screen of the app: a portfolio taken apart by sector.", side: true },
+	{ shot: "overview", alt: "The Overview screen of the app: a portfolio's value, its move today and a reading of it in plain sentences.", side: false },
+	{ shot: "watchlist", alt: "The Watchlist screen of the app: the stocks followed, each with its chart and how it stands.", side: true },
+];
 ---
 
-<Site title={SITE_NAME} description="The day's markets on one scale, the numbers of any US company and a reading of its latest results release, with a private page for your own stocks. Market Hub describes; it never tells you what to buy.">
-	<section class="grid gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
-		<div>
-			<svg class="h-14 w-14 text-ink-strong sm:h-16 sm:w-16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" role="img" aria-label="Market Hub">
-				<path d="M4 2v16M4 10h8"></path><circle cx="14.5" cy="10" r="2.75" fill="currentColor" stroke="none"></circle>
-			</svg>
-			<h1 class="lede mt-8 !text-ink-strong">What the market did today, what a company's numbers say, and what it just told its investors.</h1>
-		</div>
-		<div>
-			<p class="max-w-md text-ink">
-				Market Hub puts the day's markets, the fundamentals of any US-listed company and a reading of its latest results
-				release on one site, with a private page for your own stocks. It describes. It never tells you what to buy or sell.
-			</p>
-			<div class="mt-6 flex flex-wrap gap-3">
-				<a href={link("/today/")} class="btn btn-primary">See today's market</a>
-				<a id="hero-hub" href={link("/signin/")} class="btn btn-ghost">Sign in to My Hub</a>
-			</div>
-		</div>
-	</section>
+<Site title={SITE_NAME} description="Your portfolio, read by AI: what it is made of, how it moves and how it stands against the market, in plain words. On the web and on iPhone. Market Hub describes; it never tells you what to buy.">
+	<div class="home">
+		<script is:inline>
+			// The parts wait to come in only where a script is there to bring them in; if the page's own
+			// script has not said so in a few seconds, they are all shown as they are.
+			(() => {
+				const page = document.currentScript.parentElement;
+				page.classList.add("moves");
+				setTimeout(() => page.dataset.ready || page.classList.remove("moves"), 4000);
+			})();
+		</script>
 
-	<section class="mt-14 sm:mt-20" aria-labelledby="film-title">
-		<div class="sec-head">
-			<h2 id="film-title" class="sec-title">Market Hub in a minute</h2>
-			<span class="sec-note">With sound</span>
-		</div>
-		<video id="film" class="block aspect-video w-full border border-line bg-deep" controls muted loop playsinline preload="metadata" poster={link("/film-poster.jpg")}>
-			<source src={link("/film.webm")} type="video/webm" />
-			<source src={link("/film.mp4")} type="video/mp4" />
-			<a href={link("/today/")} class="link">Your browser cannot play this film. Open today's market instead.</a>
-		</video>
-	</section>
-
-	<div class="mt-20 space-y-20 sm:mt-28 sm:space-y-28">
-		{parts.map((p, i) => (
-			<section class="grid items-center gap-x-14 gap-y-8 lg:grid-cols-2">
-				<div class:list={[i % 2 ? "lg:order-2" : ""]}>
-					<p class="text-[13px] text-muted">{p.name}</p>
-					<h2 class="mt-2 max-w-md text-[1.75rem] font-medium leading-tight tracking-tight text-ink-strong">{p.title}</h2>
-					<p class="mt-4 max-w-md text-ink">{p.text}</p>
-					<a href={p.href} class="link mt-5 inline-block">{p.cta} →</a>
+		<section class="hero">
+			<div class="grid flex-1 items-center gap-x-14 gap-y-10 py-2 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+				<div>
+					<svg class="h-12 w-12 text-ink-strong sm:h-14 sm:w-14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" role="img" aria-label="Market Hub" data-rv>
+						<path d="M4 2v16M4 10h8"></path><circle cx="14.5" cy="10" r="2.75" fill="currentColor" stroke="none"></circle>
+					</svg>
+					<h1 class="headline mt-7" data-rv style="--i:1">Your portfolio, read by AI.</h1>
+					<p class="mt-5 max-w-md text-[1.0625rem] text-ink" data-rv style="--i:2">
+						Add the stocks you hold or follow, and the newest language models read them back to you in plain words: what your
+						portfolio is made of, how it moves and how it stands against the market. It describes. It never tells you what to
+						buy or sell.
+					</p>
+					<div class="mt-7 flex flex-wrap items-center gap-3" data-rv style="--i:3">
+						<a href={link("/signin/")} class="btn btn-primary" data-hub>Start with your portfolio</a>
+						<a href={link("/today/")} class="btn btn-ghost">See today's market</a>
+					</div>
+					<p class="mt-5 text-[13px] text-muted" data-rv style="--i:4">
+						Also an app for iPhone: <a href={APP_STORE_URL} class="link" rel="noopener">download it on the App Store</a>
+					</p>
 				</div>
-				<a href={p.href} class="block border border-line transition-colors hover:border-line-strong" tabindex="-1" aria-hidden="true">
-					<img src={link(`/shots/${p.shot}.jpg`)} alt="" width="1280" height="800" loading="lazy" class="block h-auto w-full" />
-				</a>
-			</section>
-		))}
-	</div>
-
-	<section class="sec mt-20 sm:mt-28" aria-labelledby="hub-title">
-		<div class="grid gap-x-14 gap-y-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-end">
-			<div>
-				<p class="text-[13px] text-muted">My Hub</p>
-				<h2 id="hub-title" class="mt-2 max-w-xl text-[1.75rem] font-medium leading-tight tracking-tight text-ink-strong">Your own stocks, on a private page</h2>
-				<p id="hub-text" class="mt-4 max-w-xl text-ink">Keep a portfolio or a watchlist and see its value, today's move and your gain against what you paid. You sign in with Google or with an email and a password, and only you see it.</p>
+				<figure data-rv style="--i:2">
+					<video id="film" class="block aspect-video w-full border border-line bg-deep" controls muted loop playsinline preload="metadata" poster={link("/film-poster.jpg")}>
+						<source src={link("/film.webm")} type="video/webm" />
+						<source src={link("/film.mp4")} type="video/mp4" />
+						<a href={link("/today/")} class="link">Your browser cannot play this film. Open today's market instead.</a>
+					</video>
+					<figcaption class="mt-2 flex items-baseline justify-between text-[12.5px] text-muted"><span>Market Hub in a minute</span><span>With sound</span></figcaption>
+				</figure>
 			</div>
-			<div><a id="hub-link" href={link("/signin/")} class="btn btn-primary">Sign in or create an account</a></div>
-		</div>
-	</section>
+			<a id="cue" href="#ai" class="cue">How it reads you<span aria-hidden="true"></span></a>
+		</section>
 
-	<section class="sec mt-20 sm:mt-28" aria-labelledby="promises-title">
-		<h2 id="promises-title" class="sec-title">What you can count on</h2>
-		<dl class="mt-4 grid gap-x-14 gap-y-8 md:grid-cols-3">
-			{promises.map(([t, d]) => (
-				<div><dt class="text-lg font-medium leading-snug text-ink-strong">{t}</dt><dd class="mt-2 text-sm text-muted">{d}</dd></div>
-			))}
-		</dl>
-	</section>
+		<section id="ai" class="chapter" aria-labelledby="ai-title">
+			<header class="chapter-head" data-rv>
+				<div class="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
+					<h2 id="ai-title" class="chapter-title">An AI analysis made for your portfolio, not for everyone's</h2>
+					<p class="sec-note">On the web and on iPhone</p>
+				</div>
+			</header>
+			<div class="mt-8 grid items-center gap-x-16 gap-y-14 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+				<div>
+					<dl class="max-w-md divide-y divide-line border-y border-line">
+						{reading.map(([tag, t, d], i) => (
+							<div class="py-5" data-rv style={`--i:${i}`}>
+								<dt><span class="block text-[12.5px] text-muted">{tag}</span><span class="mt-1 block text-[1.2rem] font-medium leading-snug tracking-tight text-ink-strong">{t}</span></dt>
+								<dd class="mt-2 text-sm text-ink">{d}</dd>
+							</div>
+						))}
+					</dl>
+					<div class="mt-7 flex flex-wrap items-center gap-3" data-rv style="--i:3">
+						<a href={link("/signin/")} class="btn btn-primary" data-hub>Sign in or create an account</a>
+						<a href={APP_STORE_URL} class="store" rel="noopener" aria-label="Download Market Hub on the App Store">
+							<svg viewBox="0 0 20 20" class="h-7 w-7 flex-none" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+								<rect x="5.5" y="1.75" width="9" height="16.5" rx="2.2"></rect><path d="M8.6 4h2.8"></path>
+							</svg>
+							<span><span class="block text-[11px] leading-none text-muted">Download on the</span><span class="mt-1 block text-[15px] font-medium leading-none">App Store</span></span>
+						</a>
+					</div>
+				</div>
+				<div id="phones" class="phones">
+					{phones.map((p, i) => (
+						<div data-rv style={`--i:${i + 1}`}>
+							<div class:list={["phone", p.side ? "side" : ""]}>
+								<img src={link(`/app/${p.shot}.jpg`)} alt={p.alt} width="660" height="1435" loading="lazy" decoding="async" />
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
+		</section>
+
+		<section class="chapter" aria-labelledby="rest-title">
+			<header class="chapter-head" data-rv>
+				<h2 id="rest-title" class="chapter-title">And around it, the rest of Market Hub</h2>
+			</header>
+			<div class="mt-8 grid gap-x-14 gap-y-10 md:grid-cols-3">
+				{rest.map((r, i) => (
+					<div data-rv style={`--i:${i}`}>
+						<h3 class="text-lg font-medium leading-snug text-ink-strong">{r.title}</h3>
+						<p class="mt-2 text-sm text-ink">{r.text}</p>
+						<p class="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+							{r.links.map(([name, href]) => <a href={href} class="link" rel={href.startsWith("http") ? "noopener" : undefined}>{name}</a>)}
+						</p>
+					</div>
+				))}
+			</div>
+		</section>
+
+		<section class="chapter" aria-labelledby="promises-title">
+			<header class="chapter-head" data-rv>
+				<h2 id="promises-title" class="chapter-title">What you can count on</h2>
+			</header>
+			<dl class="mt-8 grid gap-x-14 gap-y-8 md:grid-cols-3">
+				{promises.map(([t, d], i) => (
+					<div data-rv style={`--i:${i}`}><dt class="text-lg font-medium leading-snug text-ink-strong">{t}</dt><dd class="mt-2 text-sm text-muted">{d}</dd></div>
+				))}
+			</dl>
+		</section>
+
+		<section class="chapter pb-6" aria-labelledby="start-title">
+			<div class="chapter-head" data-rv></div>
+			<div class="mt-10 grid items-end gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+				<h2 id="start-title" class="lede !text-ink-strong" data-rv>Start with your own stocks. The AI does the reading.</h2>
+				<div class="flex flex-wrap items-center gap-3" data-rv style="--i:1">
+					<a href={link("/signin/")} class="btn btn-primary" data-hub>Start with your portfolio</a>
+					<a href={link("/today/")} class="btn btn-ghost">See today's market</a>
+					<a href={APP_STORE_URL} class="btn btn-ghost" rel="noopener">Download on the App Store</a>
+				</div>
+			</div>
+		</section>
+	</div>
 </Site>
+
+<style is:global>
+	/* The page comes in a part at a time, as Today does. Every movement is a transform or an
+	   opacity, and none of it happens for a reader who asked for less motion. */
+	.home {
+		--ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+		--head: 56px; /* the site's header, measured by the page */
+	}
+	.home.moves [data-rv] {
+		opacity: 0;
+		transform: translateY(14px);
+		transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+		transition-delay: calc(var(--i, 0) * 70ms);
+	}
+	.home.moves [data-rv].in {
+		opacity: 1;
+		transform: none;
+	}
+
+	/* The top of the page fills the window: what Market Hub does for you, and the film beside it. */
+	.home .hero {
+		display: flex;
+		flex-direction: column;
+		min-height: calc(100svh - var(--head) - 5.5rem);
+	}
+	.headline {
+		max-width: 11em;
+		font-size: clamp(2.3rem, 1.2rem + 3.6vw, 3.9rem);
+		font-weight: 500;
+		line-height: 1.04;
+		letter-spacing: -0.025em;
+		color: var(--color-ink-strong);
+		text-wrap: balance;
+	}
+	.cue {
+		display: inline-flex;
+		align-items: center;
+		align-self: flex-end;
+		gap: 10px;
+		margin-top: 1.5rem;
+		font-size: 12.5px;
+		color: var(--color-muted);
+		transition: opacity 0.4s, color 0.2s;
+	}
+	.cue:hover {
+		color: var(--color-ink-strong);
+	}
+	.cue span {
+		width: 1px;
+		height: 22px;
+		background: currentColor;
+		transform-origin: 50% 0;
+		animation: cue 1.9s var(--ease) infinite;
+	}
+	@keyframes cue {
+		0% { transform: scaleY(0); opacity: 1; }
+		55% { transform: scaleY(1); opacity: 1; }
+		100% { transform: scaleY(1); opacity: 0; }
+	}
+
+	/* A part of the page: a rule that is drawn across, and its title. */
+	.home .chapter {
+		margin-top: 7rem;
+		scroll-margin-top: calc(var(--head) + 1.25rem);
+	}
+	@media (min-width: 1024px) {
+		.home .chapter {
+			margin-top: 10rem;
+		}
+	}
+	.home .chapter-head {
+		position: relative;
+		padding-top: 16px;
+	}
+	.home.moves .chapter-head[data-rv] {
+		transform: none;
+	}
+	.home .chapter-head::before {
+		content: "";
+		position: absolute;
+		inset: 0 0 auto 0;
+		height: 1px;
+		background: var(--color-line-strong);
+		transform-origin: 0 50%;
+		transition: transform 1.1s var(--ease);
+	}
+	.home.moves .chapter-head:not(.in)::before {
+		transform: scaleX(0);
+	}
+	.home .chapter-title {
+		max-width: 22em;
+		font-size: clamp(1.45rem, 1rem + 1.5vw, 2.05rem);
+		font-weight: 500;
+		line-height: 1.15;
+		letter-spacing: -0.015em;
+		color: var(--color-ink-strong);
+		text-wrap: balance;
+	}
+
+	/* The app's screens, in three phones. The two at the sides drift against the one in the middle
+	   as the page goes by (--p is how far the block has gone through the window). */
+	.phones {
+		--p: 0.5;
+		display: grid;
+		grid-template-columns: 1fr 1.16fr 1fr;
+		align-items: center;
+		gap: clamp(10px, 2vw, 22px);
+		max-width: 44rem;
+		margin-inline: auto;
+	}
+	.phone {
+		overflow: hidden;
+		border: 1px solid var(--color-line-strong);
+		border-radius: clamp(18px, 3.2vw, 34px);
+		background: var(--color-deep);
+		padding: clamp(4px, 0.7vw, 7px);
+		transform: translateY(calc((var(--p) - 0.5) * 46px));
+		will-change: transform;
+	}
+	.phone.side {
+		transform: translateY(calc((0.5 - var(--p)) * 90px));
+	}
+	.phone img {
+		display: block;
+		width: 100%;
+		height: auto;
+		border-radius: clamp(14px, 2.6vw, 28px);
+	}
+
+	/* Where the app is downloaded: a button drawn in the site's own ink. */
+	.store {
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+		border: 1px solid var(--color-line-strong);
+		border-radius: 3px;
+		padding: 6px 16px 6px 10px;
+		color: var(--color-ink-strong);
+		transition: border-color 0.15s, background-color 0.15s;
+	}
+	.store:hover {
+		border-color: var(--color-muted);
+		background: var(--color-raised);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.home.moves [data-rv],
+		.home.moves .chapter-head:not(.in)::before,
+		.phone,
+		.phone.side {
+			transform: none;
+			transition: none;
+		}
+		.home.moves [data-rv] {
+			opacity: 1;
+		}
+		.cue span {
+			animation: none;
+		}
+	}
+</style>
 
 <script>
 	import { signedIn } from "../lib/api";
+	import { onScroll, reveal, still } from "../lib/motion";
 	import { link } from "../lib/site";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const page = document.querySelector<HTMLElement>(".home")!;
+	page.dataset.ready = "1";
+	reveal(page.querySelector(".hero")!, 0);
+	reveal(page);
+
+	onScroll(() => {
+		page.style.setProperty("--head", `${document.querySelector("header")!.getBoundingClientRect().height}px`);
+		$("cue").style.opacity = scrollY > 60 ? "0" : "";
+		// The phones: how far their block has gone through the window.
+		const r = $("phones").getBoundingClientRect();
+		$("phones").style.setProperty("--p", Math.min(1, Math.max(0, (innerHeight - r.top) / (innerHeight + r.height))).toFixed(3));
+	});
 
 	// The film plays by itself while it is on screen, unless the visitor asked for less motion. It
 	// starts muted, as browsers require; its sound is one click away in the player's controls.
-	const film = document.getElementById("film") as HTMLVideoElement;
-	if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
-		new IntersectionObserver(([e]) => (e.isIntersecting ? film.play().catch(() => {}) : film.pause()), { threshold: 0.5 }).observe(film);
+	const film = $("film") as HTMLVideoElement;
+	if (!still()) new IntersectionObserver(([e]) => (e.isIntersecting ? film.play().catch(() => {}) : film.pause()), { threshold: 0.5 }).observe(film);
 
+	// Someone who is signed in is sent to their hub, not to the sign-in page.
 	signedIn()
 		.then((who) => {
 			if (!who) return;
-			const first = who.user.name.split(" ")[0];
-			for (const id of ["hero-hub", "hub-link"]) {
-				const a = document.getElementById(id) as HTMLAnchorElement;
+			page.querySelectorAll<HTMLAnchorElement>("a[data-hub]").forEach((a) => {
 				a.textContent = "Open My Hub";
 				a.href = link("/dashboard/");
-			}
-			document.getElementById("hub-title")!.textContent = `Welcome back, ${first}`;
-			document.getElementById("hub-text")!.textContent = "Your portfolio and watchlist are in your private hub.";
+			});
 		})
 		.catch(() => {});
 </script>
