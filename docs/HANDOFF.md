@@ -783,9 +783,9 @@ El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
 
 ### Media (2026-10-06; desplegada como `market-hub-00016-gjv`)
 
-Añadido el 2026-10-13, **sin desplegar**: los tres primeros reels en `INSTAGRAM.reels` (inflación `DebfgEUIAad`, interés compuesto `DebfWHpAKyE`, tráiler `DebfPiLgQwO`), publicados ese día con `make instagram`, cada uno con la carátula de su Short. La sección de Instagram deja de enseñar huecos y enseña los reels como enlaces.
+Añadido el 2026-10-13 (desplegado como `market-hub-00033-66w`, tras comparar el `.env` con el servicio; comprobado en https://themarkethub.app/media/, que enlaza los tres): los tres primeros reels en `INSTAGRAM.reels` (inflación `DebfgEUIAad`, interés compuesto `DebfWHpAKyE`, tráiler `DebfPiLgQwO`), publicados ese día con `make instagram`, cada uno con la carátula de su Short. La sección de Instagram deja de enseñar huecos y enseña los reels como enlaces.
 
-Añadido el 2026-10-08, **sin desplegar**: la cuenta de Instagram, `the_market_hub_app`
+Añadido el 2026-10-08 (desplegado el 2026-10-13 con los reels, `market-hub-00033-66w`; el usuario pidió desplegarlo): la cuenta de Instagram, `the_market_hub_app`
 (`INSTAGRAM.handle`), con su enlace en la cabecera de la sección, y el sitio de sus reels:
 `INSTAGRAM.reels` en `lib/media.ts`, hoy vacío. Un reel se añade a mano cuando se publica (lo
 sube `make instagram` en `the-market-hub-media`, que deja su dirección en el `published.json` del
