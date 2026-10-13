@@ -22,7 +22,46 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### La app de móvil entra con Apple (2026-10-13; **sin desplegar**)
+### Denunciar un comentario y bloquear a su autor (2026-10-13; **desplegado**, revisión `market-hub-00035-w65`)
+
+Apple pide a una app con contenido de usuarios (regla 1.2) un filtro, una forma de denunciar,
+poder bloquear a un usuario y un contacto publicado. Vale para todos los hilos: los de Opinion y
+la discusión de la competición. Está en `src/markethub/opinion.py`, que lo explica arriba:
+
+- **Denunciar** (`POST /api/comments/{id}/report`): el comentario deja de verse para quien lo
+  denuncia. Con **dos** denuncias (`HOLD_AT`) deja de verse para todos hasta que el dueño lo mire.
+  Nadie sabe quién denunció; el dueño solo ve cuántos.
+- **El dueño revisa** (`GET /api/moderation/reports`, `POST /api/moderation/reports/{id}/keep`, y
+  borrar con la ruta de siempre): en `/account/` le sale la tarjeta "Reported comments" con
+  "Keep" y "Delete", y en cada hilo ve "Reported ×N" y "Keep". El dueño es, como antes, un email
+  de `MARKETHUB_ADMINS` verificado por Google. `/api/me` dice `moderator`.
+- **Bloquear** (`POST /api/blocks {comment_id}`, `GET /api/blocks`, `DELETE /api/blocks/{key}`):
+  quien bloquea deja de ver lo que escribe ese autor, en todos los hilos. Se bloquea por un
+  comentario, porque nadie recibe nunca el id de otra cuenta; la lista enseña el nombre con que
+  salía el comentario. Al bloqueado no se le dice. Hasta 200 por cuenta.
+- **El filtro** (`publishable`): un comentario con insultos graves o slurs (inglés y español, por
+  palabras enteras) no se acepta, y tampoco un nombre para compartir la cartera o para la
+  competición. Es un suelo, no la moderación.
+- Un comentario llega al lector con `hidden`: `"blocked"`, `"reported"`, `"held"` o nada; oculto,
+  va sin texto ni nombre. La web y la app no lo pintan (salvo que tenga respuestas debajo, o sea
+  uno propio retenido).
+- **Qué se guarda de nuevo** (dicho en `/privacy/` y en `/account/`): con el comentario, los ids
+  de quienes lo denunciaron; y cada bloqueo en la colección `opinion_blocks` (quién, a quién, el
+  nombre mostrado, cuándo). Borrar la cuenta quita sus denuncias, sus bloqueos y los que otros
+  le hicieron.
+- **Tests**: `tests/test_moderation.py` (22). **Visto en la web local** con dos cuentas de
+  prueba: denunciar, bloquear y desbloquear desde `/account/`. **Sin ver en pantalla**: la
+  tarjeta del dueño (pide entrar con Google con su email); sus rutas sí están en los tests.
+- **Comprobado en producción** tras desplegar: `/api/config` dice `apple_sign_in`, se reparte el
+  `nonce` de Apple y un token falso da 401; las rutas de denunciar, bloquear y revisar piden
+  sesión (401); `/privacy/` dice lo nuevo; los hilos se leen. **Sin comprobar en producción**:
+  denunciar y bloquear con una cuenta de verdad (las consultas nuevas a Firestore solo corren con
+  sesión), y un token de Apple de verdad.
+- **Pendiente**: **el contacto publicado** (la regla 1.2 lo pide y el portal no tiene ninguno:
+  falta que el usuario diga qué email); y nada avisa al dueño de una denuncia nueva: la ve al
+  abrir `/account/`.
+
+### La app de móvil entra con Apple (2026-10-13; **desplegado**, revisión `market-hub-00035-w65`)
 
 Apple pide que una app de iPhone que ofrece el login de Google ofrezca además uno que solo recoja
 nombre y email y deje esconder el email (regla 4.8): el suyo. Lo lleva `src/markethub/applesignin.py`,
@@ -52,7 +91,6 @@ que lo explica:
 - **Sin probar**: con Apple de verdad. Expo Go no lleva el módulo de Apple, así que hace falta
   una compilación de la app, y esa pide la cuenta de Apple Developer, que el usuario aún no tiene.
 - **Pendiente**:
-  - **Desplegar** (`make deploy`), con permiso del usuario.
   - **Revocar el token de Apple al borrar una cuenta**: Apple lo pide ("should") a las apps con
     su login. Hace falta una clave .p8 de la cuenta de Apple Developer, cambiar el código de
     autorización por un token de refresco al entrar y guardarlo con la cuenta (dato nuevo: antes,
