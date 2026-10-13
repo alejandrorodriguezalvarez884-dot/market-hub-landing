@@ -824,6 +824,8 @@ El usuario pidió filtrar las noticias por sector, por sentimiento y por fecha.
 
 ### Media (2026-10-06; desplegada como `market-hub-00016-gjv`)
 
+Añadido el 2026-10-13: el episodio 3 de Money 101, la deuda (`nApfz535ZbM`), su Short (`WKDiiXEf17A`) y su reel (`DeblQgIDhWo`), con sus carátulas `debt.jpg` y `debt-short.jpg`. Las tres líneas de `lib/media.ts` entraron por descuido en un commit de otra sesión que trabajaba en esta carpeta (el del login de Apple); las carátulas, en el suyo. **Desplegado como `market-hub-00034-9mm`** desde una copia limpia del commit `aa75e3c` (lo último desplegado) más solo `lib/media.ts` y las dos carátulas: el login de Apple, que es de la otra sesión y sigue sin desplegar, no fue en este despliegue. Comprobado en https://themarkethub.app/media/.
+
 Añadido el 2026-10-13 (desplegado como `market-hub-00033-66w`, tras comparar el `.env` con el servicio; comprobado en https://themarkethub.app/media/, que enlaza los tres): los tres primeros reels en `INSTAGRAM.reels` (inflación `DebfgEUIAad`, interés compuesto `DebfWHpAKyE`, tráiler `DebfPiLgQwO`), publicados ese día con `make instagram`, cada uno con la carátula de su Short. La sección de Instagram deja de enseñar huecos y enseña los reels como enlaces.
 
 Añadido el 2026-10-08 (desplegado el 2026-10-13 con los reels, `market-hub-00033-66w`; el usuario pidió desplegarlo): la cuenta de Instagram, `the_market_hub_app`
