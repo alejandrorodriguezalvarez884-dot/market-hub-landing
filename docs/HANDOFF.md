@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Borrar una cuenta de Apple se lo dice a Apple (2026-10-13; **código hecho, sin clave y sin desplegar**)
+### Borrar una cuenta de Apple se lo dice a Apple (2026-10-13; **desplegado**, revisión `market-hub-00039-fgv`)
 
 Apple pide ("should") que una app con su login revoque el token del usuario cuando este borra
 la cuenta: si no, la app sigue saliendo en su iPhone entre las que usan su cuenta de Apple. El
@@ -42,9 +42,13 @@ usuario eligió hacerlo **sin guardar nada**. Lo lleva `src/markethub/applerevok
   404 y la app borra la cuenta sin el paso de Apple.
 - `/privacy/` lo dice. Tests: los seis últimos de `tests/test_app_apple.py` (21 en total), con
   un Apple de mentira que solo responde a lo que va firmado con la clave.
-- **Falta**: que el usuario registre y descargue la clave en Apple Developer (está a un clic),
-  subirla a Secret Manager, poner `APPLE_KEY_ID` y `APPLE_TEAM_ID` en `.env`, desplegar, y
-  probarlo con una cuenta de Apple de verdad desde la app (build 4).
+- **Hecho el 2026-10-13**: el usuario registró la clave en Apple Developer ("Market Hub Sign in
+  with Apple", Key ID `8R9KPV8SVC`, equipo `J44H9U6HLW`); el `.p8` se subió a Secret Manager desde
+  el archivo, sin abrirlo, y se comprobó que la copia guardada carga y firma. `APPLE_KEY_ID` y
+  `APPLE_TEAM_ID` están en `.env`. En producción `/api/config` dice `apple_revocation: true`.
+  El archivo original quedó en las Descargas del usuario (Apple no deja bajarlo otra vez).
+- **Falta**: probarlo con una cuenta de Apple de verdad desde la app (build 4): que Apple acepte
+  la firma y el código, y que la app desaparezca de "Iniciar sesión con Apple" en el iPhone.
 
 ### La app abre las herramientas dentro de sí (2026-10-13; **desplegado**, revisión `market-hub-00037-cbm`)
 
