@@ -150,3 +150,7 @@ COMPETITION_SETTLE_DAYS = 5
 
 EARNINGS_RADAR_URL = os.environ.get("EARNINGS_RADAR_URL", "https://earningsradar.app").rstrip("/")
 FUNDAMENTALS_LAB_URL = os.environ.get("FUNDAMENTALS_LAB_URL", "").rstrip("/")
+# The other two tools of My Hub, at the addresses the site's own navigation links to
+# (site/src/lib/site.ts). The phone app lists whatever /api/config names.
+PEER_MAP_URL = os.environ.get("PEER_MAP_URL", "https://peers.themarkethub.app").rstrip("/")
+PLAYGROUND_URL = os.environ.get("PLAYGROUND_URL", "https://playground.themarkethub.app").rstrip("/")

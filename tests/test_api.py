@@ -118,3 +118,9 @@ def test_other_hosts_keep_a_host_only_cookie(users, market, directory):
     r = c.post("/api/auth/google", json={"credential": "ok:7"})
     assert "domain=" not in r.headers["set-cookie"].lower()
     assert c.get("/api/me").status_code == 200
+
+
+def test_the_config_names_every_tool_of_my_hub_for_the_app_to_list(client):
+    tools = client.get("/api/config").json()["tools"]
+    assert set(tools) == {"fundamentals_lab", "earnings_radar", "peer_map", "playground"}
+    assert tools["peer_map"] == "https://peers.themarkethub.app" and tools["playground"] == "https://playground.themarkethub.app"

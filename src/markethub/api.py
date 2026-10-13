@@ -110,7 +110,7 @@ from . import applesignin
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
-                     COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PER_IP_PER_HOUR,
+                     COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PEER_MAP_URL, PER_IP_PER_HOUR, PLAYGROUND_URL,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, SUBMISSIONS_PER_USER_PER_DAY, WATCH_PER_IP_PER_HOUR)
 from .market import Directory, Fmp, MarketUnavailable
 from .tokens import AppTokens, bearer
@@ -327,6 +327,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             "tools": {
                 "earnings_radar": EARNINGS_RADAR_URL or None,
                 "fundamentals_lab": FUNDAMENTALS_LAB_URL or None,
+                "peer_map": PEER_MAP_URL or None,
+                "playground": PLAYGROUND_URL or None,
             },
         }
 
