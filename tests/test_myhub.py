@@ -2,6 +2,7 @@
 sentences that read it back, the stand-in for a provider that does not answer, and sharing."""
 
 import json
+import math
 from datetime import date, timedelta
 
 import pytest
@@ -27,6 +28,40 @@ class Down:
 
 def doc(positions=POSITIONS, watchlist=()):
     return {"positions": list(positions), "watchlist": list(watchlist)}
+
+
+# Whether a document gives away how large a portfolio is cannot be asked of its text: the digits
+# of an amount turn up by chance inside longer figures (5781 in a return of -0.0035781...). It
+# is asked of the portfolio instead: the same mix ten times over has to give the same document.
+
+
+def times(positions, n):
+    """The same portfolio, n times as large."""
+    return [p | {"shares": p["shares"] * n} for p in positions]
+
+
+def same(a, b):
+    """Whether two documents say the same, figure by figure (to the rounding of a float)."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(same(a[k], b[k]) for k in a)
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
+    if isinstance(a, float) and isinstance(b, (int, float)) or isinstance(b, float) and isinstance(a, (int, float)):
+        return math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-9)
+    return a == b
+
+
+def leaves(found):
+    """Every key and every value of a document, wherever it is."""
+    if isinstance(found, dict):
+        for k, v in found.items():
+            yield k
+            yield from leaves(v)
+    elif isinstance(found, (list, tuple)):
+        for v in found:
+            yield from leaves(v)
+    else:
+        yield found
 
 
 def sampled(positions=POSITIONS):
@@ -137,9 +172,8 @@ def test_what_the_model_is_given_has_no_amounts_and_nothing_of_the_user():
     given = json.dumps(insights.facts(d))
     for kept in ("shares", "avg_cost", "cost", "value", "pnl", "price"):
         assert f'"{kept}"' not in given
-    # No figure of the portfolio's size, in any form.
-    for amount in (d["totals"]["value"], d["totals"]["cost"], *(p["value"] for p in d["positions"])):
-        assert str(round(amount, 2)) not in given and str(int(amount)) not in given
+    # No figure of the portfolio's size, in any form: ten times as large, the model is given the same.
+    assert same(insights.facts(sampled(times(POSITIONS, 10))), insights.facts(d))
     assert '"ticker": "AAPL"' in given and '"weight"' in given
 
 
@@ -218,7 +252,11 @@ def test_nothing_is_shared_until_its_owner_says_so_and_then_only_weights():
     assert ana["you"] is False and ana["count"] == 3 and sum(p["weight"] for p in ana["positions"]) == pytest.approx(1.0, abs=1e-3)
     shown = json.dumps(seen)
     assert "u1" not in shown and '"shares"' not in shown and '"units"' not in shown and '"value"' not in shown and '"avg_cost"' not in shown
-    assert str(int(mine["totals"]["value"])) not in shown
+    # Nor does anything say how large it is: the same mix ten times over is the same entry on the board.
+    large = board_of()
+    large.share("u1", "Quiet Ana", sampled(times(POSITIONS, 10)))
+    entry = lambda board: {k: v for k, v in next(m for m in board["members"] if m["handle"] == "Quiet Ana").items() if not k.endswith("_utc")}  # noqa: E731
+    assert same(entry(large.board("u2", sampled([{"ticker": "KO", "shares": 1, "avg_cost": None}]))), entry(seen))
     # What is kept lets the same mix be valued again without saying how large it is.
     kept = c.store.get("u1")
     assert {u["ticker"] for u in kept["units"]} == {"AAPL", "MSFT", "KO"} and kept["units"][0]["shares"] != 10
@@ -288,7 +326,7 @@ def test_sharing_through_the_api(client, shared, users):
     board = client.get("/api/community").json()
     assert [m["handle"] for m in board["members"]] == ["ana"] and board["members"][0]["you"] is True
     assert [p["key"] for p in board["periods"]] == ["1d", "1m", "3m", "ytd", "1y"] and board["indices"][0]["name"] == "S&P 500"
-    assert "1001" not in json.dumps(board)
+    assert not [x for x in leaves(board) if x == 1001 or isinstance(x, str) and "1001" in x]  # the account's id
     # What is shared follows the portfolio, and ends with it.
     client.put("/api/portfolio", json={"positions": POSITIONS[:1], "watchlist": []})
     assert shared.get("1001")["count"] == 1
