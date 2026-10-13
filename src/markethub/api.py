@@ -18,6 +18,8 @@
     POST   /api/app/auth/google/finish    {code, verifier}: the app's token (appsignin.py)
     POST   /api/app/auth/apple/begin      the nonce of one sign-in with Apple
     POST   /api/app/auth/apple            {identity_token, name}: Apple's token -> the app's token (applesignin.py)
+    GET    /api/app/web/enter       ?to=  the app's own page, on its way to a tool: the app's token for
+                                    the session cookie the tools ask for (appweb.py)
     GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
     GET    /api/watchlist           the stocks the user follows and holds, each read from its prices
     GET    /api/watchlist/stock     ?t=  any one stock, read the same way
@@ -107,6 +109,7 @@ from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
 from . import submissions as submissions_
 from .submissions import Submissions, default_submissions
 from . import applesignin
+from .appweb import ToolPages, entering_page
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
@@ -245,6 +248,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     # Sign in with Apple takes no key of ours: Apple's own, published, check its tokens.
     apple_flow = applesignin.AppleFlow(secret)
     apple_checks = apple_verifier or applesignin.AppleKeys()
+    # The tools the app may open inside itself, signed in (appweb.py).
+    tool_pages = ToolPages([EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, PEER_MAP_URL, PLAYGROUND_URL])
 
     def app_token(request: Request) -> str | None:
         return bearer(request.headers.get("authorization"))
@@ -557,6 +562,21 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         users.put(a.id, touch(doc, email=user["email"], name=user["name"], picture="", provider="apple"))
         log.info("sign-in ok (app, apple) new=%s", new)
         return {"user": user, "new": new, "has_data": bool(doc.get("positions") or doc.get("watchlist")), "token": tokens.issue(user)}
+
+    @app.get("/api/app/web/enter")
+    def app_web_enter(request: Request, to: str = Query(max_length=600)) -> Response:
+        """The page the app opens inside itself, on its way to a tool. The only route under
+        /api/app/ that sets the session cookie, and only for a request with a good token."""
+        allow(request)
+        user = tokens.read(app_token(request))
+        if not user:
+            return HTMLResponse(entering_page(None, "Sign in to the app again to open this."), 401)
+        if not tool_pages.allowed(to):
+            return HTMLResponse(entering_page(None, "This is not one of Market Hub's tools."), 400)
+        request.session.clear()
+        request.session["user"] = user
+        log.info("tool opened in the app")
+        return HTMLResponse(entering_page(to, "Opening…"))
 
     @app.get("/api/me")
     def me(request: Request) -> dict:

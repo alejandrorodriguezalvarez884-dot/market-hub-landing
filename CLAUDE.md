@@ -28,7 +28,10 @@ Reglas que no se negocian:
   tampoco da ninguno (puede ser un relay) ni se une a otra cuenta. Crear una cuenta propia pasa
   siempre por el captcha (`captcha.py`); sin sus claves, el registro queda cerrado, no abierto.
   Las escrituras pasan el control de `Origin`, salvo las de la app de móvil, que no llevan cookie:
-  llevan su token, y las rutas `/api/app/` ni leen ni ponen cookie.
+  llevan su token, y las rutas `/api/app/` ni leen ni ponen cookie. La única excepción es
+  `/api/app/web/enter` (`appweb.py`): pone la cookie de sesión en la página que la app abre dentro
+  de sí para una herramienta, solo a quien trae un token bueno en la cabecera y solo camino de
+  una herramienta que el portal nombra.
 - **Claves solo en `.env` o en el entorno.** Nunca en el repo, en logs ni en commits.
 - **Nada programado y nada en GitHub Actions.** Todo se lanza a mano desde el `Makefile`.
 
