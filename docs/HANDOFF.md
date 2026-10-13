@@ -35,10 +35,12 @@ Así queda `site/src/pages/index.astro`:
   el vídeo, que se reproduce solo y sin sonido mientras está en pantalla.
 - **La IA en tres ideas**, con tres móviles con capturas de la app (`site/public/app/`, sacadas
   de `market-hub-mobile/store/app-store/screenshots/`): personal (lee tus posiciones y sus
-  pesos), al grano (el código calcula, el modelo solo redacta) y puntera (**nombra a Claude y a
-  Anthropic**, y dice lo que el modelo recibe con las mismas palabras que `/privacy/`: tickers,
-  pesos y rentabilidades; nunca el nombre, las acciones ni lo que valen). Si cambia lo que se
-  manda al modelo, cambia también este texto.
+  pesos), sin esfuerzo (claridad en segundos) y puntera. **Los textos son generales y
+  comerciales, y no nombran ningún modelo ni proveedor**: lo pidió el usuario tras ver la
+  primera versión, que nombraba a Claude y a Anthropic y explicaba qué recibe el modelo ("más
+  general y comercial, para crear hype"). La frase "It describes. It never tells you what to
+  buy or sell" ya no va arriba; sigue en los tres compromisos y en el pie. Lo comercial no
+  cambia la regla: nada de consejos, predicciones ni promesas de rentabilidad.
 - **El resto en tres líneas** (las cuatro herramientas, el mercado del día, la app), cada una
   con una frase y sus enlaces; los tres compromisos; un cierre con los mismos botones.
 - **El enlace al App Store** (`APP_STORE_URL` en `lib/site.ts`, `apps.apple.com/app/id6822290220`)
@@ -110,10 +112,13 @@ Ahora Today es el día contado por capítulos y Markets sigue siendo las tablas.
 - **Pendiente, si se quiere**: la película de la portada enseña de Today el dial y la regla,
   que siguen en la página, pero nada de lo nuevo (la sesión que se dibuja, los sectores);
   cambiar su escena es `film/film.js` y `make film`.
-- **Tests**: 321 en verde y uno que falla sin relación con esto
-  (`test_nothing_is_shared_until_its_owner_says_so_and_then_only_weights`: busca los dígitos del
-  valor de la cartera como texto en el tablero de Community y el 2026-10-13 coincidían por
-  casualidad dentro de otro número de las cifras de ejemplo). No se ha tocado.
+- **Tests**: 322 en verde. El que fallaba ese día
+  (`test_nothing_is_shared_until_its_owner_says_so_and_then_only_weights`) buscaba los dígitos
+  del valor de la cartera como texto, y coincidían por casualidad dentro de otro número.
+  Arreglado el 2026-10-13 en `tests/test_myhub.py`: que un documento no diga el tamaño de una
+  cartera se comprueba con la misma cartera diez veces mayor, que tiene que dar el mismo
+  documento (`times`, `same`); igual en lo que se da al modelo, y el id de la cuenta se busca
+  valor a valor (`leaves`), no en el texto.
 
 ### Borrar una cuenta de Apple se lo dice a Apple (2026-10-13; **desplegado**, revisión `market-hub-00039-fgv`)
 
