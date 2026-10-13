@@ -22,6 +22,17 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Contacto publicado (2026-10-13; **desplegado**, revisión `market-hub-00036-l7k`)
+
+La página `/contact/` (`site/src/pages/contact.astro`) da el email de contacto que eligió el
+usuario (`CONTACT_EMAIL` en `site/src/lib/site.ts`) y dice para qué: ayuda, denunciar un
+comentario o a un miembro, y los datos de cada uno. La enlazan el pie del portal, las condiciones
+y la página de privacidad, y la app de móvil desde More. Apple la pide a una app con comentarios
+(regla 1.2) y como página de soporte de la ficha. Las condiciones dicen ahora que no hay sitio
+para contenido abusivo y que se puede denunciar y bloquear. De paso: Astro se comía el espacio
+entre una línea de texto y un enlace que empieza la línea siguiente ("by one person,<a"), en
+siete sitios de `/contact/`, `/terms/` y `/privacy/`; arreglado con `{" "}`.
+
 ### Denunciar un comentario y bloquear a su autor (2026-10-13; **desplegado**, revisión `market-hub-00035-w65`)
 
 Apple pide a una app con contenido de usuarios (regla 1.2) un filtro, una forma de denunciar,
@@ -57,9 +68,8 @@ la discusión de la competición. Está en `src/markethub/opinion.py`, que lo ex
   sesión (401); `/privacy/` dice lo nuevo; los hilos se leen. **Sin comprobar en producción**:
   denunciar y bloquear con una cuenta de verdad (las consultas nuevas a Firestore solo corren con
   sesión), y un token de Apple de verdad.
-- **Pendiente**: **el contacto publicado** (la regla 1.2 lo pide y el portal no tiene ninguno:
-  falta que el usuario diga qué email); y nada avisa al dueño de una denuncia nueva: la ve al
-  abrir `/account/`.
+- **Pendiente**: nada avisa al dueño de una denuncia nueva: la ve al abrir `/account/`. (El
+  contacto publicado que pide la regla 1.2 está hecho: arriba.)
 
 ### La app de móvil entra con Apple (2026-10-13; **desplegado**, revisión `market-hub-00035-w65`)
 
