@@ -16,6 +16,8 @@
     GET    /api/app/auth/google/start     ?redirect=&challenge=  the app's browser, sent on to Google
     POST   /api/app/auth/google/callback  where Google posts the ID token; back to the app with a code
     POST   /api/app/auth/google/finish    {code, verifier}: the app's token (appsignin.py)
+    POST   /api/app/auth/apple/begin      the nonce of one sign-in with Apple
+    POST   /api/app/auth/apple            {identity_token, name}: Apple's token -> the app's token (applesignin.py)
     GET    /api/insights            the sentences that read the portfolio back, by the model when it answers
     GET    /api/watchlist           the stocks the user follows and holds, each read from its prices
     GET    /api/watchlist/stock     ?t=  any one stock, read the same way
@@ -98,6 +100,7 @@ from .news import default_news
 from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
 from . import submissions as submissions_
 from .submissions import Submissions, default_submissions
+from . import applesignin
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
@@ -170,7 +173,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                insight_writer="default", logins: LoginStore | None = None,
                password_cost: tuple[int, int, int] = accounts_.COST, captcha="default",
                competition_store: CompetitionStore | None = None, clock=None, stock_reader="default",
-               app_redirects: str | None = None, submissions: Submissions | None = None) -> FastAPI:
+               app_redirects: str | None = None, submissions: Submissions | None = None,
+               apple_verifier: applesignin.Verifier | None = None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -232,6 +236,9 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     tokens = AppTokens(secret, SESSION_DAYS * 86400)
     google_flow = GoogleFlow(secret)
     redirects = AppRedirects(APP_REDIRECTS if app_redirects is None else app_redirects)
+    # Sign in with Apple takes no key of ours: Apple's own, published, check its tokens.
+    apple_flow = applesignin.AppleFlow(secret)
+    apple_checks = apple_verifier or applesignin.AppleKeys()
 
     def app_token(request: Request) -> str | None:
         return bearer(request.headers.get("authorization"))
@@ -304,6 +311,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             "google_client_id": client_id,
             "domain": cookie_domain,
             "password_login": password_login,
+            # The phone app shows Apple's button only where its token is taken.
+            "apple_sign_in": True,
             # Whether an account can be made here, and the key of the captcha's widget if it takes one.
             "registration": registration,
             "turnstile_site_key": human.site_key if registration == "captcha" else None,
@@ -434,7 +443,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def change_password(request: Request, current: str = Body(embed=True, max_length=1000), new: str = Body(embed=True, max_length=1000)) -> dict:
         user = current_user(request)
         if user.get("provider") != "password":
-            raise HTTPException(400, "This account signs in with Google: it has no password here.")
+            raise HTTPException(400, "This account signs in with Google or with Apple: it has no password here.")
         by_password(request, signing, "Too many attempts from this address. Try again later.")
         try:
             accounts.change_password(user["email"], current, new)
@@ -514,6 +523,32 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         user = {"id": found["i"], "email": doc.get("email", ""), "name": doc.get("name", ""), "picture": doc.get("picture", ""), "provider": "google"}
         return {"user": user, "new": bool(found.get("n")), "has_data": bool(doc.get("positions") or doc.get("watchlist")),
                 "token": tokens.issue(user)}
+
+    @app.post("/api/app/auth/apple/begin")
+    def app_apple_begin(request: Request) -> dict:
+        """The nonce the app hands to the phone's sign-in with Apple, to come back inside the token."""
+        allow(request)
+        return {"nonce": apple_flow.nonce()}
+
+    @app.post("/api/app/auth/apple")
+    def app_apple(request: Request, identity_token: str = Body(embed=True, max_length=8192), name: str = Body("", embed=True, max_length=200)) -> dict:
+        """Apple's identity token for the app's token. The name is what the phone gave the app the
+        first time; nothing else the app says is believed, only the token. No cookie is read or set."""
+        allow(request)
+        try:
+            a = applesignin.verify(identity_token, apple_flow, apple_checks)
+        except InvalidToken as exc:
+            log.info("sign-in refused (app, apple): %s", exc)
+            raise HTTPException(401, "Sign in with Apple could not be verified.") from None
+        doc = users.get(a.id)
+        new = doc is None
+        if new:
+            doc = empty(a.id)
+        user = {"id": a.id, "email": a.email or doc.get("email", ""), "name": applesignin.shown_name(name, doc.get("name", "")),
+                "picture": "", "provider": "apple"}
+        users.put(a.id, touch(doc, email=user["email"], name=user["name"], picture="", provider="apple"))
+        log.info("sign-in ok (app, apple) new=%s", new)
+        return {"user": user, "new": new, "has_data": bool(doc.get("positions") or doc.get("watchlist")), "token": tokens.issue(user)}
 
     @app.get("/api/me")
     def me(request: Request) -> dict:

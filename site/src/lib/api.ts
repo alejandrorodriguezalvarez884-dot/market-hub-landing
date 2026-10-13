@@ -2,9 +2,9 @@
 // port and PUBLIC_API_URL points at it (with credentials, so the session cookie goes along).
 export const API = (import.meta.env.PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
-// `provider` says how the account signs in: with Google, or with a password kept by us (and then
-// it has no picture). Sessions from before there were two ways in do not say, and are Google's.
-export type User = { id: string; email: string; name: string; picture: string; provider?: "google" | "password" };
+// `provider` says how the account signs in: with Google, with Apple (from the phone app) or with
+// a password kept by us (and then it has no picture). Sessions from before there were two ways in do not say, and are Google's.
+export type User = { id: string; email: string; name: string; picture: string; provider?: "google" | "password" | "apple" };
 export type Position = { ticker: string; shares: number; avg_cost: number | null };
 export type Portfolio = { positions: Position[]; watchlist: string[]; updated_utc?: string };
 export type Config = { google_client_id: string; domain: string | null; password_login?: boolean;

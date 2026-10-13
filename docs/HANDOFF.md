@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-10-08.
+Última actualización: 2026-10-13.
 
 ## Qué se pidió
 
@@ -21,6 +21,47 @@ Decisiones del usuario:
 - Cada posición guarda **acciones y precio medio**; los favoritos son solo tickers.
 
 ## Dónde estamos
+
+### La app de móvil entra con Apple (2026-10-13; **sin desplegar**)
+
+Apple pide que una app de iPhone que ofrece el login de Google ofrezca además uno que solo recoja
+nombre y email y deje esconder el email (regla 4.8): el suyo. Lo lleva `src/markethub/applesignin.py`,
+que lo explica:
+
+- **`POST /api/app/auth/apple/begin`**: da un `nonce` firmado aquí, bueno diez minutos. No se
+  guarda nada entre un paso y otro.
+- **`POST /api/app/auth/apple`** `{identity_token, name}`: el iPhone pide la identidad a su dueño
+  y da a la app un token firmado por Apple con ese `nonce` dentro. El portal comprueba la firma
+  contra las claves públicas de Apple (`https://appleid.apple.com/auth/keys`, guardadas un día;
+  con `google-auth` y `cryptography`, que ya estaban: ninguna dependencia nueva y ninguna clave
+  nuestra), el emisor, que esté hecho para la app (`app.themarkethub.hub`, y para nadie más), la
+  caducidad y el `nonce`. Devuelve el token de la app, como las otras entradas. Ni lee ni pone cookie.
+- **La cuenta**: su clave es `ap_` más el `sub` de Apple (con guiones por puntos), `provider:
+  "apple"`. Se guarda el email que da Apple, que puede ser un relay suyo, y el nombre, que Apple
+  da a la app solo la primera vez y la app manda aparte: sin nombre, la cuenta se llama "Member".
+  Un email de Apple no da ningún derecho (moderar sigue siendo cosa de un email verificado por
+  Google) ni se une a otra cuenta.
+- `/api/config` dice `apple_sign_in: true`, y la app solo enseña el botón de Apple a un portal
+  que lo dice: con el portal desplegado de hoy, la app nueva no lo enseña.
+- **Dicho antes de guardarlo**: `/privacy/` (qué llega de una cuenta de Apple) y `/account/`.
+  `CLAUDE.md` nombra la tercera forma de entrar.
+- **Tests**: `tests/test_app_apple.py` (16), con una clave hecha para la prueba en el papel de
+  Apple: el camino entero, el nombre que se da una vez, el email escondido, borrar la cuenta, y
+  lo que se rechaza (otra app, Expo Go, otro emisor, caducado, sin `nonce` o con uno ajeno o
+  viejo, firmado por otro, sin firma).
+- **Sin probar**: con Apple de verdad. Expo Go no lleva el módulo de Apple, así que hace falta
+  una compilación de la app, y esa pide la cuenta de Apple Developer, que el usuario aún no tiene.
+- **Pendiente**:
+  - **Desplegar** (`make deploy`), con permiso del usuario.
+  - **Revocar el token de Apple al borrar una cuenta**: Apple lo pide ("should") a las apps con
+    su login. Hace falta una clave .p8 de la cuenta de Apple Developer, cambiar el código de
+    autorización por un token de refresco al entrar y guardarlo con la cuenta (dato nuevo: antes,
+    a `/privacy/`), y llamar a `/auth/revoke` en `DELETE /api/me`.
+  - **Entrar con Apple en la web**: hoy una cuenta de Apple solo entra desde la app de iPhone;
+    en la web, en Fundamentals Lab y en Earnings Radar no tiene botón. Pide un Services ID de Apple.
+  - **Un test que falla y no es de esto**: `test_myhub.py::test_nothing_is_shared_until_its_owner_says_so_and_then_only_weights`
+    busca los dígitos del valor de la cartera (hoy 5781) en el JSON del tablero y los encuentra,
+    por casualidad, dentro de un decimal de una rentabilidad. Falla también sin estos cambios.
 
 ### Peers en la navegación de My Hub (2026-10-08; desplegado como `market-hub-00032-84z`)
 
@@ -82,7 +123,7 @@ saber quién pregunta, sin tocar la de la web:
 - **Comprobado en https://themarkethub.app tras desplegar**: `/api/app/auth/renew` sin token da 401,
   `/api/app/auth/password` con una cuenta que no existe da 401 con el mensaje de siempre, y una
   escritura sin `Origin` (sin token, o con uno inventado) sigue dando 403.
-- **Pendiente**: `/api/app/auth/google` y el de Apple cuando la app tenga esos logins; decir en `/privacy/` que
+- **Pendiente** (hecho después: Google el 2026-10-07 y Apple el 2026-10-13, arriba): `/api/app/auth/google` y el de Apple cuando la app tenga esos logins; decir en `/privacy/` que
   existe la app y qué guarda en el teléfono, antes de publicarla. Fundamentals Lab y el Earnings
   Radar no entienden el token: siguen yendo con la cookie.
 

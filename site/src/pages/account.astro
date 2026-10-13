@@ -31,7 +31,7 @@ import App from "../components/App.astro";
 		add(info.body, add(h("dl", "grid grid-cols-[8rem_1fr] gap-y-2 text-[13px]"),
 			h("dt", "text-muted", "Name"), h("dd", "text-ink-strong", who.user.name),
 			h("dt", "text-muted", "Email"), h("dd", "text-ink-strong", who.user.email),
-			h("dt", "text-muted", "Sign-in"), h("dd", "text-ink-strong", own ? "With this email and a password. We keep the password scrambled, never as you typed it." : "With Google. We keep no password."),
+			h("dt", "text-muted", "Sign-in"), h("dd", "text-ink-strong", own ? "With this email and a password. We keep the password scrambled, never as you typed it." : who.user.provider === "apple" ? "With Apple. We keep no password." : "With Google. We keep no password."),
 			h("dt", "text-muted", "Positions"), h("dd", "text-ink-strong", p.positions.map((x) => `${x.ticker} (${x.shares})`).join(", ") || "None"),
 			h("dt", "text-muted", "Watchlist"), h("dd", "text-ink-strong", p.watchlist.join(", ") || "None"),
 			h("dt", "text-muted", "Shared portfolio"), add(h("dd", "text-ink-strong"), shared.enabled ? `Shared as "${shared.handle}": your tickers and their weights, to signed-in members. ` : "Not shared. ",

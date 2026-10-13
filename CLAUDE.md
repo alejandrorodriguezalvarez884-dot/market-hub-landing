@@ -11,7 +11,7 @@ Reglas que no se negocian:
   cifra, y el crecimiento es solo lo que estima el consenso de analistas, dicho como suyo.
 - **Los datos del usuario son suyos.** Solo se guarda lo que la web dice en `/privacy/`. El
   contenido de las carteras nunca va a los logs. Cada usuario solo lee y escribe su documento
-  (la clave es el `sub` de Google que sale de la sesión, nunca un parámetro de la petición).
+  (la clave es el `sub` de Google, el de Apple con su prefijo o el id de la cuenta propia, que sale de la sesión, nunca un parámetro de la petición).
   Borrar la cuenta borra el documento entero. De una cartera solo salen del servidor los tickers
   (al proveedor de precios), los tickers con sus pesos y rentabilidades (al modelo que escribe
   las frases de My Hub, `insights.facts`), un ticker suelto con sus cifras de mercado (al modelo
@@ -20,11 +20,12 @@ Reglas que no se negocian:
   la identidad, el número de acciones, los costes ni los importes. Cualquier dato nuevo que se
   guarde se añade antes a la página de privacidad y a la de cuenta.
 - **El login se verifica en el servidor.** Nunca se confía en un email o un id que mande el
-  navegador; solo en el ID token verificado (Google) o en la contraseña comprobada contra su hash
-  (cuenta propia, `accounts.py`), y en la cookie firmada o, en la app de móvil, en su token
+  navegador; solo en el ID token verificado (Google; Apple desde la app de móvil, `applesignin.py`) o en la
+  contraseña comprobada contra su hash (cuenta propia, `accounts.py`), y en la cookie firmada o, en la app de móvil, en su token
   firmado (`tokens.py`). De una contraseña solo se guarda el hash
   scrypt; nunca va a un log. El email de una cuenta propia no está verificado: no da ningún
-  derecho (moderar, ser admin) ni se une a una cuenta de Google. Crear una cuenta propia pasa
+  derecho (moderar, ser admin) ni se une a una cuenta de Google. El de una cuenta de Apple
+  tampoco da ninguno (puede ser un relay) ni se une a otra cuenta. Crear una cuenta propia pasa
   siempre por el captcha (`captcha.py`); sin sus claves, el registro queda cerrado, no abierto.
   Las escrituras pasan el control de `Origin`, salvo las de la app de móvil, que no llevan cookie:
   llevan su token, y las rutas `/api/app/` ni leen ni ponen cookie.

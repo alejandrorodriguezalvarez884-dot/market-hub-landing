@@ -30,6 +30,9 @@ import { link } from "../lib/site";
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">What we keep</h2>
 		<ul class="list-disc space-y-1 pl-5">
 			<li>From your Google account, when you sign in with it: your account id, name, email address and profile picture.</li>
+			<li>From your Apple account, when you sign in with it in the app for iPhone: an account id Apple makes for us alone,
+				the email address Apple gives us (your own, or one of Apple's relay addresses if you chose to hide it) and the
+				name you let it share, if any. No picture, and no password.</li>
 			<li>If you make an account with an email and a password instead: the email address and the name you give, and a scrambled
 				form of the password (a salted scrypt hash) from which it cannot be read back. We never keep the password as you typed
 				it. We do not check that the address is yours, and we cannot send you a new password if you forget it. When you
@@ -48,7 +51,7 @@ import { link } from "../lib/site";
 				surname, your email address or your picture. The comments you write in the competition's discussion are seen by
 				signed-in members only, with the name you play under (your first name, if you have none).</li>
 			<li>If you send an article to Opinion, and only then: its title, summary, text and sources and the name you sign it with,
-				kept together with your account id, your name, your email address and whether you sign in with Google or with a
+				kept together with your account id, your name, your email address and whether you sign in with Google, with Apple or with a
 				password, so the editor knows whose it is and can answer you. Nobody else sees it. If it is
 				published, the article shows the name you signed it with and nothing else of you.</li>
 			<li>A session cookie, signed by us, that keeps you signed in for up to 30 days. No advertising or tracking cookies.</li>
@@ -57,7 +60,7 @@ import { link } from "../lib/site";
 				name and email address, in the phone's own keychain. Signing out removes it. Nothing of your stocks is kept on
 				the phone, and the app carries no advertising or analytics kit. It asks you for no permission on your phone: not
 				your location, your contacts, your photos, your camera or your microphone. Signing in with Google there goes
-				through your phone's browser, and making an account shows the same Cloudflare check as here.</li>
+				through your phone's browser, signing in with Apple is done by the iPhone itself, and making an account shows the same Cloudflare check as here.</li>
 			<li>In your browser only, not with us: on the Watchlist page, which stocks you chose to see (the ones you looked up there
 				among them), how many at a time and how the charts are drawn. And on the page where you write for Opinion, the article you are
 				writing, until you send it. Clearing the site's data in your browser removes it.</li>
