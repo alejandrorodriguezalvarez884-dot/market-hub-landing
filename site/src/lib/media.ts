@@ -52,7 +52,14 @@ export interface Reel {
 // Market Hub's account on Instagram and its reels, newest first. Kept by hand, like the videos: a
 // reel is added once it is on Instagram (its address is in the video's published.json), with the
 // cover of its Short, so that the page asks nothing of Instagram.
-export const INSTAGRAM = { handle: "the_market_hub_app", reels: [] as Reel[] };
+export const INSTAGRAM = {
+  handle: "the_market_hub_app",
+  reels: [
+    { code: "DebfgEUIAad", title: "The hundred-dollar bill that lost half its value in a drawer", length: "0:44", cover: "inflation-short.jpg" },
+    { code: "DebfWHpAKyE", title: "The lily pad riddle most people get wrong", length: "0:41", cover: "compound-interest-short.jpg" },
+    { code: "DebfPiLgQwO", title: "Nobody taught you this in school", length: "0:49", cover: "money-101-trailer-short.jpg" },
+  ] as Reel[],
+};
 
 // The account whose posts the page will show. Empty until the owner names it.
 export const X = { handle: "" };
