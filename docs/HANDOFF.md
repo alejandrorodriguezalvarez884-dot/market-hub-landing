@@ -22,6 +22,41 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Portada nueva: la cartera leída por IA, con el vídeo arriba (2026-10-13; **sin desplegar**)
+
+El usuario pidió una propuesta nueva de portada con un enlace para descargar la app en el App
+Store, y sobre la primera versión (un recorrido página a página, con capturas) pidió tres
+cosas: **el vídeo arriba**, **más peso a la IA** (analizar tu cartera con una IA personalizada,
+eficiente y puntera) y **nada de detalle de cada página**: general, resaltando lo importante.
+Así queda `site/src/pages/index.astro`:
+
+- **Arriba**: titular "Your portfolio, read by AI." (el de la ficha de la app), una frase, los
+  botones (`Start with your portfolio`, `See today's market`), el enlace al App Store y, al lado,
+  el vídeo, que se reproduce solo y sin sonido mientras está en pantalla.
+- **La IA en tres ideas**, con tres móviles con capturas de la app (`site/public/app/`, sacadas
+  de `market-hub-mobile/store/app-store/screenshots/`): personal (lee tus posiciones y sus
+  pesos), al grano (el código calcula, el modelo solo redacta) y puntera (**nombra a Claude y a
+  Anthropic**, y dice lo que el modelo recibe con las mismas palabras que `/privacy/`: tickers,
+  pesos y rentabilidades; nunca el nombre, las acciones ni lo que valen). Si cambia lo que se
+  manda al modelo, cambia también este texto.
+- **El resto en tres líneas** (las cuatro herramientas, el mercado del día, la app), cada una
+  con una frase y sus enlaces; los tres compromisos; un cierre con los mismos botones.
+- **El enlace al App Store** (`APP_STORE_URL` en `lib/site.ts`, `apps.apple.com/app/id6822290220`)
+  está en cuatro sitios. **Da 404 mientras Apple no apruebe la app** ("Waiting for Review" desde
+  el 2026-10-13); el usuario lo sabe y decidió desplegar así. El botón es un dibujo propio, no
+  la insignia oficial de Apple.
+- La página entra por partes como Today (`lib/motion.ts`); sus estilos de movimiento van en la
+  propia página, bajo `.home`. Si el script no llega en cuatro segundos, todo se muestra tal
+  cual. Sigue **sin pedir ningún dato de mercado**.
+- **Fuera**: las cuatro secciones con captura (Today, Markets, Fundamentals, Earnings) y sus
+  imágenes de `site/public/shots/`, que ya no usaba nada (siguen en el historial de git).
+- **Pendiente, si se quiere**: el vídeo es el de siempre y no habla de IA; rehacerlo para que
+  cuente la lectura de la cartera es `film/film.js` y `make film`. Y el botón de Google Play,
+  cuando la app esté allí.
+- Comprobado en local con Chrome a 1440 y a 390, sin sesión y con ella (los botones pasan a
+  "Open My Hub"): sin desbordes ni errores. `astro check` y build en verde. Sin probar en
+  Safari ni en un teléfono real.
+
 ### Today se cuenta al hacer scroll (2026-10-13; **desplegado**, revisión `market-hub-00041-lcd`)
 
 El usuario pidió rehacer Today: se parecía demasiado a Markets (la misma regla, los mismos
