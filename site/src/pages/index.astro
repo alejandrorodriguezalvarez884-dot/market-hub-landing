@@ -1,33 +1,34 @@
 ---
 // The landing page. It says one thing first: your portfolio, read by AI, with the film beside
-// it. Then what that reading is (personal, to the point, written by the newest models), the
-// rest of Market Hub in three lines, and what the site commits to. It asks the data provider
+// it. Then what that AI is for the reader (personal, effortless, cutting-edge), the rest of
+// Market Hub in three lines, and what the site commits to. It sells in general terms and names
+// no model and no provider, as the owner asked; what the site does in detail is on its pages. It asks the data provider
 // for nothing, so a visit to it costs no market-data calls.
 // The film is drawn and scored by code (film/, `make film`); it is no recording of the site.
 import Site from "../components/Site.astro";
 import { APP_STORE_URL, FUNDAMENTALS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
 
-// What the reading of a portfolio is. What the model receives is what /privacy/ says it does.
+// What the AI does for a portfolio, in three ideas.
 const reading = [
-	["Personal", "Made from what you hold", "It reads your own positions and their weights: how you stand against the indices, how concentrated you are, which sectors weigh most and how the whole moves. Every stock you follow gets a reading of its own."],
-	["To the point", "A page of figures, in a few sentences", "The code computes every number, the same way for everyone. The model only puts them into words, so what you read in a minute is what the figures say."],
-	["State of the art", "The newest models, and only what they need", "The readings are written by Claude, Anthropic's latest generation of language models. It receives tickers, weights and returns: never your name, your shares or what they are worth."],
+	["Personal", "Built around you", "No generic market talk. The AI works on your own stocks and shows you what is really going on in your portfolio."],
+	["Effortless", "Clarity in seconds", "Forget the spreadsheets and the endless charts. Open Market Hub and understand your portfolio at a glance, in plain words."],
+	["State of the art", "Cutting-edge AI, working for you", "Powered by the latest generation of AI, the kind that is changing how people understand their money. And what is yours stays yours."],
 ];
 // The rest of Market Hub, each part in a line and the ways into it.
 const rest = [
 	{
-		title: "Any company, in depth",
-		text: "Four AI tools open with your account: a company's numbers and its latest results read for you, its closest peers on a map, and a board of charts you build by asking for it.",
+		title: "AI tools for any company",
+		text: "Go deep on any US company in minutes, from its numbers to what it just told its investors.",
 		links: [["Fundamentals Lab", `${FUNDAMENTALS_URL}/`], ["Earnings Radar", `${RADAR_URL}/`], ["Peer Map", `${PEERS_URL}/`], ["Playground", `${PLAYGROUND_URL}/`]],
 	},
 	{
 		title: "The market, every day",
-		text: "The day's session as it happened, every market in tables, the news at its source, opinion and video. Open to anyone, with no account.",
+		text: "Follow the day as it happens, with the news, opinion and video that matter. Open to everyone.",
 		links: [["Today", link("/today/")], ["Markets", link("/markets/")], ["News", link("/news/")], ["Opinion", link("/opinion/")], ["Media", link("/media/")]],
 	},
 	{
 		title: "In your pocket",
-		text: "My Hub as an app for iPhone: your portfolio, its readings and the four tools, inside it.",
+		text: "Take it all with you. Market Hub is on iPhone.",
 		links: [["Download on the App Store", APP_STORE_URL]],
 	},
 ];
@@ -43,7 +44,7 @@ const phones = [
 ];
 ---
 
-<Site title={SITE_NAME} description="Your portfolio, read by AI: what it is made of, how it moves and how it stands against the market, in plain words. On the web and on iPhone. Market Hub describes; it never tells you what to buy.">
+<Site title={SITE_NAME} description="Your portfolio, read by AI: a clear, personal analysis of your own stocks in seconds, on the web and on iPhone. Market Hub describes; it never tells you what to buy.">
 	<div class="home">
 		<script is:inline>
 			// The parts wait to come in only where a script is there to bring them in; if the page's own
@@ -63,9 +64,8 @@ const phones = [
 					</svg>
 					<h1 class="headline mt-7" data-rv style="--i:1">Your portfolio, read by AI.</h1>
 					<p class="mt-5 max-w-md text-[1.0625rem] text-ink" data-rv style="--i:2">
-						Add the stocks you hold or follow, and the newest language models read them back to you in plain words: what your
-						portfolio is made of, how it moves and how it stands against the market. It describes. It never tells you what to
-						buy or sell.
+						Cutting-edge AI, working on your own stocks. Add what you hold or follow and get a clear, personal analysis of
+						your portfolio in seconds, on the web and on your iPhone.
 					</p>
 					<div class="mt-7 flex flex-wrap items-center gap-3" data-rv style="--i:3">
 						<a href={link("/signin/")} class="btn btn-primary" data-hub>Start with your portfolio</a>
@@ -84,13 +84,13 @@ const phones = [
 					<figcaption class="mt-2 flex items-baseline justify-between text-[12.5px] text-muted"><span>Market Hub in a minute</span><span>With sound</span></figcaption>
 				</figure>
 			</div>
-			<a id="cue" href="#ai" class="cue">How it reads you<span aria-hidden="true"></span></a>
+			<a id="cue" href="#ai" class="cue">See what it does<span aria-hidden="true"></span></a>
 		</section>
 
 		<section id="ai" class="chapter" aria-labelledby="ai-title">
 			<header class="chapter-head" data-rv>
 				<div class="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
-					<h2 id="ai-title" class="chapter-title">An AI analysis made for your portfolio, not for everyone's</h2>
+					<h2 id="ai-title" class="chapter-title">Your own AI analysis. Personal, fast, cutting-edge.</h2>
 					<p class="sec-note">On the web and on iPhone</p>
 				</div>
 			</header>
@@ -128,7 +128,7 @@ const phones = [
 
 		<section class="chapter" aria-labelledby="rest-title">
 			<header class="chapter-head" data-rv>
-				<h2 id="rest-title" class="chapter-title">And around it, the rest of Market Hub</h2>
+				<h2 id="rest-title" class="chapter-title">And there is more to Market Hub</h2>
 			</header>
 			<div class="mt-8 grid gap-x-14 gap-y-10 md:grid-cols-3">
 				{rest.map((r, i) => (
@@ -157,7 +157,7 @@ const phones = [
 		<section class="chapter pb-6" aria-labelledby="start-title">
 			<div class="chapter-head" data-rv></div>
 			<div class="mt-10 grid items-end gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-				<h2 id="start-title" class="lede !text-ink-strong" data-rv>Start with your own stocks. The AI does the reading.</h2>
+				<h2 id="start-title" class="lede !text-ink-strong" data-rv>Add your stocks. The AI does the rest.</h2>
 				<div class="flex flex-wrap items-center gap-3" data-rv style="--i:1">
 					<a href={link("/signin/")} class="btn btn-primary" data-hub>Start with your portfolio</a>
 					<a href={link("/today/")} class="btn btn-ghost">See today's market</a>
