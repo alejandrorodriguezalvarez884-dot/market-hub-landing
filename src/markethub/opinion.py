@@ -279,6 +279,11 @@ class Opinion:
             hit = self._cached = (time.monotonic(), self.store.front())
         return hit[1][:limit]
 
+    def card(self, slug: str) -> dict | None:
+        """The card of one article, from the list held in memory: no read of the store, however
+        often it is asked for. An article older than the list holds has none."""
+        return next((a for a in self.articles(limit=10**6) if a["slug"] == slug), None)
+
     def article(self, slug: str) -> dict | None:
         return self.store.article(slug) if SLUG.fullmatch(slug) else None
 

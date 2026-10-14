@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-10-13.
+Última actualización: 2026-10-14.
 
 ## Qué se pidió
 
@@ -21,6 +21,35 @@ Decisiones del usuario:
 - Cada posición guarda **acciones y precio medio**; los favoritos son solo tickers.
 
 ## Dónde estamos
+
+### Un enlace a un artículo de Opinión se ve con su título, su entradilla y su portada (2026-10-14; **sin desplegar**)
+
+Compartido en X (el post de `@the_market_hub_` del 2026-10-14 con el artículo del IPC), un
+enlace a `/opinion/article/?slug=` salía con la tarjeta genérica ("Opinion — Market Hub / An
+opinion article of Market Hub…"): la página es estática y carga el artículo con JavaScript, y
+quien lee las etiquetas Open Graph / Twitter Card no ejecuta scripts.
+
+- **El servicio entrega esa página con las etiquetas del artículo** (`src/markethub/previews.py`,
+  ruta `GET|HEAD /opinion/article/` en `api.py`, declarada antes del montaje del sitio
+  estático): `<title>`, `description`, `canonical` y `og:url` con el `?slug=`, `og:type=article`,
+  `og:title`, `og:description` (la entradilla), `og:image` (la portada,
+  `/api/public/opinion/cover?slug=&v=`, con su `og:image:alt`), `twitter:card=summary_large_image`
+  (`summary` si no hay portada) y `article:published_time`. Todo escapado. La dirección pública
+  sale del `canonical` que escribe el build (`site/SITE_URL`).
+- **Barato para los rastreadores**: la página construida se lee una vez al arrancar y la ficha
+  sale de la lista de artículos que `Opinion` ya tiene en memoria (un minuto de caché,
+  `Opinion.card`): ninguna lectura de Firestore por petición, tampoco con slugs inventados.
+  Respuesta con `Cache-Control: public, max-age=300`.
+- **Un slug desconocido** (o uno más viejo que los 200 que guarda la lista) recibe la página tal
+  cual se construyó, con las etiquetas genéricas. El resto del sitio no cambia.
+- **Tests**: `tests/test_previews.py` (5: etiquetas, portada, escapado, slug desconocido y
+  redirección sin barra, ninguna lectura del almacén). `make check` en verde (331 tests,
+  `astro check` sin errores, build).
+- **Visto en local** (`hub-sample-windows`, en 127.0.0.1 con los artículos de `data/opinion`):
+  las etiquetas salen con el artículo, la portada responde JPEG, un slug desconocido da las
+  genéricas y la página se pinta igual en el navegador.
+- **Pendiente**: desplegar (desde una copia limpia) y comprobar la tarjeta en X; X guarda la
+  tarjeta de un enlace un tiempo, así que el post ya publicado puede tardar en cambiar.
 
 ### Media: los posts de X (2026-10-14; **desplegado**, revisión `market-hub-00044-rl4`)
 

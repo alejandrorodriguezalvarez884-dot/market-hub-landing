@@ -75,7 +75,9 @@ A browser is known by its session cookie. The phone app has none: it sends the t
 handed at /api/app/auth/... as "Authorization: Bearer <token>" (tokens.py), and every route above
 that asks who is signed in answers it the same.
 
-Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build.
+Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build. Its one page
+that is not handed out as built is /opinion/article/?slug=, which carries the article's own
+title, dek and cover for the sites a link is shared on (previews.py).
 """
 
 from __future__ import annotations
@@ -113,6 +115,7 @@ from .watch import Watch, default_reader
 from .live import default_markets
 from .news import default_news
 from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
+from . import previews
 from . import submissions as submissions_
 from .submissions import Submissions, default_submissions
 from . import applesignin
@@ -1052,5 +1055,17 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     static_dir = static_dir or os.environ.get("MARKETHUB_STATIC_DIR", "")
     if static_dir and Path(static_dir).is_dir():
+        built = Path(static_dir) / previews.PATH.strip("/") / "index.html"
+        if built.is_file():
+            article_page = built.read_text(encoding="utf-8")
+
+            # A shared link to an article shows the article: its title, dek and cover, not the
+            # page's generic tags (see previews.py). The rest of the site is the build as it is.
+            @app.api_route(previews.PATH, methods=["GET", "HEAD"], include_in_schema=False)
+            def opinion_article_page(request: Request, slug: str = "") -> HTMLResponse:
+                card = opinion.card(slug) if len(slug) <= 100 else None
+                page = previews.article_page(article_page, card, previews.origin(article_page, str(request.base_url))) if card else article_page
+                return HTMLResponse(page, headers={"Cache-Control": "public, max-age=300"})
+
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="site")
     return app
