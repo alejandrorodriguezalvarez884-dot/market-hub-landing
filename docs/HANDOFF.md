@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Indexación en Google: solo el contenido propio (2026-10-14; **sin desplegar**)
+### Indexación en Google: solo el contenido propio (2026-10-14; **desplegado**, revisión `market-hub-00046-cxt`)
 
 El usuario trajo un problema de indexación de Search Console (propiedad `sc-domain:themarkethub.app`;
 en el navegador de Claude la cuenta dueña es la segunda sesión de Google, `/u/1/`). El informe
@@ -44,9 +44,19 @@ El usuario eligió **indexar solo lo propio**, con la portada indexada sí o sí
   directo a `https://…/today/` en vez de pasar por `http://` (dos saltos temporales, el
   "visto de paso" de la entrada de abajo). El control de `Origin` y `client_ip` siguen igual.
 - **Tests**: `tests/test_seo.py` (3). `make check` en verde.
-- **Pendiente tras desplegar**: en Search Console, enviar `https://themarkethub.app/sitemap.xml`
-  y pedir la validación de los dos motivos. Las noticias y fichas irán pasando a "Excluida por la
-  etiqueta noindex", que es lo buscado.
+- **Desplegado el 2026-10-14 a petición del usuario** ("despliega el portal y envía el sitemap"),
+  desde una copia limpia de `6aed86a` (`git archive`), con los mismos ajustes de `.env` que los
+  dos despliegues anteriores (`APPLE_KEY_ID` y `APPLE_TEAM_ID` del servicio,
+  `MARKETHUB_APP_REDIRECTS` vacío). `SESSION_SECRET` y `FMP_API_KEY`, iguales a los de Secret
+  Manager; ningún secreto recibió versión nueva.
+- **Comprobado en producción**: `robots.txt` y `sitemap.xml` (24 URLs, 14 artículos) responden;
+  `/`, `/today/`, `/news/` y `/opinion/` sin `noindex` y con su canónica; `/quote/`,
+  `/news/article/`, `/dashboard/` y `/signin/` con `noindex` y sin canónica; `/today` va con un
+  307 directo a `https://…/today/`; un artículo sale con su título y su canónica.
+- **Sitemap enviado en Search Console** el 2026-10-14: estado "Correcto", 24 páginas descubiertas.
+  No se pidió la validación de los dos motivos: las noticias y fichas no van a indexarse, van a
+  pasar a "Excluida por la etiqueta noindex", que es lo buscado. Lo que hay que mirar en unas
+  semanas es que la portada, las secciones y los artículos estén en "Indexadas".
 
 ### Un enlace a un artículo de Opinión se ve con su título, su entradilla y su portada (2026-10-14; **desplegado**, revisión `market-hub-00045-w62`)
 
