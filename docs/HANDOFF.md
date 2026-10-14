@@ -64,9 +64,15 @@ The Market Hub, no Market Hub"):
   secciones y su JSON-LD `Article`; `/opinion/` lleva la lista; la portada se titula "The Market
   Hub — Your portfolio, read by AI" con `WebSite` y `Organization`; `/api/health` responde. La
   barra de las herramientas solo se ve con sesión y no se miró en vivo.
-- **Queda**: en Search Console, inspeccionar un artículo ("Probar URL publicada") y pedir la
-  indexación de los más recientes; pasar la portada y un artículo por la prueba de resultados
-  enriquecidos.
+- **Search Console, el mismo día** (a petición del usuario, en el navegador de Claude): la prueba
+  en vivo del artículo de ASML dice "La URL está disponible para Google" y el HTML que recibe lleva
+  el texto entero. De los 14 artículos del sitemap, 7 ya estaban indexados (Digital Realty,
+  Chevron, Fed, Read the form, Apollo, spin-off, consumidor); se pidió la indexación de los otros 7
+  (ASML, IPC, Sysco, Prudential, familias, AbbVie, empleo) y un nuevo rastreo de `/opinion/` y de
+  la portada. Prueba de resultados enriquecidos: el artículo da un "Artículo de noticias" válido,
+  sin avisos; la portada no da ningún resultado enriquecido, pero el validador de schema.org lee
+  su `Organization` y su `WebSite` sin errores ni advertencias. **Mirar en unas semanas** que esos
+  7 pasen a "Indexadas" y que salgan consultas en "Rendimiento".
 - **Después**, también a petición del usuario: el enlace de vuelta de `/signin/` dice "← The
   Market Hub" (`c9024d2`), desplegado en `market-hub-00049-w6n` desde una copia limpia, con la
   misma configuración del servicio. Comprobado en producción.
