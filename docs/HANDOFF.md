@@ -58,7 +58,7 @@ The Market Hub, no Market Hub"):
   ("Probar URL publicada") y pedir la indexación de los más recientes, y pasar la portada y un
   artículo por la prueba de resultados enriquecidos.
 
-### Options Lab: enlace en My Hub y sus estrategias en la cuenta (2026-10-14; **sin desplegar**)
+### Options Lab: enlace en My Hub y sus estrategias en la cuenta (2026-10-14; **desplegado**, revisión `market-hub-00047-c9c`)
 
 Options Lab (`market-hub-options`, https://options.themarkethub.app) es la herramienta nueva de My Hub:
 cadenas de opciones leídas con detalle y estrategias que el usuario construye y puede guardar. Es la
@@ -73,8 +73,11 @@ portal (`optionstrategies.py`) solo las lee y las borra:
 - `/api/config` nombra `options_lab` y `tool_pages` la admite (la app de móvil no la lista hasta que
   `market-hub-mobile/src/lib/tools.ts` la añada).
 
-**Desplegar cuando `options.themarkethub.app` responda por HTTPS**, y cuanto antes después de eso: hasta
-entonces una cuenta borrada dejaría atrás sus estrategias.
+Desplegado cuando `options.themarkethub.app` ya respondía, con `gcloud run deploy market-hub --source <export
+limpio del commit>` sin flags, y la configuración del servicio quedó idéntica (comparada antes y después).
+No con `make deploy`: el `.env` de esta máquina no tiene `APPLE_KEY_ID`/`APPLE_TEAM_ID` (el script los
+quitaría) y su `ANTHROPIC_API_KEY` no es la del secreto `ANTHROPIC_API_KEY` que usa el servicio (el script
+lo sobrescribiría). Arreglar ese `.env` antes del próximo `make deploy` desde Windows.
 
 ### Indexación en Google: solo el contenido propio (2026-10-14; **desplegado**, revisión `market-hub-00046-cxt`)
 
