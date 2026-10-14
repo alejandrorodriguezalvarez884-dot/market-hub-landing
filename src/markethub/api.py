@@ -75,6 +75,9 @@ A browser is known by its session cookie. The phone app has none: it sends the t
 handed at /api/app/auth/... as "Authorization: Bearer <token>" (tokens.py), and every route above
 that asks who is signed in answers it the same.
 
+For search engines (seo.py): GET /robots.txt and GET /sitemap.xml, the portal's own pages and the
+opinion articles. The news items, the quotes and My Hub say noindex in their own HTML.
+
 Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build. Its one page
 that is not handed out as built is /opinion/article/?slug=, which carries the article's own
 title, dek and cover for the sites a link is shared on (previews.py).
@@ -115,7 +118,7 @@ from .watch import Watch, default_reader
 from .live import default_markets
 from .news import default_news
 from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
-from . import previews
+from . import previews, seo
 from . import submissions as submissions_
 from .submissions import Submissions, default_submissions
 from . import applesignin
@@ -125,7 +128,7 @@ from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PEER_MAP_URL, PER_IP_PER_HOUR, PLAYGROUND_URL,
-                     SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, SUBMISSIONS_PER_USER_PER_DAY, WATCH_PER_IP_PER_HOUR)
+                     SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, SITE_URL, SUBMISSIONS_PER_USER_PER_DAY, WATCH_PER_IP_PER_HOUR)
 from .market import Directory, Fmp, MarketUnavailable
 from .tokens import AppTokens, bearer
 from .yahoo import default_market
@@ -1052,6 +1055,17 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.delete("/api/opinion/submissions/{submission_id}")
     def withdraw_submission(request: Request, submission_id: str) -> dict:
         return {"withdrawn": submissions.withdraw(current_user(request)["id"], submission_id)}
+
+    # --- Search engines ------------------------------------------------------------------------
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots_txt() -> Response:
+        return Response(seo.robots(SITE_URL), media_type="text/plain")
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    def sitemap_xml() -> Response:
+        return Response(seo.sitemap(SITE_URL, opinion.articles(limit=10**6)), media_type="application/xml",
+                        headers={"Cache-Control": "public, max-age=3600"})
 
     static_dir = static_dir or os.environ.get("MARKETHUB_STATIC_DIR", "")
     if static_dir and Path(static_dir).is_dir():

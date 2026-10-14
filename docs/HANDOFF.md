@@ -22,6 +22,32 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Indexación en Google: solo el contenido propio (2026-10-14; **sin desplegar**)
+
+El usuario trajo un problema de indexación de Search Console (propiedad `sc-domain:themarkethub.app`;
+en el navegador de Claude la cuenta dueña es la segunda sesión de Google, `/u/1/`). El informe
+del 2026-10-09: 9 indexadas (la portada, `/news/`, `/opinion/`, `/privacy/` y 4 artículos) y 36
+sin indexar. **"Página alternativa con etiqueta canónica adecuada" (19)**: noticias y fichas,
+porque su canónica era solo la ruta y todas decían ser `/news/article/` o `/quote/`.
+**"Rastreada: actualmente sin indexar" (17)**: fichas y noticias, plantillas vacías hasta que
+corre el JavaScript. Además no había `robots.txt` ni sitemap.
+
+El usuario eligió **indexar solo lo propio**, con la portada indexada sí o sí:
+- **`noindex`** (prop `noindex` de `Layout.astro`, y entonces sin canónica): las noticias
+  (`news/article`), las fichas (`quote`), todo My Hub (`App.astro`), `signin` y `opinion/submit`.
+  La portada y las secciones públicas siguen indexables con su canónica, y cada artículo de
+  opinión ya lleva la suya con su `?slug=` (`previews.py`, entrada de abajo).
+- **`seo.py`**: `GET /robots.txt` (todo permitido, con el sitemap) y `GET /sitemap.xml` (las
+  páginas públicas propias y cada artículo de la lista, con su fecha). La dirección pública es
+  `SITE_URL` en `config.py` (`MARKETHUB_SITE_URL`, por defecto `https://themarkethub.app`).
+- **`Dockerfile`**: uvicorn con `--proxy-headers --forwarded-allow-ips *`. Así `/today` redirige
+  directo a `https://…/today/` en vez de pasar por `http://` (dos saltos temporales, el
+  "visto de paso" de la entrada de abajo). El control de `Origin` y `client_ip` siguen igual.
+- **Tests**: `tests/test_seo.py` (3). `make check` en verde.
+- **Pendiente tras desplegar**: en Search Console, enviar `https://themarkethub.app/sitemap.xml`
+  y pedir la validación de los dos motivos. Las noticias y fichas irán pasando a "Excluida por la
+  etiqueta noindex", que es lo buscado.
+
 ### Un enlace a un artículo de Opinión se ve con su título, su entradilla y su portada (2026-10-14; **desplegado**, revisión `market-hub-00045-w62`)
 
 Compartido en X (el post de `@the_market_hub_` del 2026-10-14 con el artículo del IPC), un

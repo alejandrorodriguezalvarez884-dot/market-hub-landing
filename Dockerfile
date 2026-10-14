@@ -18,4 +18,6 @@ COPY src/ ./src/
 COPY --from=web /repo/site/dist ./static
 ENV PATH="/app/.venv/bin:$PATH" PYTHONPATH=/app/src MARKETHUB_STATIC_DIR=/app/static
 EXPOSE 8080
-CMD ["uvicorn", "markethub.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080"]
+# Cloud Run's proxy says the visit came by HTTPS (X-Forwarded-Proto): trusting it keeps the site's
+# own redirects (/today -> /today/) on https.
+CMD ["uvicorn", "markethub.api:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers", "--forwarded-allow-ips", "*"]

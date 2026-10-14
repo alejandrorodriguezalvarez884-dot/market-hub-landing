@@ -12,6 +12,10 @@ load_dotenv(ROOT / ".env")
 
 DATA_DIR = Path(os.environ.get("MARKETHUB_DATA_DIR", ROOT / "data"))
 
+# The public address of the portal, the one search engines are told about (canonical links, the
+# sitemap). The same as site/SITE_URL, which the site's own pages are built with.
+SITE_URL = os.environ.get("MARKETHUB_SITE_URL", "https://themarkethub.app").strip().rstrip("/")
+
 # --- Sign-in -------------------------------------------------------------------------------
 
 # The OAuth client of the site ("Web application" in Google Auth Platform). Public by design: it

@@ -5,7 +5,7 @@ import Site from "../../components/Site.astro";
 import { link } from "../../lib/site";
 ---
 
-<Site title="News" description="A news item of Market Hub, with the link to its source.">
+<Site noindex title="News" description="A news item of Market Hub, with the link to its source.">
 	<article class="mx-auto max-w-[44rem]">
 		<a href={link("/news/")} class="text-[13px] text-muted hover:text-ink-strong"><span aria-hidden="true">←</span> News</a>
 		<div id="item" class="mt-8"><div class="skeleton h-5 w-56"></div><div class="skeleton mt-4 h-24"></div><div class="skeleton mt-8 h-64"></div></div>

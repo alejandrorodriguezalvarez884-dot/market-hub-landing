@@ -10,8 +10,9 @@ import Search from "./Search.astro";
 interface Props {
 	title: string;
 	description: string;
+	noindex?: boolean;
 }
-const { title, description } = Astro.props;
+const { title, description, noindex = false } = Astro.props;
 const path = Astro.url.pathname;
 // Only the public sections. The analysis tools need a session, so their links live in My Hub.
 const nav = [
@@ -23,7 +24,7 @@ const nav = [
 ];
 ---
 
-<Layout title={title === SITE_NAME ? title : `${title} — ${SITE_NAME}`} description={description}>
+<Layout title={title === SITE_NAME ? title : `${title} — ${SITE_NAME}`} description={description} noindex={noindex}>
 	<header class="sticky top-0 z-50 border-b border-line bg-page/95 backdrop-blur">
 		<div class="mx-auto flex h-14 max-w-[1240px] items-center gap-4 px-5 lg:gap-8">
 			<Logo />
