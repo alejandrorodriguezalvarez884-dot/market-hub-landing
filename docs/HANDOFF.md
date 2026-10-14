@@ -42,9 +42,16 @@ Cuatro cambios sencillos que pidió el usuario ("haz los cuatro de código y des
 - **Desplegado** desde una copia limpia de `abc64fc`, con la misma configuración del servicio.
   En producción: la portada lleva los 3 artículos y `og:image`, `/tools/` las cinco herramientas,
   `share.png` responde, un artículo inventado da 404 y uno real 200.
-- **Pendiente para el usuario, fuera del código** (lo pidió apuntado): dar de alta el sitio en
-  Bing Webmaster Tools importando desde Search Console; que `www.themarkethub.app` lleve a la
-  portada (ahora no resuelve); que la ficha de la App Store tenga `themarkethub.app` como
+- **Fuera del código, hecho el mismo día** en el navegador de Claude, con las sesiones del usuario:
+  - **Bing Webmaster Tools**: `themarkethub.app` ya estaba en la cuenta (también `earningsradar.app`,
+    sin sitemap); se envió `https://themarkethub.app/sitemap.xml` ("successfully submitted").
+  - **`www.themarkethub.app`** lleva a la raíz con un 301 que conserva ruta y query: en Cloudflare,
+    un registro A `www` → `192.0.2.1` **con proxy** (la IP es de relleno: nunca se llega a ella) y
+    dos reglas de redirección, "Redirect from WWW to root [Template]" (`https://www.themarkethub.app/*`)
+    y "Redirect from WWW to root (http)" (`http://www.themarkethub.app/*`), las dos a
+    `https://themarkethub.app/${1}` con "Preserve query string". No borrar el registro: sin él
+    las reglas no se aplican. Comprobado con curl.
+- **Pendiente para el usuario**: que la ficha de la App Store tenga `themarkethub.app` como
   "Marketing URL"; y, si quiere, una línea con "AI portfolio analysis" en la entradilla de la portada.
 - **Visto de paso**: el sitemap solo lista los artículos de la lista (`front`, 200 como mucho; lo
   corta `market-hub-opinion`). Con varios artículos al día, en unos dos meses los más viejos
