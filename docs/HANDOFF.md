@@ -51,8 +51,11 @@ Cuatro cambios sencillos que pidió el usuario ("haz los cuatro de código y des
     y "Redirect from WWW to root (http)" (`http://www.themarkethub.app/*`), las dos a
     `https://themarkethub.app/${1}` con "Preserve query string". No borrar el registro: sin él
     las reglas no se aplican. Comprobado con curl.
+- **"AI portfolio analysis" en la portada** (a petición del usuario): la entradilla bajo el titular
+  y la descripción para buscadores empiezan con esas palabras (`8a97b42`, desplegado en
+  `market-hub-00051-s62`, con la misma configuración del servicio; comprobado en producción).
 - **Pendiente para el usuario**: que la ficha de la App Store tenga `themarkethub.app` como
-  "Marketing URL"; y, si quiere, una línea con "AI portfolio analysis" en la entradilla de la portada.
+  "Marketing URL".
 - **Visto de paso**: el sitemap solo lista los artículos de la lista (`front`, 200 como mucho; lo
   corta `market-hub-opinion`). Con varios artículos al día, en unos dos meses los más viejos
   saldrán del sitemap, aunque su página siga respondiendo.
