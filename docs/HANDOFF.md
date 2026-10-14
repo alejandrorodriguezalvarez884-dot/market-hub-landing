@@ -22,6 +22,27 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Media: los posts de X (2026-10-14; **sin desplegar**)
+
+La sección X de `/media/` enseña **los últimos posts de la cuenta de Market Hub en X**, cada uno
+como una tarjeta con su texto entero, su fecha y el enlace al post. Lo pidió el usuario ("quiero
+crear una cuenta de twitter asociada a este proyecto para poner en la página web").
+
+- **Ni el portal ni el navegador piden nada a X** (su API se paga por lectura). Los posts se
+  escriben y se apuntan en `the-market-hub-media` (skill `post-x`, `make xposted`), que deja los
+  12 últimos en `x_state/front` del Firestore del portal, como hace con Instagram.
+  `src/markethub/xposts.py` los lee (un minuto de caché) y los sirve en **`GET /api/public/x`**
+  (`?limit=`, 12 por defecto). En local lee `data/x/front.json` (`make xfront TO=...` en media).
+  `/privacy/` no cambia: no se guarda nada de nadie.
+- **La página** (`pages/media.astro`, `lib/media.ts`): sin posts siguen los tres huecos; con
+  ellos, una tarjeta por post. Solo se sigue una dirección de post de x.com
+  (`https://x.com/<cuenta>/status/<número>`). El texto va como texto, nunca como HTML.
+- **Tests**: `tests/test_xposts.py` (4). `make check` en verde (326 tests, `astro check` sin
+  errores, build). **Visto en local** (`hub-sample-windows`) con tres posts de prueba, que se
+  borraron después.
+- **Pendiente**: la cuenta la crea el usuario. Con su nombre se rellena `X.handle` (sale el enlace
+  en la cabecera de la sección) y se despliega cuando él lo pida.
+
 ### Portada nueva: la cartera leída por IA, con el vídeo arriba (2026-10-13; **desplegado**, revisión `market-hub-00043-6ss`)
 
 El usuario pidió una propuesta nueva de portada con un enlace para descargar la app en el App

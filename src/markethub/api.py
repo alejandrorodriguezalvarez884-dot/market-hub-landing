@@ -66,6 +66,7 @@
     DELETE /api/opinion/submissions/{id}   take one back
     GET    /api/public/instagram    what the account last posted on Instagram, as cards
     GET    /api/public/instagram/cover ?id=&v=  a post's cover (JPEG)
+    GET    /api/public/x            what the account last posted on X, as cards
 
 Market figures come from FMP when there is a key (live.py), else from sample.py; the overview
 names any part that is sample data in "sample_sections". The news comes from news.py.
@@ -107,6 +108,7 @@ from .competitions import CompetitionStore, Competitions, default_competitions
 from .holdings import SampleData, sample_only
 from .insights import default_writer
 from .instagram import Posts, default_posts
+from .xposts import XPosts, default_x
 from .watch import Watch, default_reader
 from .live import default_markets
 from .news import default_news
@@ -190,7 +192,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                competition_store: CompetitionStore | None = None, clock=None, stock_reader="default",
                app_redirects: str | None = None, submissions: Submissions | None = None,
                apple_verifier: applesignin.Verifier | None = None, apple_revoker: AppleRevoker | None | str = "default",
-               posts: Posts | None = None) -> FastAPI:
+               posts: Posts | None = None, x_posts: XPosts | None = None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -205,6 +207,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     news = news or default_news(markets, directory)
     opinion = opinion or Opinion(default_opinion())
     posts = posts or Posts(default_posts())
+    x_posts = x_posts or XPosts(default_x())
     # The articles readers send in: kept for the owner to review, never published from here.
     submissions = submissions or Submissions(default_submissions())
     # The accounts with a password of ours. MARKETHUB_PASSWORD_LOGIN=0 leaves Google as the only way in.
@@ -925,6 +928,10 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.get("/api/public/instagram")
     def public_instagram(limit: int = Query(12, ge=1, le=24)) -> dict:
         return posts.latest(limit)
+
+    @app.get("/api/public/x")
+    def public_x(limit: int = Query(12, ge=1, le=24)) -> dict:
+        return x_posts.latest(limit)
 
     @app.get("/api/public/instagram/cover")
     def public_instagram_cover(id: str = Query(max_length=40), v: str = Query("", max_length=40)) -> Response:

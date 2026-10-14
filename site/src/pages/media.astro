@@ -1,8 +1,8 @@
 ---
 // Media: what Market Hub publishes outside the portal. YouTube, playlist by playlist, with a
-// player; then Instagram, the account's latest posts as links, whatever they are; and X, waiting
-// for its account. The page asks nothing of YouTube until a visitor presses play, and nothing of
-// Instagram at all: the posts and their covers come from the portal (lib/media.ts). Each place
+// player; then Instagram, the account's latest posts as links, whatever they are; and X, the
+// account's latest posts as cards. The page asks nothing of YouTube until a visitor presses play,
+// and nothing of Instagram or X at all: the posts and their covers come from the portal (lib/media.ts). Each place
 // carries its mark, in the colour of the page's own text.
 import Site from "../components/Site.astro";
 import SocialMark from "../components/SocialMark.astro";
@@ -144,12 +144,13 @@ const places = [
 				? <a href={`https://x.com/${X.handle}`} class="sec-note link" rel="noopener" target="_blank">@{X.handle}</a>
 				: <span class="sec-note">Account coming soon</span>}
 		</div>
-		<p class="max-w-2xl text-ink">The posts of Market Hub's account on X will be shown here: the market's day in a line, and each new video and article as it comes out.</p>
-		<ul class="mt-6 grid gap-4 lg:grid-cols-3" aria-hidden="true">
+		<p class="max-w-2xl text-ink">The posts of Market Hub's account on X: the market's day in a line, and each new video and article as it comes out.</p>
+		{/* Until the posts arrive, and if there are none, the places they will take. */}
+		<ul id="x-posts" class="mt-6 grid gap-4 lg:grid-cols-3">
 			{Array.from({ length: 3 }, () => (
-				<li class="waiting rounded-sm p-5">
+				<li class="waiting rounded-sm p-5" aria-hidden="true">
 					<span class="flex items-center gap-3">
-						<span class="grid h-9 w-9 flex-none place-items-center rounded-full border border-line-strong text-muted"><SocialMark name="x" class="h-3.5 w-3.5" /></span>
+						<span class="grid h-9 w-9 flex-none place-items-center rounded-full border border-line-strong text-muted" data-x-mark><SocialMark name="x" class="h-3.5 w-3.5" /></span>
 						<span class="block h-2.5 w-24 rounded-full bg-line-strong"></span>
 					</span>
 					<span class="mt-4 block h-2.5 w-full rounded-full bg-line"></span>
@@ -213,7 +214,7 @@ const places = [
 
 <script>
 	import { add, h, linkTo } from "../lib/dom";
-	import { postCover, postUrl, posts, type Post } from "../lib/media";
+	import { X, postCover, postUrl, posts, xPostUrl, xPosts, type Post, type XPost } from "../lib/media";
 
 	// The player of each playlist. Nothing is asked of YouTube until play is pressed: then the
 	// video is loaded from its no-cookie address, in the page.
@@ -245,6 +246,29 @@ const places = [
 	posts()
 		.then(({ posts: all }) => {
 			if (all.length) document.getElementById("posts")!.replaceChildren(...all.map(tile));
+		})
+		.catch(() => {});
+
+	// X: the account's latest posts, each a card with its whole text that leads to the post there.
+	// The mark in each card's corner is the one the waiting places already carry.
+	const xList = document.getElementById("x-posts")!;
+	const xMark = xList.querySelector("[data-x-mark]");
+	function xCard(p: XPost, handle: string): HTMLElement {
+		const mark = xMark?.cloneNode(true) as HTMLElement | undefined;
+		mark?.removeAttribute("data-x-mark");
+		const to = add(linkTo(xPostUrl(p, handle), "panel group flex h-full flex-col p-5 transition-colors hover:border-muted"),
+			add(h("span", "flex items-center gap-3"),
+				mark ?? null,
+				add(h("span", "min-w-0 text-[13px] leading-tight"),
+					h("span", "block font-medium text-ink-strong", "Market Hub"),
+					add(h("span", "block text-muted"), `@${handle} · `, h("time", "num", when(p.posted_utc))))),
+			h("span", "mt-4 block whitespace-pre-line break-words text-[14px] leading-relaxed text-ink group-hover:text-ink-strong", p.text));
+		Object.assign(to, { target: "_blank", rel: "noopener" });
+		return add(h("li"), to);
+	}
+	xPosts()
+		.then(({ posts: all, handle }) => {
+			if (all.length) xList.replaceChildren(...all.map((p) => xCard(p, handle || X.handle)));
 		})
 		.catch(() => {});
 

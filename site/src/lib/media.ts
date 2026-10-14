@@ -63,7 +63,18 @@ export const postCover = (p: Post) => `${API}/api/public/instagram/cover?id=${en
 // Where a post is opened. Only an address on Instagram is followed; anything else leads to the account.
 export const postUrl = (p: Post) => (/^https:\/\/www\.instagram\.com\/[A-Za-z0-9_\-\/.]+$/.test(p.url) ? p.url : `https://www.instagram.com/${INSTAGRAM.handle}/`);
 
-// The account whose posts the page will show. Empty until the owner names it.
+// Market Hub's account on X. Empty until the owner names it. Its posts are not kept here either:
+// the page asks the portal for the latest ones (xPosts(), below).
 export const X = { handle: "" };
+
+// A post of the account on X: its text, exactly as it went out, and where it is.
+export type XPost = { id: string; url: string; text: string; posted_utc: string };
+
+// What the account last posted on X, newest first. the-market-hub-media writes and records each post
+// and publishes the latest into the portal's store, so neither the portal nor this page asks X.
+export const xPosts = (limit = 6) => api<{ posts: XPost[]; handle: string; read_utc: string | null }>(`/api/public/x?limit=${limit}`);
+// Where a post is opened. Only an address of a post on X is followed; anything else leads to the account.
+export const xPostUrl = (p: XPost, handle: string) =>
+  /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/[0-9]{5,25}$/.test(p.url) ? p.url : `https://x.com/${handle}`;
 
 export const shortUrl = (id: string) => `https://www.youtube.com/shorts/${id}`;
