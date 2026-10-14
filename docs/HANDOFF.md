@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Un enlace a un artículo de Opinión se ve con su título, su entradilla y su portada (2026-10-14; **sin desplegar**)
+### Un enlace a un artículo de Opinión se ve con su título, su entradilla y su portada (2026-10-14; **desplegado**, revisión `market-hub-00045-w62`)
 
 Compartido en X (el post de `@the_market_hub_` del 2026-10-14 con el artículo del IPC), un
 enlace a `/opinion/article/?slug=` salía con la tarjeta genérica ("Opinion — Market Hub / An
@@ -48,8 +48,21 @@ quien lee las etiquetas Open Graph / Twitter Card no ejecuta scripts.
 - **Visto en local** (`hub-sample-windows`, en 127.0.0.1 con los artículos de `data/opinion`):
   las etiquetas salen con el artículo, la portada responde JPEG, un slug desconocido da las
   genéricas y la página se pinta igual en el navegador.
-- **Pendiente**: desplegar (desde una copia limpia) y comprobar la tarjeta en X; X guarda la
-  tarjeta de un enlace un tiempo, así que el post ya publicado puede tardar en cambiar.
+- **Desplegado el 2026-10-14 a petición del usuario** ("despliega el portal"), desde una copia
+  limpia de `1e8ca9c` (`git archive`). Como en el despliegue anterior, el `.env` de esta máquina
+  no traía `APPLE_KEY_ID` ni `APPLE_TEAM_ID` y tenía otro `MARKETHUB_APP_REDIRECTS` (el servicio
+  lo tiene vacío): la copia llevó los valores del servicio. `SESSION_SECRET` y `FMP_API_KEY`,
+  iguales a los de Secret Manager; `ANTHROPIC_API_KEY` está vacía en el `.env` local, así que el
+  servicio sigue con la del secreto. Ningún secreto recibió versión nueva.
+- **Comprobado en producción**: el artículo del IPC (`todays-cpi-is-expected-…`) sirve sus
+  etiquetas (título, entradilla, `og:image` con su versión, `summary_large_image`), la portada
+  responde JPEG (225 KB), un slug desconocido da las genéricas, `/` y `/api/health` responden y la
+  página se pinta en el navegador.
+- **Pendiente**: ver la tarjeta en X. X guarda la tarjeta de un enlace un tiempo, así que el
+  post ya publicado puede tardar en cambiar; un post nuevo con el enlace ya debería salir bien.
+- **Visto de paso, no es de este cambio**: `/opinion/article?slug=` (sin barra) redirige a
+  `http://` (el sitio estático de Starlette no sabe que detrás de Cloud Run va por https);
+  Cloudflare lo sube a https si tiene activado "Always Use HTTPS".
 
 ### Media: los posts de X (2026-10-14; **desplegado**, revisión `market-hub-00044-rl4`)
 
