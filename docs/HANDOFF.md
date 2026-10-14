@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Google, segunda vuelta: la portada con los últimos artículos, una imagen al compartir, `/tools/` al día y 404 de verdad (2026-10-14)
+### Google, segunda vuelta: la portada con los últimos artículos, una imagen al compartir, `/tools/` al día y 404 de verdad (2026-10-14; **desplegado**, revisión `market-hub-00050-ghz`)
 
 Cuatro cambios sencillos que pidió el usuario ("haz los cuatro de código y despliega"):
 - **La portada lleva los 3 artículos más nuevos de Opinion**, servidos en el HTML: ruta `/` en
@@ -39,6 +39,9 @@ Cuatro cambios sencillos que pidió el usuario ("haz los cuatro de código y des
   minutos), así que no se pierde cuando la lista lo deja atrás. Si el almacén no contesta, 503 con
   `Retry-After`, nunca 404.
 - **Tests**: `tests/test_previews.py` (17). `make check` en verde (344). Visto en local.
+- **Desplegado** desde una copia limpia de `abc64fc`, con la misma configuración del servicio.
+  En producción: la portada lleva los 3 artículos y `og:image`, `/tools/` las cinco herramientas,
+  `share.png` responde, un artículo inventado da 404 y uno real 200.
 - **Pendiente para el usuario, fuera del código** (lo pidió apuntado): dar de alta el sitio en
   Bing Webmaster Tools importando desde Search Console; que `www.themarkethub.app` lleve a la
   portada (ahora no resuelve); que la ficha de la App Store tenga `themarkethub.app` como
