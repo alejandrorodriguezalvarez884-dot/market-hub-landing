@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Google: las páginas de Opinion salen con el artículo dentro, y el sitio se llama "The Market Hub" (2026-10-14; **sin desplegar**)
+### Google: las páginas de Opinion salen con el artículo dentro, y el sitio se llama "The Market Hub" (2026-10-14; **desplegado**, revisión `market-hub-00048-phc`)
 
 Al mirar lo que reciben los rastreadores sin ejecutar JavaScript, un artículo de opinión eran 79
 palabras (menú y aviso legal, sin título ni texto) y `/opinion/` 82, sin un solo enlace a un
@@ -53,10 +53,20 @@ The Market Hub, no Market Hub"):
 - **Tests**: `tests/test_previews.py` (12). `make check` en verde (340 tests, `astro check` sin
   errores, build). Visto en local (`hub-sample-windows`): artículo 904 palabras sin JavaScript,
   lista 404 con 6 enlaces, y las páginas se ven igual que antes.
-- **Al desplegar**: `main` lleva también el cambio de Options Lab de abajo, que espera a que
-  `options.themarkethub.app` responda por HTTPS. Luego, en Search Console, inspeccionar un artículo
-  ("Probar URL publicada") y pedir la indexación de los más recientes, y pasar la portada y un
-  artículo por la prueba de resultados enriquecidos.
+- **Desplegado el 2026-10-14 a petición del usuario** ("despliega los seis así"): el portal
+  (`market-hub-00048-phc`, desde una copia limpia de `01dc075`) y, por el logo, las cinco
+  herramientas (`fundamentals-lab-00018-jgn`, `earnings-radar-hub-00013-hcc`,
+  `market-hub-playground-00003-cwv`, `peer-map-00004-hq7`, `options-lab-00002-hl8`), cada una
+  desde una copia limpia de su `main`, con `gcloud run deploy --source` sin flags de
+  configuración: antes y después, las mismas variables, secretos (comparados por hash) y recursos.
+  `earningsradar.app` no se tocó.
+- **Comprobado en producción**: un artículo da 1.165 palabras sin JavaScript, con su `<h1>`, sus
+  secciones y su JSON-LD `Article`; `/opinion/` lleva la lista; la portada se titula "The Market
+  Hub — Your portfolio, read by AI" con `WebSite` y `Organization`; `/api/health` responde. La
+  barra de las herramientas solo se ve con sesión y no se miró en vivo.
+- **Queda**: en Search Console, inspeccionar un artículo ("Probar URL publicada") y pedir la
+  indexación de los más recientes; pasar la portada y un artículo por la prueba de resultados
+  enriquecidos. En `/signin/` el enlace de vuelta dice aún "← Market Hub".
 
 ### Options Lab: enlace en My Hub y sus estrategias en la cuenta (2026-10-14; **desplegado**, revisión `market-hub-00047-c9c`)
 
