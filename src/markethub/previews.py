@@ -25,6 +25,9 @@ from urllib.parse import quote, urlsplit
 SITE_NAME = "The Market Hub"
 PATH = "/opinion/article/"
 LIST_PATH = "/opinion/"
+SHARE_IMAGE = "/share.png"  # the site's own card (film/share.mjs), for an article without a cover
+HOME_PATH = "/"
+HOME_ARTICLES = 3  # the newest, on the home page
 
 # The tags the build writes for every page, which an article replaces with its own.
 _GENERIC = re.compile(
@@ -67,9 +70,10 @@ def article_page(page: str, card: dict, site: str, article: dict | None = None) 
         tags += [('meta property="og:image"', site + image), ('meta property="og:image:type"', "image/jpeg")]
         if card["cover"].get("alt"):
             tags.append(('meta property="og:image:alt"', card["cover"]["alt"]))
-        tags.append(('meta name="twitter:card"', "summary_large_image"))
-    else:
-        tags.append(('meta name="twitter:card"', "summary"))
+    else:  # without a cover of its own, the site's card
+        tags += [('meta property="og:image"', site + SHARE_IMAGE), ('meta property="og:image:type"', "image/png"),
+                 ('meta property="og:image:width"', "1200"), ('meta property="og:image:height"', "630")]
+    tags.append(('meta name="twitter:card"', "summary_large_image"))
     if card.get("published_utc"):
         tags.append(('meta property="article:published_time"', card["published_utc"]))
     head = "".join(_tag(name, value) for name, value in tags) + _schema(_article_data(card, site, address, image))
@@ -99,6 +103,22 @@ def list_page(page: str, cards: list[dict]) -> str:
     return _fill(page, "div", "opinion", lead + f'<div class="grid gap-x-14 gap-y-10 md:grid-cols-2">{others}</div>')
 
 
+def home_page(page: str, cards: list[dict]) -> str:
+    """``page`` (the built home page) with the newest opinion articles of ``cards`` in its place for
+    them, as one more part of the page. Without articles that place stays empty."""
+    if not cards:
+        return page
+    items = "".join(
+        f'<article data-rv style="--i:{i}">{_pictured(a, "mb-5")}{_overline(a)}'
+        f'<h3 class="mt-2 text-lg font-medium leading-snug text-ink-strong">{_to_article(a, "hover:underline")}</h3>'
+        f'<p class="mt-2 text-sm text-ink">{escape(a.get("dek") or "")}</p></article>' for i, a in enumerate(cards[:HOME_ARTICLES]))
+    part = ('<section class="chapter" aria-labelledby="opinion-title">'
+            '<header class="chapter-head" data-rv><h2 id="opinion-title" class="chapter-title">The latest from Opinion</h2></header>'
+            f'<div class="mt-8 grid gap-x-14 gap-y-10 md:grid-cols-3">{items}</div>'
+            f'<p class="mt-8 text-[13px]" data-rv><a href="{LIST_PATH}" class="link">All the articles</a></p></section>')
+    return _fill(page, "div", "home-opinion", part)
+
+
 # --- Structured data ----------------------------------------------------------------------------
 
 
@@ -118,7 +138,7 @@ def _article_data(card: dict, site: str, address: str, image: str | None) -> dic
 
 
 def _schema(data: dict) -> str:
-    # No "<" at all, so nothing in it can end the script element: JSON says the same with "<".
+    # No "<" at all, so nothing in it can end the script element: JSON says the same with "\u003c".
     said = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
     return f'<script type="application/ld+json">{said}</script>'
 

@@ -28,6 +28,9 @@ BUILT = ('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name=
 BUILT_LIST = ('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Opinion — The Market Hub</title></head><body><main>'
               '<h1>Opinion</h1><div id="opinion" class="mt-10"><div class="skeleton h-56"></div><div class="skeleton mt-8 h-40"></div></div>'
               '<footer>Footer</footer></main></body></html>')
+# The home page as the build writes it: an empty place for the newest articles.
+BUILT_HOME = ('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>The Market Hub</title></head><body>'
+              '<div class="home"><section class="chapter">The rest</section><div id="home-opinion"></div></div><footer>Home footer</footer></body></html>')
 LD = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
 
 
@@ -36,7 +39,7 @@ def site(tmp_path, users, market, directory, opinion, shared, writer, logins, ca
     (tmp_path / "opinion" / "article").mkdir(parents=True)
     (tmp_path / "opinion" / "article" / "index.html").write_text(BUILT, encoding="utf-8")
     (tmp_path / "opinion" / "index.html").write_text(BUILT_LIST, encoding="utf-8")
-    (tmp_path / "index.html").write_text("<html><head><title>Home</title></head></html>", encoding="utf-8")
+    (tmp_path / "index.html").write_text(BUILT_HOME, encoding="utf-8")
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier, client_id=CLIENT_ID,
                      session_secret="test-secret", secure_cookies=False, opinion=opinion, community_store=shared,
                      insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha, competition_store=entries,
@@ -62,8 +65,8 @@ def test_an_article_page_carries_its_own_title_dek_and_address(site):
     assert said["og:title"] == ["A quiet jobs report"] and said["og:description"] == ["What 29,000 jobs say."]
     assert said["description"] == ["What 29,000 jobs say."] and said["og:type"] == ["article"]
     assert said["og:url"] == [address] and said["canonical"] == [address] and said["og:site_name"] == ["The Market Hub"]
-    # Without a cover there is no picture to show, and the card is the small one.
-    assert "og:image" not in said and said["twitter:card"] == ["summary"]
+    # Without a cover of its own, the site's card.
+    assert said["og:image"] == ["https://themarkethub.app/share.png"] and said["twitter:card"] == ["summary_large_image"]
     # The rest of the page is the build as it is, and the charset still comes first.
     assert r.text.startswith('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">') and '<article id="piece" class="mt-8">' in r.text
     assert "public" in r.headers["cache-control"]
@@ -88,10 +91,10 @@ def test_what_an_article_says_is_escaped(site, opinion):
     assert said["og:image"][0].endswith("&v=v%221")
 
 
-def test_an_unknown_slug_gets_the_page_as_built(site):
+def test_an_article_that_is_not_there_is_a_404(site):
     for slug in ("no-such-article", "../etc/passwd", "", "x" * 300):
         r = site.get("/opinion/article/", params={"slug": slug} if slug else None)
-        assert r.status_code == 200 and r.text == BUILT
+        assert r.status_code == 404 and r.text == BUILT
     assert site.head("/opinion/article/", params={"slug": SLUG}).status_code == 200
     # Without the slash the static site sends it on to the page, query and all.
     moved = site.get("/opinion/article", params={"slug": SLUG}, follow_redirects=False)
@@ -108,7 +111,42 @@ def test_a_crawler_reads_each_article_once(site, opinion):
         site.get("/opinion/article/", params={"slug": "no-such-article"})
         site.get("/opinion/")
     assert len(reads) == 1  # the list, once a minute
-    assert texts == [SLUG]  # the text of a listed article, once; an invented slug, never
+    assert texts == [SLUG, "no-such-article"]  # each slug once: a listed article's text, and whether an invented one is there
+
+
+def test_an_article_older_than_the_list_still_has_its_page(site, opinion):
+    old = {**ARTICLE, "slug": "an-old-one", "title": "An old one"}
+    front = opinion.store.front
+    opinion.store.articles[old["slug"]] = old
+    opinion.store.front = lambda: [a for a in front() if a["slug"] != "an-old-one"]  # the list no longer holds it
+    r = site.get("/opinion/article/", params={"slug": "an-old-one"})
+    assert r.status_code == 200 and tags(r.text)["og:title"] == ["An old one"] and ">An old one</h1>" in r.text
+
+
+def test_when_the_store_does_not_answer_an_unknown_slug_is_not_called_gone(site, opinion):
+    def down(slug):
+        raise RuntimeError("store down")
+    opinion.store.article = down
+    r = site.get("/opinion/article/", params={"slug": "maybe-there"})
+    assert r.status_code == 503 and r.headers["retry-after"] == "300"
+
+
+def test_the_home_page_carries_the_newest_articles(site, opinion):
+    for i in range(4):
+        opinion.store.articles[f"article-{i}"] = {**ARTICLE, "slug": f"article-{i}", "title": f"Article {i}",
+                                                  "published_utc": f"2026-10-1{i}T08:00:00+00:00"}
+    r = site.get("/")
+    assert r.status_code == 200 and "public" in r.headers["cache-control"]
+    page = r.text
+    assert page.count('class="hover:underline"') == 3  # the three newest
+    assert page.index(">Article 3</a>") < page.index(">Article 2</a>") < page.index(">Article 1</a>") and ">Article 0</a>" not in page
+    assert '<a href="/opinion/" class="link">All the articles</a>' in page and page.endswith("<footer>Home footer</footer></body></html>")
+    assert site.head("/").status_code == 200
+
+
+def test_without_articles_the_home_page_is_as_built(site, opinion):
+    opinion.store.articles.clear()
+    assert site.get("/").text == BUILT_HOME
 
 
 def test_an_article_page_carries_the_article_itself(site):

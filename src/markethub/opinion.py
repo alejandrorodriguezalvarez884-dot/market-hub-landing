@@ -44,6 +44,8 @@ BLOCKS_MAX = 200  # authors one reader can block
 FRONT_CACHE_SECONDS = 60
 COVERS_KEPT = 48  # covers held in memory, so a picture is read from the store once
 TEXTS_KEPT = 200  # whole articles held in memory, for the pages the server fills (previews.py)
+OLDER_SECONDS = 600  # how long an article older than the list, or a slug not there, is held
+OLDER_KEPT = 1000
 # Threads that hang from something other than an article keep their comments in the same store,
 # under a name of their own. The community's competition has one a month ("competition-2026-11");
 # only signed-in members read those, so the public thread of an article never answers for them.
@@ -274,6 +276,7 @@ class Opinion:
         self._cached: tuple[float, list[dict]] | None = None
         self._covers: dict[tuple[str, str], bytes] = {}
         self._texts: dict[tuple[str, str, str], dict] = {}
+        self._older: dict[str, tuple[float, dict | None]] = {}
 
     def articles(self, limit: int = 50) -> list[dict]:
         hit = self._cached
@@ -305,6 +308,21 @@ class Opinion:
                 if len(self._texts) >= TEXTS_KEPT:
                     self._texts.pop(next(iter(self._texts)))
                 self._texts[key] = found
+        return found
+
+    def older(self, slug: str) -> dict | None:
+        """The whole article for a slug the list does not name (an article older than the list
+        holds), read from the store. What is found, or not found, is held for a while, so a slug
+        asked for over and over, invented or not, costs one read every few minutes."""
+        if not SLUG.fullmatch(slug):
+            return None
+        hit = self._older.get(slug)
+        if hit and time.monotonic() - hit[0] < OLDER_SECONDS:
+            return hit[1]
+        found = self.store.article(slug)
+        if len(self._older) >= OLDER_KEPT:
+            self._older.pop(next(iter(self._older)))
+        self._older[slug] = (time.monotonic(), found)
         return found
 
     def cover(self, slug: str, version: str = "") -> bytes | None:

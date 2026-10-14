@@ -1,57 +1,79 @@
 ---
-// The analysis tools of the brand, each a site of its own.
+// The analysis tools of the brand, each a site of its own, said in the page itself so that a
+// search engine reads them without running a script.
 import Site from "../components/Site.astro";
+import { FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL } from "../lib/site";
+
+const TOOLS = [
+	{
+		name: "Fundamentals Lab",
+		about: "The numbers",
+		url: FUNDAMENTALS_URL,
+		points: [
+			"Statements, margins and returns on capital, year by year",
+			"Valuation against the company's own history",
+			"Forward multiples from the analysts' consensus",
+			"Technical picture and side-by-side comparison of up to five companies",
+			"An AI reading that comments the numbers and invents none",
+		],
+	},
+	{
+		name: "Earnings Radar",
+		about: "The results release",
+		url: RADAR_URL,
+		points: [
+			"Reads a company's latest results release when you ask",
+			"Is guidance raised or cut, is demand weakening, are margins under pressure",
+			"Which themes the company talks about",
+			"Trends across 99 large companies since 2021",
+		],
+	},
+	{
+		name: "Peer Map",
+		about: "Who does the same thing",
+		url: PEERS_URL,
+		points: [
+			"The 1,500 largest US companies on one map, each next to the ones whose annual report describes the most similar business",
+			"Each company's ten closest peers, and how alike they are",
+			"Coloured by how far each price has moved: the day, the week, the month, the year to date or one year",
+		],
+	},
+	{
+		name: "Options Lab",
+		about: "Options, read in detail",
+		url: OPTIONS_URL,
+		points: [
+			"Calls and puts with implied volatility, the Greeks, breakeven and risk-neutral odds",
+			"The volatility smile, open interest and the term structure",
+			"Strategies of up to eight legs: payoff, breakevens, Greeks and probability of profit",
+			"Save your strategies and come back to them",
+		],
+	},
+	{
+		name: "Playground",
+		about: "A market board you ask for",
+		url: PLAYGROUND_URL,
+		points: [
+			"Ask in plain words for the charts and tables you want to see",
+			"Price charts, comparisons, the day's moves on one scale and tables of figures, side by side on one board",
+			"Every figure comes from market data, not from the AI",
+		],
+	},
+];
 ---
 
-<Site title="Tools" description="The analysis tools of Market Hub: Fundamentals Lab and the Earnings Radar.">
+<Site title="Tools" description="The analysis tools of The Market Hub: Fundamentals Lab, Earnings Radar, Peer Map, Options Lab and Playground, for US-listed companies and the market.">
 	<div class="mb-10 max-w-2xl">
-		<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Read a company in depth</h1>
-		<p class="mt-3 text-ink">Two tools, each for any US-listed company. They open with your Market Hub sign-in, and every stock page links straight to them.</p>
+		<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">The analysis tools</h1>
+		<p class="mt-3 text-ink">Five tools for US-listed companies and the market. They open with your Market Hub sign-in.</p>
 	</div>
-	<div id="tools" class="grid gap-x-14 gap-y-10 md:grid-cols-2"><div class="skeleton h-56"></div><div class="skeleton h-56"></div></div>
+	<div class="grid gap-x-14 gap-y-10 md:grid-cols-2">
+		{TOOLS.map((t) => (
+			<section class="sec">
+				<div class="sec-head"><h2 class="text-xl font-medium text-ink-strong">{t.name}</h2><span class="sec-note">{t.about}</span></div>
+				<ul class="divide-y divide-line text-ink">{t.points.map((p) => <li class="py-2">{p}</li>)}</ul>
+				<a href={`${t.url}/`} class="btn btn-primary mt-6">Open {t.name}</a>
+			</section>
+		))}
+	</div>
 </Site>
-
-<script>
-	import { config } from "../lib/api";
-	import { add, h } from "../lib/dom";
-
-	const TOOLS = [
-		{
-			key: "fundamentals_lab" as const,
-			name: "Fundamentals Lab",
-			about: "The numbers",
-			points: [
-				"Statements, margins and returns on capital, year by year",
-				"Valuation against the company's own history",
-				"Forward multiples from the analysts' consensus",
-				"Technical picture and side-by-side comparison of up to five companies",
-				"An AI reading that comments the numbers and invents none",
-			],
-		},
-		{
-			key: "earnings_radar" as const,
-			name: "Earnings Radar",
-			about: "The results release",
-			points: [
-				"Reads a company's latest results release when you ask",
-				"Is guidance raised or cut, is demand weakening, are margins under pressure",
-				"Which themes the company talks about",
-				"Trends across 99 large companies since 2021",
-			],
-		},
-	];
-	const root = document.getElementById("tools")!;
-	config()
-		.then((cfg) => {
-			root.replaceChildren(...TOOLS.map((t) => {
-				const url = cfg.tools[t.key];
-				const open = url ? h("a", "btn btn-primary mt-6", `Open ${t.name}`) : h("span", "mt-6 inline-block text-sm text-muted", "Not open yet");
-				if (url) (open as HTMLAnchorElement).href = url;
-				return add(h("section", "sec"),
-					add(h("div", "sec-head"), h("h2", "text-xl font-medium text-ink-strong", t.name), h("span", "sec-note", t.about)),
-					add(h("ul", "divide-y divide-line text-ink"), ...t.points.map((p) => h("li", "py-2", p))),
-					open);
-			}));
-		})
-		.catch(() => root.replaceChildren(h("p", "text-sm text-muted", "The tools list is not available right now.")));
-</script>

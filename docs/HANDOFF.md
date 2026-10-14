@@ -22,6 +22,31 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Google, segunda vuelta: la portada con los últimos artículos, una imagen al compartir, `/tools/` al día y 404 de verdad (2026-10-14)
+
+Cuatro cambios sencillos que pidió el usuario ("haz los cuatro de código y despliega"):
+- **La portada lleva los 3 artículos más nuevos de Opinion**, servidos en el HTML: ruta `/` en
+  `api.py` y `previews.home_page`, que rellena `<div id="home-opinion">` de `index.astro` con una
+  parte más de la portada ("The latest from Opinion"). Sin artículos, la portada queda como se construyó.
+- **Una imagen al compartir**: `site/public/share.png` (1200×630, el nombre, "Your portfolio, read
+  by AI." y la dirección), dibujada con el Chrome del equipo por `film/share.mjs` (`make share`).
+  `Layout.astro` la pone como `og:image` con `twitter:card=summary_large_image` en todas las
+  páginas; un artículo sin portada propia también la lleva.
+- **`/tools/` con las cinco herramientas**, escritas en la página (antes solo dos, y pintadas por
+  un script): Fundamentals Lab, Earnings Radar, Peer Map, Options Lab y Playground.
+- **Un artículo que no existe da 404** (antes 200, un "soft 404" para Google). Uno más viejo que los
+  200 que guarda la lista se lee del almacén (`Opinion.older`, lo encontrado o no se recuerda 10
+  minutos), así que no se pierde cuando la lista lo deja atrás. Si el almacén no contesta, 503 con
+  `Retry-After`, nunca 404.
+- **Tests**: `tests/test_previews.py` (17). `make check` en verde (344). Visto en local.
+- **Pendiente para el usuario, fuera del código** (lo pidió apuntado): dar de alta el sitio en
+  Bing Webmaster Tools importando desde Search Console; que `www.themarkethub.app` lleve a la
+  portada (ahora no resuelve); que la ficha de la App Store tenga `themarkethub.app` como
+  "Marketing URL"; y, si quiere, una línea con "AI portfolio analysis" en la entradilla de la portada.
+- **Visto de paso**: el sitemap solo lista los artículos de la lista (`front`, 200 como mucho; lo
+  corta `market-hub-opinion`). Con varios artículos al día, en unos dos meses los más viejos
+  saldrán del sitemap, aunque su página siga respondiendo.
+
 ### Google: las páginas de Opinion salen con el artículo dentro, y el sitio se llama "The Market Hub" (2026-10-14; **desplegado**, revisión `market-hub-00048-phc`)
 
 Al mirar lo que reciben los rastreadores sin ejecutar JavaScript, un artículo de opinión eran 79

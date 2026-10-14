@@ -1088,16 +1088,24 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             # An article's page leaves the server with the article in it: its title, dek and cover
             # in the head, for a shared link and for search engines, and its text in the body
             # (see previews.py). The rest of the site is the build as it is.
+            # An article that is not there is a 404, so search engines do not keep an empty page;
+            # one older than the list holds is read from the store (Opinion.older).
             @app.api_route(previews.PATH, methods=["GET", "HEAD"], include_in_schema=False)
             def opinion_article_page(request: Request, slug: str = "") -> HTMLResponse:
                 card = opinion.card(slug) if len(slug) <= 100 else None
-                if not card:
-                    return HTMLResponse(article_page, headers={"Cache-Control": "public, max-age=300"})
+                whole = None
                 try:
-                    whole = opinion.kept(slug)
-                except Exception as exc:  # the store did not answer: the page goes with its tags, and the script fetches the text
+                    if card:
+                        whole = opinion.kept(slug)
+                    elif len(slug) <= 100:
+                        card = whole = opinion.older(slug)
+                except Exception as exc:  # the store did not answer
                     log.warning("article text not read for its page: %s", type(exc).__name__)
-                    whole = None
+                    if not card:  # nobody can say whether it is there: ask to come back, do not say it is gone
+                        return HTMLResponse(article_page, status_code=503, headers={"Retry-After": "300"})
+                if not card:
+                    return HTMLResponse(article_page, status_code=404)
+                # Known but without its text, the page goes with its tags, and the script fetches the text.
                 page = previews.article_page(article_page, card, previews.origin(article_page, str(request.base_url)), whole)
                 return HTMLResponse(page, headers={"Cache-Control": "public, max-age=300"})
 
@@ -1109,6 +1117,15 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             @app.api_route(previews.LIST_PATH, methods=["GET", "HEAD"], include_in_schema=False)
             def opinion_list_page() -> HTMLResponse:
                 return HTMLResponse(previews.list_page(list_page, opinion.articles(50)), headers={"Cache-Control": "public, max-age=300"})
+
+        built_home = Path(static_dir) / "index.html"
+        if built_home.is_file():
+            home_page = built_home.read_text(encoding="utf-8")
+
+            # The home page leaves the server with the newest opinion articles in it.
+            @app.api_route(previews.HOME_PATH, methods=["GET", "HEAD"], include_in_schema=False)
+            def home() -> HTMLResponse:
+                return HTMLResponse(previews.home_page(home_page, opinion.articles(previews.HOME_ARTICLES)), headers={"Cache-Control": "public, max-age=300"})
 
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="site")
     return app
