@@ -66,7 +66,10 @@ The Market Hub, no Market Hub"):
   barra de las herramientas solo se ve con sesión y no se miró en vivo.
 - **Queda**: en Search Console, inspeccionar un artículo ("Probar URL publicada") y pedir la
   indexación de los más recientes; pasar la portada y un artículo por la prueba de resultados
-  enriquecidos. En `/signin/` el enlace de vuelta dice aún "← Market Hub".
+  enriquecidos.
+- **Después**, también a petición del usuario: el enlace de vuelta de `/signin/` dice "← The
+  Market Hub" (`c9024d2`), desplegado en `market-hub-00049-w6n` desde una copia limpia, con la
+  misma configuración del servicio. Comprobado en producción.
 
 ### Options Lab: enlace en My Hub y sus estrategias en la cuenta (2026-10-14; **desplegado**, revisión `market-hub-00047-c9c`)
 
