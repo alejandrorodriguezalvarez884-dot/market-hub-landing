@@ -71,7 +71,11 @@ import { link } from "../lib/site";
 			<li>In your browser only, not with us: on the Watchlist page, which stocks you chose to see (the ones you looked up there
 				among them), how many at a time and how the charts are drawn. And on the page where you write for Opinion, the article you are
 				writing, until you send it. Clearing the site's data in your browser removes it.</li>
-			<li>Nothing about you in the analysis tools. Fundamentals Lab, the Earnings Radar and the Playground, on their own
+			<li>In Options Lab, the option strategies you choose to save: the name you give each one, its ticker, its legs (calls,
+				puts or shares, bought or sold, how many, strike, expiration and the price each was opened at) and when it was saved.
+				They are kept with your account and nothing else, and only you see them. A strategy you are building but have not saved stays in
+				your browser only.</li>
+			<li>Nothing else about you in the analysis tools. Fundamentals Lab, the Earnings Radar, Peer Map, the Playground and Options Lab, on their own
 				subdomains, read the same session cookie only to check that you are signed in; they do not store your name, email
 				or stocks. A board you make in the Playground, and what you wrote to make it, live in the page that shows them
 				and nowhere else: reloading or closing the page clears them.</li>
@@ -108,7 +112,7 @@ import { link } from "../lib/site";
 		<p>
 			On <a href={link("/account/")} class="link">Account and data</a> you can see and download everything kept about you, and
 			delete your account: that removes it from the database at once, takes your portfolio off the Community page, removes your
-			entries to the competition and empties every comment you wrote. In a month of the competition that has already ended, your
+			entries to the competition and the strategies you saved in Options Lab, and empties every comment you wrote. In a month of the competition that has already ended, your
 			line stays where it finished, with no name on it. You can also delete any comment of yours where it stands, and take back
 			an entry until its month starts. An article you sent in can be taken back on{" "}
 			<a href={link("/opinion/submit/")} class="link">the page you sent it from</a>, and deleting your account removes

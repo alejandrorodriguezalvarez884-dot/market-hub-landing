@@ -44,6 +44,8 @@ MAX_WATCHLIST = 50
 FIRESTORE_COLLECTION = "users"
 # A database of its own (europe-west1), not the project's "(default)" one, which other apps use.
 FIRESTORE_DATABASE = os.environ.get("MARKETHUB_FIRESTORE_DATABASE", "market-hub").strip()
+# The option strategies users keep in Options Lab, which that service writes (one document per user).
+OPTION_STRATEGIES_COLLECTION = "option_strategies"
 
 # --- Market data ---------------------------------------------------------------------------
 
@@ -154,7 +156,8 @@ COMPETITION_SETTLE_DAYS = 5
 
 EARNINGS_RADAR_URL = os.environ.get("EARNINGS_RADAR_URL", "https://earningsradar.app").rstrip("/")
 FUNDAMENTALS_LAB_URL = os.environ.get("FUNDAMENTALS_LAB_URL", "").rstrip("/")
-# The other two tools of My Hub, at the addresses the site's own navigation links to
+# The other tools of My Hub, at the addresses the site's own navigation links to
 # (site/src/lib/site.ts). The phone app lists whatever /api/config names.
 PEER_MAP_URL = os.environ.get("PEER_MAP_URL", "https://peers.themarkethub.app").rstrip("/")
 PLAYGROUND_URL = os.environ.get("PLAYGROUND_URL", "https://playground.themarkethub.app").rstrip("/")
+OPTIONS_LAB_URL = os.environ.get("OPTIONS_LAB_URL", "https://options.themarkethub.app").rstrip("/")

@@ -15,6 +15,7 @@ from markethub.competitions import MemoryCompetitions
 from markethub.market import Company, Directory
 from markethub.instagram import MemoryPosts, Posts
 from markethub.opinion import MemoryOpinion, Opinion
+from markethub.optionstrategies import MemoryOptionStrategies
 from markethub.submissions import MemorySubmissions, Submissions
 from markethub.users import MemoryUsers
 from markethub.xposts import MemoryX, XPosts
@@ -189,12 +190,19 @@ def x_posts():
 
 
 @pytest.fixture
-def client(users, market, directory, opinion, shared, writer, logins, captcha, entries, reader, submissions, posts, x_posts):
+def option_strategies():
+    """What Options Lab keeps for each user, as that service writes it: empty until a test fills it."""
+    return MemoryOptionStrategies()
+
+
+@pytest.fixture
+def client(users, market, directory, opinion, shared, writer, logins, captcha, entries, reader, submissions, posts, x_posts,
+           option_strategies):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
                      community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha,
                      competition_store=entries, stock_reader=reader, submissions=submissions, posts=Posts(posts),
-                     x_posts=XPosts(x_posts))
+                     x_posts=XPosts(x_posts), option_strategies=option_strategies)
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

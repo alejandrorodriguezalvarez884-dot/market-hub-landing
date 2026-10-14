@@ -6,6 +6,7 @@
     POST   /api/auth/logout
     GET    /api/me                  the signed-in user, or 401
     DELETE /api/me                  delete the account and everything saved
+    GET    /api/me/option-strategies   the strategies the user keeps in Options Lab
     GET    /api/portfolio           positions and watchlist
     PUT    /api/portfolio           replace them
     POST   /api/auth/register       {email, password, name, captcha}: an account of ours, and its session
@@ -118,6 +119,7 @@ from .watch import Watch, default_reader
 from .live import default_markets
 from .news import default_news
 from .opinion import MEMBERS_ONLY, Opinion, Refused, default_opinion
+from .optionstrategies import OptionStrategies, default_option_strategies
 from . import previews, seo
 from . import submissions as submissions_
 from .submissions import Submissions, default_submissions
@@ -127,7 +129,7 @@ from .appweb import ToolPages, entering_page
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
-                     COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, PEER_MAP_URL, PER_IP_PER_HOUR, PLAYGROUND_URL,
+                     COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, OPTIONS_LAB_URL, PEER_MAP_URL, PER_IP_PER_HOUR, PLAYGROUND_URL,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, SITE_URL, SUBMISSIONS_PER_USER_PER_DAY, WATCH_PER_IP_PER_HOUR)
 from .market import Directory, Fmp, MarketUnavailable
 from .tokens import AppTokens, bearer
@@ -198,7 +200,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                competition_store: CompetitionStore | None = None, clock=None, stock_reader="default",
                app_redirects: str | None = None, submissions: Submissions | None = None,
                apple_verifier: applesignin.Verifier | None = None, apple_revoker: AppleRevoker | None | str = "default",
-               posts: Posts | None = None, x_posts: XPosts | None = None) -> FastAPI:
+               posts: Posts | None = None, x_posts: XPosts | None = None,
+               option_strategies: OptionStrategies | None = None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -216,6 +219,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     x_posts = x_posts or XPosts(default_x())
     # The articles readers send in: kept for the owner to review, never published from here.
     submissions = submissions or Submissions(default_submissions())
+    # What users keep in Options Lab: written there, read and deleted here with the account.
+    option_strategies = option_strategies or default_option_strategies()
     # The accounts with a password of ours. MARKETHUB_PASSWORD_LOGIN=0 leaves Google as the only way in.
     accounts = Accounts(logins or default_logins(), password_cost)
     password_login = os.environ.get("MARKETHUB_PASSWORD_LOGIN", "1").strip() != "0"
@@ -268,7 +273,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     # Has Apple forget the app for an account that is being deleted. None without the developer's key.
     revoker = default_revoker() if apple_revoker == "default" else apple_revoker
     # The tools the app may open inside itself, signed in (appweb.py).
-    tool_pages = ToolPages([EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, PEER_MAP_URL, PLAYGROUND_URL])
+    tool_pages = ToolPages([EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, PEER_MAP_URL, PLAYGROUND_URL, OPTIONS_LAB_URL])
 
     def app_token(request: Request) -> str | None:
         return bearer(request.headers.get("authorization"))
@@ -355,6 +360,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                 "fundamentals_lab": FUNDAMENTALS_LAB_URL or None,
                 "peer_map": PEER_MAP_URL or None,
                 "playground": PLAYGROUND_URL or None,
+                "options_lab": OPTIONS_LAB_URL or None,
             },
         }
 
@@ -640,11 +646,16 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         submissions.forget(user["id"])  # and the articles sent in for review
         community.stop(user["id"])  # and so does the shared portfolio
         competitions.forget(user["id"])  # and the entries to the competition
+        option_strategies.forget(user["id"])  # and the strategies kept in Options Lab
         accounts.forget(user)  # and its password, if it had one of ours
         users.delete(user["id"])
         request.session.clear()
         log.info("account deleted")
         return {"deleted": True}
+
+    @app.get("/api/me/option-strategies")
+    def my_option_strategies(request: Request) -> dict:
+        return {"strategies": option_strategies.get(current_user(request)["id"])}
 
     @app.get("/api/portfolio")
     def portfolio(request: Request) -> dict:

@@ -14,7 +14,7 @@ import App from "../components/App.astro";
 	import { articleHref, blocked, keepComment, removeComment, reported, submissions, unblock, type Reported, type Submission } from "../lib/opinion";
 	import type { Sharing } from "../lib/types";
 	import { add, card, h } from "../lib/dom";
-	import { link } from "../lib/site";
+	import { OPTIONS_URL, link } from "../lib/site";
 
 	const root = document.getElementById("account-page")!;
 
@@ -26,6 +26,7 @@ import App from "../components/App.astro";
 		const played = await api<{ entries: Entry[] }>("/api/competitions/mine").catch(() => ({ entries: [] }));
 		const sent = await submissions().catch(() => ({ articles: [] as Submission[] }));
 		const hidden = await blocked().catch(() => ({ blocked: [] }));
+		const options = await api<{ strategies: { name: string; ticker: string; legs: unknown[]; updated_utc: string }[] }>("/api/me/option-strategies").catch(() => ({ strategies: [] }));
 		// Only the owner is asked, and only the owner is answered.
 		const waiting = who.moderator ? await reported().catch(() => null) : null;
 		const month = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -47,6 +48,9 @@ import App from "../components/App.astro";
 			h("dt", "text-muted", "Articles sent in"), add(h("dd", "text-ink-strong"), sent.articles.length
 				? `${sent.articles.length}, kept for the editor to review with your name and email: ${sent.articles.map((a) => `"${a.title}"`).join(", ")}. ` : "None. ",
 				Object.assign(h("a", "link", sent.articles.length ? "See them or take one back" : "Write for Opinion"), { href: link("/opinion/submit/") })),
+			h("dt", "text-muted", "Option strategies"), add(h("dd", "text-ink-strong"), options.strategies.length
+				? `${options.strategies.length}, kept in Options Lab with their legs: ${options.strategies.map((s) => `"${s.name}" (${s.ticker})`).join(", ")}. ` : "None. ",
+				Object.assign(h("a", "link", options.strategies.length ? "Open or delete them" : "About Options Lab"), { href: `${OPTIONS_URL}/strategy/` })),
 		));
 		if (mine.comments.length) add(info.body, add(h("ul", "mt-3 space-y-1.5 text-[13px]"), ...mine.comments.slice(0, 20).map((c) => {
 			const a = h("a", "link", c.text.length > 80 ? `${c.text.slice(0, 80)}…` : c.text) as HTMLAnchorElement;
@@ -56,7 +60,7 @@ import App from "../components/App.astro";
 		const download = h("button", "btn btn-ghost mt-4", "Download my data (JSON)");
 		download.type = "button";
 		download.addEventListener("click", () => {
-			const blob = new Blob([JSON.stringify({ user: who.user, ...p, sharing: shared, competition: played.entries, comments: mine.comments, articles_sent: sent.articles, blocked: hidden.blocked.map((b) => ({ name: b.name, since_utc: b.since_utc })) }, null, 2)], { type: "application/json" });
+			const blob = new Blob([JSON.stringify({ user: who.user, ...p, sharing: shared, competition: played.entries, comments: mine.comments, articles_sent: sent.articles, option_strategies: options.strategies, blocked: hidden.blocked.map((b) => ({ name: b.name, since_utc: b.since_utc })) }, null, 2)], { type: "application/json" });
 			const a = h("a") as HTMLAnchorElement;
 			a.href = URL.createObjectURL(blob);
 			a.download = "market-hub-data.json";

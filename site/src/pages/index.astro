@@ -6,7 +6,7 @@
 // for nothing, so a visit to it costs no market-data calls.
 // The film is drawn and scored by code (film/, `make film`); it is no recording of the site.
 import Site from "../components/Site.astro";
-import { APP_STORE_URL, FUNDAMENTALS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
+import { APP_STORE_URL, FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
 
 // What the AI does for a portfolio, in three ideas.
 const reading = [
@@ -19,7 +19,7 @@ const rest = [
 	{
 		title: "AI tools for any company",
 		text: "Go deep on any US company in minutes, from its numbers to what it just told its investors.",
-		links: [["Fundamentals Lab", `${FUNDAMENTALS_URL}/`], ["Earnings Radar", `${RADAR_URL}/`], ["Peer Map", `${PEERS_URL}/`], ["Playground", `${PLAYGROUND_URL}/`]],
+		links: [["Fundamentals Lab", `${FUNDAMENTALS_URL}/`], ["Earnings Radar", `${RADAR_URL}/`], ["Peer Map", `${PEERS_URL}/`], ["Playground", `${PLAYGROUND_URL}/`], ["Options Lab", `${OPTIONS_URL}/`]],
 	},
 	{
 		title: "The market, every day",

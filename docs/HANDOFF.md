@@ -22,6 +22,24 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Options Lab: enlace en My Hub y sus estrategias en la cuenta (2026-10-14; **sin desplegar**)
+
+Options Lab (`market-hub-options`, https://options.themarkethub.app) es la herramienta nueva de My Hub:
+cadenas de opciones leídas con detalle y estrategias que el usuario construye y puede guardar. Es la
+primera herramienta que guarda algo del usuario: sus estrategias, en la colección `option_strategies`
+de este mismo Firestore, un documento por usuario con su id de siempre. Ese servicio las escribe; el
+portal (`optionstrategies.py`) solo las lee y las borra:
+
+- `GET /api/me/option-strategies`: la página de cuenta las lista y van en la descarga de datos.
+- `DELETE /api/me` borra ese documento con la cuenta.
+- `/privacy/` dice qué se guarda de ellas; la de cuenta, cuántas y cuáles.
+- `App.astro` lleva el enlace `Options` (Tools); la portada lo nombra con las otras herramientas.
+- `/api/config` nombra `options_lab` y `tool_pages` la admite (la app de móvil no la lista hasta que
+  `market-hub-mobile/src/lib/tools.ts` la añada).
+
+**Desplegar cuando `options.themarkethub.app` responda por HTTPS**, y cuanto antes después de eso: hasta
+entonces una cuenta borrada dejaría atrás sus estrategias.
+
 ### Indexación en Google: solo el contenido propio (2026-10-14; **desplegado**, revisión `market-hub-00046-cxt`)
 
 El usuario trajo un problema de indexación de Search Console (propiedad `sc-domain:themarkethub.app`;

@@ -63,11 +63,18 @@ def test_writes_from_another_site_are_refused(client):
     assert client.get("/api/portfolio").json()["watchlist"] == []
 
 
-def test_logout_and_delete_account(client, users):
+def test_logout_and_delete_account(client, users, option_strategies):
     sign_in(client)
     client.put("/api/portfolio", json={"positions": [], "watchlist": ["KO"]})
+    # What Options Lab keeps for this user, and for another.
+    strategy = {"id": "a1", "name": "Spread", "ticker": "AAPL", "legs": []}
+    option_strategies.docs["1001"] = {"strategies": [strategy]}
+    option_strategies.docs["2002"] = {"strategies": [strategy]}
+    assert client.get("/api/me/option-strategies").json() == {"strategies": [strategy]}
     assert client.delete("/api/me").json() == {"deleted": True}
     assert users.get("1001") is None
+    assert "1001" not in option_strategies.docs and "2002" in option_strategies.docs
+    assert client.get("/api/me/option-strategies").status_code == 401
     assert client.get("/api/me").status_code == 401
 
 
@@ -122,5 +129,6 @@ def test_other_hosts_keep_a_host_only_cookie(users, market, directory):
 
 def test_the_config_names_every_tool_of_my_hub_for_the_app_to_list(client):
     tools = client.get("/api/config").json()["tools"]
-    assert set(tools) == {"fundamentals_lab", "earnings_radar", "peer_map", "playground"}
+    assert set(tools) == {"fundamentals_lab", "earnings_radar", "peer_map", "playground", "options_lab"}
+    assert tools["options_lab"] == "https://options.themarkethub.app"
     assert tools["peer_map"] == "https://peers.themarkethub.app" and tools["playground"] == "https://playground.themarkethub.app"
