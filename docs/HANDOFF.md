@@ -62,7 +62,7 @@ quien lee las etiquetas Open Graph / Twitter Card no ejecuta scripts.
   post ya publicado puede tardar en cambiar; un post nuevo con el enlace ya debería salir bien.
 - **Visto de paso, no es de este cambio**: `/opinion/article?slug=` (sin barra) redirige a
   `http://` (el sitio estático de Starlette no sabe que detrás de Cloud Run va por https);
-  Cloudflare lo sube a https si tiene activado "Always Use HTTPS".
+  Cloudflare lo sube a https (comprobado: `http://` responde 302 a `https://`), así que no se nota.
 
 ### Media: los posts de X (2026-10-14; **desplegado**, revisión `market-hub-00044-rl4`)
 
