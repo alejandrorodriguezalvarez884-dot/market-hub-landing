@@ -43,11 +43,13 @@ The Market Hub, no Market Hub"):
   portada, autor —el lector que lo firma o The Market Hub—, editor). La portada lleva `WebSite` y
   `Organization` con `sameAs` a YouTube, X, Instagram y la App Store. `Layout.astro` admite
   `schema` y escribe `og:site_name` en todas las páginas. En el JSON no va ningún `<` (`<`).
-- **El nombre**: `SITE_NAME` es ahora "The Market Hub" (títulos, `og:site_name`, datos
-  estructurados, `document.title` de artículo, noticia y ficha) y `MARK_NAME` "Market Hub" es lo
-  que sigue diciendo la marca de la cabecera (`Logo.astro`). La portada se titula "The Market Hub —
-  Your portfolio, read by AI". El texto de las páginas, la marca de la cabecera y las
-  herramientas (sus `HubNav.astro`) siguen diciendo "Market Hub": cambiarlos es otra decisión.
+- **El nombre**: `SITE_NAME` es ahora "The Market Hub": la marca de la cabecera (`Logo.astro`),
+  los títulos, `og:site_name`, los datos estructurados (con "Market Hub" como `alternateName`) y
+  el `document.title` de artículo, noticia y ficha. La portada se titula "The Market Hub — Your
+  portfolio, read by AI". La marca dice lo mismo en el `HubNav.astro` de las cinco herramientas y
+  en la pantalla de entrada de la app de móvil (un commit en cada repo). El texto corrido de las
+  páginas sigue diciendo "Market Hub". Comprobado: "The Market Hub · My Hub" cabe en la barra
+  lateral de 240 px (185 px) y la cabecera en móvil (375 px) no desborda.
 - **Tests**: `tests/test_previews.py` (12). `make check` en verde (340 tests, `astro check` sin
   errores, build). Visto en local (`hub-sample-windows`): artículo 904 palabras sin JavaScript,
   lista 404 con 6 enlaces, y las páginas se ven igual que antes.

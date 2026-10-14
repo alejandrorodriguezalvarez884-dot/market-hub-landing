@@ -1,6 +1,6 @@
 ---
 // The mark is the site's own figure: a zero line and a move to its right.
-import { MARK_NAME, link } from "../lib/site";
+import { SITE_NAME, link } from "../lib/site";
 interface Props {
 	href?: string;
 	tag?: string;
@@ -12,6 +12,6 @@ const { href = "/", tag } = Astro.props;
 	<svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
 		<path d="M4 2v16M4 10h8"></path><circle cx="14.5" cy="10" r="2.75" fill="currentColor" stroke="none"></circle>
 	</svg>
-	<span>{MARK_NAME}</span>
+	<span>{SITE_NAME}</span>
 	{tag && <span class="text-[12.5px] font-normal text-muted">{tag}</span>}
 </a>

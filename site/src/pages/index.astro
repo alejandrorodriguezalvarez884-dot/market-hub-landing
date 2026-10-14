@@ -6,7 +6,7 @@
 // for nothing, so a visit to it costs no market-data calls.
 // The film is drawn and scored by code (film/, `make film`); it is no recording of the site.
 import Site from "../components/Site.astro";
-import { APP_STORE_URL, FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, MARK_NAME, SITE_NAME, link } from "../lib/site";
+import { APP_STORE_URL, FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
 import { INSTAGRAM, X, YOUTUBE } from "../lib/media";
 
 // What the AI does for a portfolio, in three ideas.
@@ -38,21 +38,23 @@ const promises = [
 	["The numbers come from code.", "Prices, statements and ratios are computed the same way for every company. The AI comments on them and invents none."],
 	["What you add is yours.", "My Hub keeps your name and email and the stocks you add. Never your password as you typed it, and you can delete all of it at any time."],
 ];
-// Who the site is, for search engines: the name it goes by, and its profiles elsewhere.
+// Who the site is, for search engines: the name it goes by (and the one it went by before), and
+// its profiles elsewhere.
+const FORMER_NAME = "Market Hub";
 const home = new URL(link("/"), Astro.site ?? "https://themarkethub.app").href;
 const schema = [
 	{
 		"@context": "https://schema.org",
 		"@type": "WebSite",
 		name: SITE_NAME,
-		alternateName: [MARK_NAME],
+		alternateName: [FORMER_NAME],
 		url: home,
 	},
 	{
 		"@context": "https://schema.org",
 		"@type": "Organization",
 		name: SITE_NAME,
-		alternateName: MARK_NAME,
+		alternateName: FORMER_NAME,
 		url: home,
 		logo: new URL(link("/favicon.svg"), home).href,
 		sameAs: [YOUTUBE.channel, `https://x.com/${X.handle}`, `https://www.instagram.com/${INSTAGRAM.handle}/`, APP_STORE_URL],
@@ -80,7 +82,7 @@ const phones = [
 		<section class="hero">
 			<div class="grid flex-1 items-center gap-x-14 gap-y-10 py-2 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
 				<div>
-					<svg class="h-12 w-12 text-ink-strong sm:h-14 sm:w-14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" role="img" aria-label="Market Hub" data-rv>
+					<svg class="h-12 w-12 text-ink-strong sm:h-14 sm:w-14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" role="img" aria-label={SITE_NAME} data-rv>
 						<path d="M4 2v16M4 10h8"></path><circle cx="14.5" cy="10" r="2.75" fill="currentColor" stroke="none"></circle>
 					</svg>
 					<h1 class="headline mt-7" data-rv style="--i:1">Your portfolio, read by AI.</h1>
