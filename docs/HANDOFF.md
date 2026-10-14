@@ -40,8 +40,9 @@ crear una cuenta de twitter asociada a este proyecto para poner en la página we
 - **Tests**: `tests/test_xposts.py` (4). `make check` en verde (326 tests, `astro check` sin
   errores, build). **Visto en local** (`hub-sample-windows`) con tres posts de prueba, que se
   borraron después.
-- **Pendiente**: la cuenta la crea el usuario. Con su nombre se rellena `X.handle` (sale el enlace
-  en la cabecera de la sección) y se despliega cuando él lo pida.
+- **La cuenta es `@the_market_hub_`** (https://x.com/the_market_hub_), creada por el usuario el
+  2026-10-14 en el navegador de Claude: está en `X.handle`, y la cabecera de la sección la enlaza.
+- **Pendiente**: desplegar, cuando él lo pida.
 
 ### Portada nueva: la cartera leída por IA, con el vídeo arriba (2026-10-13; **desplegado**, revisión `market-hub-00043-6ss`)
 

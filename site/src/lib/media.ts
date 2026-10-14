@@ -63,9 +63,9 @@ export const postCover = (p: Post) => `${API}/api/public/instagram/cover?id=${en
 // Where a post is opened. Only an address on Instagram is followed; anything else leads to the account.
 export const postUrl = (p: Post) => (/^https:\/\/www\.instagram\.com\/[A-Za-z0-9_\-\/.]+$/.test(p.url) ? p.url : `https://www.instagram.com/${INSTAGRAM.handle}/`);
 
-// Market Hub's account on X. Empty until the owner names it. Its posts are not kept here either:
+// Market Hub's account on X. Its posts are not kept here either:
 // the page asks the portal for the latest ones (xPosts(), below).
-export const X = { handle: "" };
+export const X = { handle: "the_market_hub_" };
 
 // A post of the account on X: its text, exactly as it went out, and where it is.
 export type XPost = { id: string; url: string; text: string; posted_utc: string };
