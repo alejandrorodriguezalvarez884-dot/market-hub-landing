@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Media: los posts de X (2026-10-14; **sin desplegar**)
+### Media: los posts de X (2026-10-14; **desplegado**, revisión `market-hub-00044-rl4`)
 
 La sección X de `/media/` enseña **los últimos posts de la cuenta de Market Hub en X**, cada uno
 como una tarjeta con su texto entero, su fecha y el enlace al post. Lo pidió el usuario ("quiero
@@ -42,7 +42,7 @@ crear una cuenta de twitter asociada a este proyecto para poner en la página we
   borraron después.
 - **La cuenta es `@the_market_hub_`** (https://x.com/the_market_hub_), creada por el usuario el
   2026-10-14 en el navegador de Claude: está en `X.handle`, y la cabecera de la sección la enlaza.
-- **Pendiente**: desplegar, cuando él lo pida.
+- **Desplegado el 2026-10-14 a petición del usuario** ("despliega el portal"), desde una copia limpia de `90c5347` (`git archive`). El `.env` de esta máquina no traía `APPLE_KEY_ID` ni `APPLE_TEAM_ID` y tenía otro `MARKETHUB_APP_REDIRECTS`: la copia llevó los valores del servicio (los secretos, iguales a los de Secret Manager). Comprobado: `/api/public/x` responde (sin posts aún) y `/media/` enlaza a la cuenta.
 
 ### Portada nueva: la cartera leída por IA, con el vídeo arriba (2026-10-13; **desplegado**, revisión `market-hub-00043-6ss`)
 
