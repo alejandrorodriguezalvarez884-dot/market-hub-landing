@@ -1,6 +1,6 @@
 ---
 import "../styles/global.css";
-import { link } from "../lib/site";
+import { SITE_NAME, link } from "../lib/site";
 
 interface Props {
 	title: string;
@@ -8,8 +8,12 @@ interface Props {
 	// Kept out of search engines: only Market Hub's own writing is indexed, not other sources'
 	// news and figures, nor the private area. Such a page names no canonical address.
 	noindex?: boolean;
+	// schema.org structured data for search engines, one JSON-LD script per object.
+	schema?: object[];
 }
-const { title, description, noindex = false } = Astro.props;
+const { title, description, noindex = false, schema = [] } = Astro.props;
+// No "<" at all, so nothing in it can end the script element: JSON says the same with "<".
+const jsonLd = (o: object) => JSON.stringify(o).replace(/</g, "\\u003c");
 const canonical = Astro.site && !noindex ? new URL(Astro.url.pathname, Astro.site) : null;
 ---
 
@@ -25,10 +29,12 @@ const canonical = Astro.site && !noindex ? new URL(Astro.url.pathname, Astro.sit
 		{noindex && <meta name="robots" content="noindex" />}
 		{canonical && <link rel="canonical" href={canonical} />}
 		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content={SITE_NAME} />
 		<meta property="og:title" content={title} />
 		<meta property="og:description" content={description} />
 		{canonical && <meta property="og:url" content={canonical} />}
 		<title>{title}</title>
+		{schema.map((o) => <script type="application/ld+json" is:inline set:html={jsonLd(o)} />)}
 		<script is:inline>
 			// Visits are counted by Cloudflare Web Analytics, which sets no cookie. On the public domain
 			// only: a local preview counts nothing.

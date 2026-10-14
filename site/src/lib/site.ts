@@ -1,5 +1,8 @@
 // Site-wide constants and links.
-export const SITE_NAME = "Market Hub";
+// The name the site goes by where it is named in full: page titles, shared links, search engines.
+export const SITE_NAME = "The Market Hub";
+// The short name the mark at the top of every page carries.
+export const MARK_NAME = "Market Hub";
 export const REPO_URL = "https://github.com/alejandrorodriguezalvarez884-dot/market-hub-landing";
 export const AUTHOR_URL = "https://alejandrorodriguez.dev/";
 // Where readers reach us: published on /contact/, which the app and its store pages link to.

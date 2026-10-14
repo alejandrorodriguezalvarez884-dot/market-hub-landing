@@ -50,7 +50,7 @@ import { link } from "../lib/site";
 	import { change, compact, level, money, signedPct, toneClass } from "../lib/format";
 	import { isEquity, quote, type Quote } from "../lib/market";
 	import { newsLine } from "../lib/news";
-	import { fundamentalsUrl, link, radarUrl, tidyName } from "../lib/site";
+	import { SITE_NAME, fundamentalsUrl, link, radarUrl, tidyName } from "../lib/site";
 	import { fromTv, tvChart } from "../lib/tv";
 	import { failed } from "../lib/widgets";
 
@@ -61,7 +61,7 @@ import { link } from "../lib/site";
 
 	function head(q: Quote) {
 		const kindLabel: Record<string, string> = { index: "Index", rate: "Yield", commodity: "Commodity", fx: "Currency", crypto: "Crypto", etf: "ETF" };
-		document.title = `${q.symbol} ${level(q.price, q.kind)} — ${tidyName(q.name)} — Market Hub`;
+		document.title = `${q.symbol} ${level(q.price, q.kind)} — ${tidyName(q.name)} — ${SITE_NAME}`;
 		const late = q.extended;
 		$("q-head").replaceChildren(
 			h("p", "text-[13px] text-muted", [q.symbol, isEquity(q.kind) ? q.exchange : kindLabel[q.kind], isEquity(q.kind) && q.sector !== "—" ? q.sector : null].filter(Boolean).join(" · ")),

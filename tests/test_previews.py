@@ -1,7 +1,10 @@
-"""A shared link to an opinion article shows the article: the page is handed out with its title,
-dek and cover as Open Graph and Twitter Card tags, read from the list held in memory."""
+"""The opinion pages leave the server with the articles in them. An article's page carries its
+title, dek and cover as Open Graph and Twitter Card tags, its structured data, and its text in
+the body; the list page carries the list. What is read comes from memory: the list once a minute,
+an article's text once."""
 
 import html
+import json
 import re
 
 import pytest
@@ -19,13 +22,20 @@ BUILT = ('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name=
          '<link rel="canonical" href="https://themarkethub.app/opinion/article/"><meta property="og:type" content="website">'
          '<meta property="og:title" content="Opinion — Market Hub"><meta property="og:description" content="An opinion article of Market Hub, with its readers\' comments.">'
          '<meta property="og:url" content="https://themarkethub.app/opinion/article/"><title>Opinion — Market Hub</title></head>'
-         '<body><article id="piece"></article></body></html>')
+         '<body><article id="piece" class="mt-8"><div class="skeleton h-5 w-56"></div><div class="skeleton mt-4 h-24"></div></article>'
+         '<section id="comments" hidden></section></body></html>')
+# The list page as the build writes it: a placeholder where the articles go.
+BUILT_LIST = ('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Opinion — The Market Hub</title></head><body><main>'
+              '<h1>Opinion</h1><div id="opinion" class="mt-10"><div class="skeleton h-56"></div><div class="skeleton mt-8 h-40"></div></div>'
+              '<footer>Footer</footer></main></body></html>')
+LD = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
 
 
 @pytest.fixture
 def site(tmp_path, users, market, directory, opinion, shared, writer, logins, captcha, entries, reader, submissions, posts, x_posts):
     (tmp_path / "opinion" / "article").mkdir(parents=True)
     (tmp_path / "opinion" / "article" / "index.html").write_text(BUILT, encoding="utf-8")
+    (tmp_path / "opinion" / "index.html").write_text(BUILT_LIST, encoding="utf-8")
     (tmp_path / "index.html").write_text("<html><head><title>Home</title></head></html>", encoding="utf-8")
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier, client_id=CLIENT_ID,
                      session_secret="test-secret", secure_cookies=False, opinion=opinion, community_store=shared,
@@ -48,14 +58,14 @@ def test_an_article_page_carries_its_own_title_dek_and_address(site):
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
     said = tags(r.text)
     address = f"https://themarkethub.app/opinion/article/?slug={SLUG}"
-    assert said["title"] == ["A quiet jobs report — Market Hub"]
+    assert said["title"] == ["A quiet jobs report — The Market Hub"]
     assert said["og:title"] == ["A quiet jobs report"] and said["og:description"] == ["What 29,000 jobs say."]
     assert said["description"] == ["What 29,000 jobs say."] and said["og:type"] == ["article"]
-    assert said["og:url"] == [address] and said["canonical"] == [address]
+    assert said["og:url"] == [address] and said["canonical"] == [address] and said["og:site_name"] == ["The Market Hub"]
     # Without a cover there is no picture to show, and the card is the small one.
     assert "og:image" not in said and said["twitter:card"] == ["summary"]
     # The rest of the page is the build as it is, and the charset still comes first.
-    assert r.text.startswith('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">') and '<article id="piece">' in r.text
+    assert r.text.startswith('<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">') and '<article id="piece" class="mt-8">' in r.text
     assert "public" in r.headers["cache-control"]
 
 
@@ -71,6 +81,8 @@ def test_what_an_article_says_is_escaped(site, opinion):
                                     "cover": {"alt": '"><img src=x>', "v": 'v"1'}}
     page = site.get("/opinion/article/", params={"slug": SLUG}).text
     assert "<script>alert" not in page and "<img src=x>" not in page and 'v"1' not in page
+    # Nor can the structured data end its script early, and it still says the title as it is.
+    assert json.loads(LD.findall(page)[0])["headline"] == 'Fed "cuts" <script>alert(1)</script>'
     said = tags(page)
     assert said["og:title"] == ['Fed "cuts" <script>alert(1)</script>'] and said["og:description"] == ["A & B > C"]
     assert said["og:image"][0].endswith("&v=v%221")
@@ -86,12 +98,72 @@ def test_an_unknown_slug_gets_the_page_as_built(site):
     assert moved.status_code in (307, 308) and moved.headers["location"].endswith(f"/opinion/article/?slug={SLUG}")
 
 
-def test_a_crawler_reads_nothing_from_the_store(site, opinion):
-    reads = []
-    front = opinion.store.front
+def test_a_crawler_reads_each_article_once(site, opinion):
+    reads, texts = [], []
+    front, article = opinion.store.front, opinion.store.article
     opinion.store.front = lambda: reads.append(1) or front()
-    opinion.store.article = lambda slug: pytest.fail("the page reads the card, not the article")
+    opinion.store.article = lambda slug: texts.append(slug) or article(slug)
     for _ in range(20):
         site.get("/opinion/article/", params={"slug": SLUG})
         site.get("/opinion/article/", params={"slug": "no-such-article"})
+        site.get("/opinion/")
     assert len(reads) == 1  # the list, once a minute
+    assert texts == [SLUG]  # the text of a listed article, once; an invented slug, never
+
+
+def test_an_article_page_carries_the_article_itself(site):
+    page = site.get("/opinion/article/", params={"slug": SLUG}).text
+    body = page[page.index("<body>"):]
+    assert "skeleton" not in body and '<section id="comments" hidden>' in body
+    assert ">A quiet jobs report</h1>" in body and "What 29,000 jobs say.</p>" in body
+    assert "<p>First paragraph.</p>" in body and ">A heading</h2>" in body and "<p>Second paragraph.</p>" in body
+    assert '<a href="https://www.bls.gov/" class="link" target="_blank" rel="noopener">BLS</a>' in body
+    assert '<time datetime="2026-10-06T08:00:00+00:00">October 6, 2026</time>' in body
+
+
+def test_the_text_of_an_article_is_escaped(site, opinion):
+    opinion.store.articles[SLUG] = {**ARTICLE, "body": 'Text <b>bold</b>, [a link](javascript:alert(1)), [ours](/today/) and **"x"**'}
+    page = site.get("/opinion/article/", params={"slug": SLUG}).text
+    assert "<b>bold</b>" not in page and "&lt;b&gt;bold&lt;/b&gt;" in page and "javascript:" not in page
+    assert '<a href="/today/" class="link">ours</a>' in page and "&quot;x&quot;</strong>" in page
+
+
+def test_an_article_page_says_what_it_is_in_structured_data(site, opinion):
+    opinion.store.articles[SLUG] = {**ARTICLE, "cover": {"alt": "A chart", "v": "abc"}, "author": "Ana"}
+    data = [json.loads(b) for b in LD.findall(site.get("/opinion/article/", params={"slug": SLUG}).text)]
+    assert len(data) == 1
+    a = data[0]
+    assert a["@type"] == "Article" and a["headline"] == "A quiet jobs report" and a["description"] == "What 29,000 jobs say."
+    assert a["mainEntityOfPage"] == f"https://themarkethub.app/opinion/article/?slug={SLUG}"
+    assert a["datePublished"] == "2026-10-06T08:00:00+00:00" and a["dateModified"] == a["datePublished"]
+    assert a["image"] == [f"https://themarkethub.app/api/public/opinion/cover?slug={SLUG}&v=abc"]
+    assert a["author"] == {"@type": "Person", "name": "Ana"} and a["publisher"]["name"] == "The Market Hub"
+
+
+def test_without_the_text_the_page_still_goes_with_its_tags(site, opinion):
+    def down(slug):
+        raise RuntimeError("store down")
+    opinion.store.article = down
+    r = site.get("/opinion/article/", params={"slug": SLUG})
+    assert r.status_code == 200 and tags(r.text)["og:title"] == ["A quiet jobs report"]
+    assert '<div class="skeleton h-5 w-56">' in r.text  # the script fetches the text, as before
+
+
+def test_the_list_page_carries_the_articles_as_links(site, opinion):
+    opinion.store.articles["a-second-one"] = {**ARTICLE, "slug": "a-second-one", "title": "A second <one>",
+                                              "published_utc": "2026-10-07T08:00:00+00:00", "cover": {"alt": "A picture", "v": "v1"}}
+    r = site.get("/opinion/")
+    assert r.status_code == 200 and "public" in r.headers["cache-control"]
+    page = r.text
+    assert "skeleton" not in page and page.endswith("<footer>Footer</footer></main></body></html>")
+    # Newest first, each title a link to its page.
+    first = page.index('href="/opinion/article/?slug=a-second-one" class="hover:underline">A second &lt;one&gt;</a>')
+    second = page.index(f'href="/opinion/article/?slug={SLUG}" class="hover:underline">A quiet jobs report</a>')
+    assert first < second
+    assert 'src="/api/public/opinion/cover?slug=a-second-one&amp;v=v1" alt="A picture"' in page
+    assert '<span class="chip !font-sans">Macro</span>' in page
+
+
+def test_an_empty_list_leaves_the_page_as_built(site, opinion):
+    opinion.store.articles.clear()
+    assert site.get("/opinion/").text == BUILT_LIST

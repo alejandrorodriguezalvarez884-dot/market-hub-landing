@@ -43,6 +43,7 @@ HOLD_AT = 2  # reported by this many readers, a comment is hidden from everybody
 BLOCKS_MAX = 200  # authors one reader can block
 FRONT_CACHE_SECONDS = 60
 COVERS_KEPT = 48  # covers held in memory, so a picture is read from the store once
+TEXTS_KEPT = 200  # whole articles held in memory, for the pages the server fills (previews.py)
 # Threads that hang from something other than an article keep their comments in the same store,
 # under a name of their own. The community's competition has one a month ("competition-2026-11");
 # only signed-in members read those, so the public thread of an article never answers for them.
@@ -272,6 +273,7 @@ class Opinion:
         self.admins = admins if admins is not None else {a.strip().lower() for a in os.environ.get("MARKETHUB_ADMINS", "").split(",") if a.strip()}
         self._cached: tuple[float, list[dict]] | None = None
         self._covers: dict[tuple[str, str], bytes] = {}
+        self._texts: dict[tuple[str, str, str], dict] = {}
 
     def articles(self, limit: int = 50) -> list[dict]:
         hit = self._cached
@@ -286,6 +288,24 @@ class Opinion:
 
     def article(self, slug: str) -> dict | None:
         return self.store.article(slug) if SLUG.fullmatch(slug) else None
+
+    def kept(self, slug: str) -> dict | None:
+        """The whole article for a slug the list names, read from the store once and then held,
+        so the page a crawler asks for over and over costs one read. An article published again
+        (a new date or a new cover on its card) is read again; a slug the list does not name is
+        not read at all."""
+        card = self.card(slug)
+        if not card:
+            return None
+        key = (slug, str(card.get("updated_utc") or card.get("published_utc") or ""), str((card.get("cover") or {}).get("v") or ""))
+        found = self._texts.get(key)
+        if found is None:
+            found = self.store.article(slug)
+            if found:
+                if len(self._texts) >= TEXTS_KEPT:
+                    self._texts.pop(next(iter(self._texts)))
+                self._texts[key] = found
+        return found
 
     def cover(self, slug: str, version: str = "") -> bytes | None:
         """The picture of an article, as JPEG. ``version`` is the one the article's card names: a

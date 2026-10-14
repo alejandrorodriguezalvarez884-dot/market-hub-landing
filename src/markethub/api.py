@@ -79,9 +79,10 @@ that asks who is signed in answers it the same.
 For search engines (seo.py): GET /robots.txt and GET /sitemap.xml, the portal's own pages and the
 opinion articles. The news items, the quotes and My Hub say noindex in their own HTML.
 
-Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build. Its one page
-that is not handed out as built is /opinion/article/?slug=, which carries the article's own
-title, dek and cover for the sites a link is shared on (previews.py).
+Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build. Its two pages
+that are not handed out as built are /opinion/article/?slug=, which carries the article itself
+(its title, dek and cover in the head, its text in the body) for the sites a link is shared on
+and for search engines, and /opinion/, which carries the list of articles (previews.py).
 """
 
 from __future__ import annotations
@@ -1084,13 +1085,30 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         if built.is_file():
             article_page = built.read_text(encoding="utf-8")
 
-            # A shared link to an article shows the article: its title, dek and cover, not the
-            # page's generic tags (see previews.py). The rest of the site is the build as it is.
+            # An article's page leaves the server with the article in it: its title, dek and cover
+            # in the head, for a shared link and for search engines, and its text in the body
+            # (see previews.py). The rest of the site is the build as it is.
             @app.api_route(previews.PATH, methods=["GET", "HEAD"], include_in_schema=False)
             def opinion_article_page(request: Request, slug: str = "") -> HTMLResponse:
                 card = opinion.card(slug) if len(slug) <= 100 else None
-                page = previews.article_page(article_page, card, previews.origin(article_page, str(request.base_url))) if card else article_page
+                if not card:
+                    return HTMLResponse(article_page, headers={"Cache-Control": "public, max-age=300"})
+                try:
+                    whole = opinion.kept(slug)
+                except Exception as exc:  # the store did not answer: the page goes with its tags, and the script fetches the text
+                    log.warning("article text not read for its page: %s", type(exc).__name__)
+                    whole = None
+                page = previews.article_page(article_page, card, previews.origin(article_page, str(request.base_url)), whole)
                 return HTMLResponse(page, headers={"Cache-Control": "public, max-age=300"})
+
+        built_list = Path(static_dir) / previews.LIST_PATH.strip("/") / "index.html"
+        if built_list.is_file():
+            list_page = built_list.read_text(encoding="utf-8")
+
+            # The list of articles leaves the server with the articles in it, each title a link.
+            @app.api_route(previews.LIST_PATH, methods=["GET", "HEAD"], include_in_schema=False)
+            def opinion_list_page() -> HTMLResponse:
+                return HTMLResponse(previews.list_page(list_page, opinion.articles(50)), headers={"Cache-Control": "public, max-age=300"})
 
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="site")
     return app

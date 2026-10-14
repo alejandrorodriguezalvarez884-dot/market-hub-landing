@@ -22,6 +22,40 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Google: las páginas de Opinion salen con el artículo dentro, y el sitio se llama "The Market Hub" (2026-10-14; **sin desplegar**)
+
+Al mirar lo que reciben los rastreadores sin ejecutar JavaScript, un artículo de opinión eran 79
+palabras (menú y aviso legal, sin título ni texto) y `/opinion/` 82, sin un solo enlace a un
+artículo: lo único propio que se puede indexar llegaba vacío, que es el "Rastreada: actualmente
+sin indexar" de Search Console. El usuario pidió (sus palabras: "haz los puntos 1 a 4", "que sea
+The Market Hub, no Market Hub"):
+
+- **El artículo en el HTML** (`previews.py`, ruta `/opinion/article/` de `api.py`): además de las
+  etiquetas, el servidor pone dentro de `<article id="piece">` la línea de arriba, el `<h1>`, la
+  entradilla, la portada, el texto (el mismo Markdown reducido que `prose()` de `lib/opinion.ts`,
+  todo escapado), los tickers y las fuentes, con las mismas clases. El script lo pinta igual
+  encima (comprobado: mismo texto y misma estructura). El texto se lee una vez por artículo y
+  versión (`Opinion.kept`, 200 en memoria) y solo para un slug que está en la lista; si el
+  almacén no responde, la página sale con sus etiquetas y el esqueleto, como antes.
+- **La lista en el HTML**: nueva ruta `/opinion/` (`previews.list_page`) que rellena
+  `<div id="opinion">` con los 50 últimos, cada título un enlace a su artículo.
+- **Datos estructurados**: cada artículo lleva un JSON-LD `Article` (titular, entradilla, fechas,
+  portada, autor —el lector que lo firma o The Market Hub—, editor). La portada lleva `WebSite` y
+  `Organization` con `sameAs` a YouTube, X, Instagram y la App Store. `Layout.astro` admite
+  `schema` y escribe `og:site_name` en todas las páginas. En el JSON no va ningún `<` (`<`).
+- **El nombre**: `SITE_NAME` es ahora "The Market Hub" (títulos, `og:site_name`, datos
+  estructurados, `document.title` de artículo, noticia y ficha) y `MARK_NAME` "Market Hub" es lo
+  que sigue diciendo la marca de la cabecera (`Logo.astro`). La portada se titula "The Market Hub —
+  Your portfolio, read by AI". El texto de las páginas, la marca de la cabecera y las
+  herramientas (sus `HubNav.astro`) siguen diciendo "Market Hub": cambiarlos es otra decisión.
+- **Tests**: `tests/test_previews.py` (12). `make check` en verde (340 tests, `astro check` sin
+  errores, build). Visto en local (`hub-sample-windows`): artículo 904 palabras sin JavaScript,
+  lista 404 con 6 enlaces, y las páginas se ven igual que antes.
+- **Al desplegar**: `main` lleva también el cambio de Options Lab de abajo, que espera a que
+  `options.themarkethub.app` responda por HTTPS. Luego, en Search Console, inspeccionar un artículo
+  ("Probar URL publicada") y pedir la indexación de los más recientes, y pasar la portada y un
+  artículo por la prueba de resultados enriquecidos.
+
 ### Options Lab: enlace en My Hub y sus estrategias en la cuenta (2026-10-14; **sin desplegar**)
 
 Options Lab (`market-hub-options`, https://options.themarkethub.app) es la herramienta nueva de My Hub:

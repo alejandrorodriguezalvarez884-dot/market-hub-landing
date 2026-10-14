@@ -17,7 +17,7 @@ import { link } from "../../lib/site";
 	import { add, h, linkTo } from "../../lib/dom";
 	import { newsItem, type NewsItem } from "../../lib/market";
 	import { byline, cover, picture, tickers } from "../../lib/news";
-	import { link } from "../../lib/site";
+	import { SITE_NAME, link } from "../../lib/site";
 
 	const root = document.getElementById("item")!;
 
@@ -37,7 +37,7 @@ import { link } from "../../lib/site";
 	}
 
 	function draw(n: NewsItem) {
-		document.title = `${n.title} — Market Hub`;
+		document.title = `${n.title} — ${SITE_NAME}`;
 		const src = cover(n);
 		const paragraphs = (n.article ?? "").split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p && p !== n.summary);
 		root.replaceChildren();

@@ -6,7 +6,8 @@
 // for nothing, so a visit to it costs no market-data calls.
 // The film is drawn and scored by code (film/, `make film`); it is no recording of the site.
 import Site from "../components/Site.astro";
-import { APP_STORE_URL, FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
+import { APP_STORE_URL, FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, MARK_NAME, SITE_NAME, link } from "../lib/site";
+import { INSTAGRAM, X, YOUTUBE } from "../lib/media";
 
 // What the AI does for a portfolio, in three ideas.
 const reading = [
@@ -37,6 +38,26 @@ const promises = [
 	["The numbers come from code.", "Prices, statements and ratios are computed the same way for every company. The AI comments on them and invents none."],
 	["What you add is yours.", "My Hub keeps your name and email and the stocks you add. Never your password as you typed it, and you can delete all of it at any time."],
 ];
+// Who the site is, for search engines: the name it goes by, and its profiles elsewhere.
+const home = new URL(link("/"), Astro.site ?? "https://themarkethub.app").href;
+const schema = [
+	{
+		"@context": "https://schema.org",
+		"@type": "WebSite",
+		name: SITE_NAME,
+		alternateName: [MARK_NAME],
+		url: home,
+	},
+	{
+		"@context": "https://schema.org",
+		"@type": "Organization",
+		name: SITE_NAME,
+		alternateName: MARK_NAME,
+		url: home,
+		logo: new URL(link("/favicon.svg"), home).href,
+		sameAs: [YOUTUBE.channel, `https://x.com/${X.handle}`, `https://www.instagram.com/${INSTAGRAM.handle}/`, APP_STORE_URL],
+	},
+];
 const phones = [
 	{ shot: "analysis", alt: "The Analysis screen of the app: a portfolio taken apart by sector.", side: true },
 	{ shot: "overview", alt: "The Overview screen of the app: a portfolio's value, its move today and a reading of it in plain sentences.", side: false },
@@ -44,7 +65,7 @@ const phones = [
 ];
 ---
 
-<Site title={SITE_NAME} description="Your portfolio, read by AI: a clear, personal analysis of your own stocks in seconds, on the web and on iPhone. Market Hub describes; it never tells you what to buy.">
+<Site title={`${SITE_NAME} — Your portfolio, read by AI`} schema={schema} description="Your portfolio, read by AI: a clear, personal analysis of your own stocks in seconds, on the web and on iPhone. Market Hub describes; it never tells you what to buy.">
 	<div class="home">
 		<script is:inline>
 			// The parts wait to come in only where a script is there to bring them in; if the page's own

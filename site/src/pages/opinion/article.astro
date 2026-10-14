@@ -21,7 +21,7 @@ import { link } from "../../lib/site";
 	import { ApiError } from "../../lib/api";
 	import { add, h, linkTo } from "../../lib/dom";
 	import { article, comment, cover, overline, prose, removeComment, thread, type Article } from "../../lib/opinion";
-	import { link } from "../../lib/site";
+	import { SITE_NAME, link } from "../../lib/site";
 	import { mountThread } from "../../lib/thread";
 	import { quoteHref } from "../../lib/widgets";
 
@@ -29,7 +29,7 @@ import { link } from "../../lib/site";
 	const slug = new URLSearchParams(location.search).get("slug") ?? "";
 
 	function draw(a: Article) {
-		document.title = `${a.title} — Market Hub`;
+		document.title = `${a.title} — ${SITE_NAME}`;
 		const sources = a.sources.length
 			? add(h("footer", "sec mt-12"),
 				add(h("div", "sec-head"), h("h2", "sec-title", "Sources")),
