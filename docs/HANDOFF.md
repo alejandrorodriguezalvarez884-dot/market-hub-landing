@@ -22,6 +22,15 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Media: el episodio 4 de Money 101 (2026-10-15; **desplegado**, revisión `market-hub-00053-dm8`)
+
+El vídeo "Your payslip: gross, net, and the tax bracket myth" (`cEmKr7Sr9IA`) y su Short
+(`diVlnbWR5OQ`) en la lista Money 101 de `site/src/lib/media.ts`, con sus carátulas
+`site/public/media/payslip.jpg` y `payslip-short.jpg` (commit 8d976dc). El reel lo enseña la
+página sola (`make posts` de `the-market-hub-media`). Desplegado a petición del usuario desde un
+export limpio de 8d976dc con `gcloud run deploy market-hub --source <export>` sin opciones de
+configuración: la del servicio queda igual (comparada antes y después) y /media/ lo enseña.
+
 ### La ficha de valor (`/quote/`) crece, y admite ETFs y fondos de inversión (2026-10-15; **desplegado**, revisión `market-hub-00052-6dx`)
 
 El usuario pidió mejorar bastante la página que abre el buscador, con fondos indexados y ETFs además
