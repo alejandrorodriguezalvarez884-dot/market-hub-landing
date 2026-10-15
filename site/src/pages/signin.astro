@@ -88,6 +88,32 @@ const points = [
 	}
 	let next = nextFrom(null);
 
+	// The browsers that apps like LinkedIn or Instagram open links in are embedded web views, and
+	// Google refuses to sign anyone in from one ("disallowed_useragent"). There the Google button
+	// gives way to a way out to the real browser; the email and password form still works.
+	const inApp = /FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Twitter|TikTok|musical_ly|Bytedance|Snapchat|Pinterest|Line\/|MicroMessenger|; wv\)/i.test(navigator.userAgent);
+
+	function leaveApp(password: boolean) {
+		const android = /Android/i.test(navigator.userAgent);
+		const here = location.href;
+		const chrome = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(here)};end`;
+		box.className = "mt-8 max-w-[300px] space-y-3";
+		box.innerHTML = `
+			<p class="text-sm text-ink">Google sign-in does not work inside this app's browser. Open the page in your browser${password ? ", or use an email and a password below" : ""}.</p>
+			${android ? `<a class="btn btn-primary w-full" href="${chrome}">Open in Chrome</a>` : ""}
+			<button type="button" class="btn btn-ghost w-full" id="copy-link">Copy the link</button>
+			<p class="text-[12.5px] text-muted">${android ? "Or tap" : "Tap"} the ⋯ menu of the app and choose “Open in browser”.</p>`;
+		const copy = document.getElementById("copy-link") as HTMLButtonElement;
+		copy.addEventListener("click", async () => {
+			try {
+				await navigator.clipboard.writeText(here);
+				copy.textContent = "Copied: paste it in your browser";
+			} catch {
+				copy.textContent = here;
+			}
+		});
+	}
+
 	function loadGoogle(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			const s = document.createElement("script");
@@ -178,6 +204,7 @@ const points = [
 			const done = (r: { has_data: boolean }) => location.replace(r.has_data || tool ? next : link("/portfolio/?welcome=1"));
 			if (cfg.password_login) own(done, cfg);
 			if (!cfg.google_client_id) return cfg.password_login ? void (box.hidden = true) : say("Sign-in is not configured yet.");
+			if (inApp) return leaveApp(!!cfg.password_login);
 			await loadGoogle();
 			const g = (window as any).google.accounts.id;
 			g.initialize({

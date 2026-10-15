@@ -22,6 +22,18 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### Sign-in dentro de las apps de LinkedIn, Instagram o X (2026-10-15; **sin desplegar**)
+
+Para el lanzamiento en LinkedIn: Google no deja iniciar sesión desde los navegadores que llevan
+dentro esas apps (`disallowed_useragent`), y casi todo ese tráfico llega así desde el móvil. En
+`/signin/`, si el user agent es de uno de ellos (`inApp` en `signin.astro`: LinkedInApp, Instagram,
+Facebook, TikTok… y cualquier WebView de Android, `; wv)`), el botón de Google no se carga: en su
+lugar sale un aviso, "Open in Chrome" en Android (un `intent://` que conserva `?next=`), "Copy the
+link" y la indicación del menú ⋯ "Open in browser". El formulario de email y contraseña sigue
+debajo y funciona igual. Probado en local suplantando el user agent de LinkedIn en iPhone y de
+Instagram en Android; en un navegador normal no cambia nada. Falta probarlo en un móvil de verdad
+desde la app de LinkedIn una vez desplegado.
+
 ### News como feed con scroll infinito (2026-10-15; **desplegado**, revisión `market-hub-00054-q4w`)
 
 El usuario pidió que `/news/` fuera "más adictiva", con scroll infinito y varias noticias a la vez:
