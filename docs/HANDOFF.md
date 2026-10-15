@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### La ficha de valor (`/quote/`) crece, y admite ETFs y fondos de inversión (2026-10-15; **sin desplegar**)
+### La ficha de valor (`/quote/`) crece, y admite ETFs y fondos de inversión (2026-10-15; **desplegado**, revisión `market-hub-00052-6dx`)
 
 El usuario pidió mejorar bastante la página que abre el buscador, con fondos indexados y ETFs además
 de acciones, y más datos y gráficas:
@@ -50,7 +50,12 @@ de acciones, y más datos y gráficas:
 - **Tests**: `tests/test_quotepage.py` (14). `make test` en verde y `astro check` sin errores. Visto en
   local con Yahoo de verdad (AAPL, SCHD, VFIAX; escritorio y móvil, sin desbordes). La beta de
   AAPL (0,63) cuadra con un cálculo aparte.
-- **Pendiente**: desplegar (decisión del usuario); llevar estas secciones a la app de móvil.
+- **Desplegado** a petición del usuario desde una copia limpia de `2132e11` (`git archive`), con
+  `gcloud run deploy market-hub --source` sin flags: variables, secretos (comparados por hash),
+  recursos y anotaciones iguales antes y después. En producción: la búsqueda da fondos con su tipo,
+  `/quote/more` responde para AAPL y VFIAX (la búsqueda de Yahoo y los mutual funds funcionan
+  desde Cloud Run) y la ficha de VFIAX pinta todas sus secciones con su gráfico propio.
+- **Pendiente**: llevar estas secciones a la app de móvil.
 
 ### Google, segunda vuelta: la portada con los últimos artículos, una imagen al compartir, `/tools/` al día y 404 de verdad (2026-10-14; **desplegado**, revisión `market-hub-00050-ghz`)
 
