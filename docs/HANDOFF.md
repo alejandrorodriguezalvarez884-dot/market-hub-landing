@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### Sign-in dentro de las apps de LinkedIn, Instagram o X (2026-10-15; **sin desplegar**)
+### Sign-in dentro de las apps de LinkedIn, Instagram o X (2026-10-15; **desplegado**, revisión `market-hub-00055-5rr`)
 
 Para el lanzamiento en LinkedIn: Google no deja iniciar sesión desde los navegadores que llevan
 dentro esas apps (`disallowed_useragent`), y casi todo ese tráfico llega así desde el móvil. En
@@ -31,8 +31,9 @@ Facebook, TikTok… y cualquier WebView de Android, `; wv)`), el botón de Googl
 lugar sale un aviso, "Open in Chrome" en Android (un `intent://` que conserva `?next=`), "Copy the
 link" y la indicación del menú ⋯ "Open in browser". El formulario de email y contraseña sigue
 debajo y funciona igual. Probado en local suplantando el user agent de LinkedIn en iPhone y de
-Instagram en Android; en un navegador normal no cambia nada. Falta probarlo en un móvil de verdad
-desde la app de LinkedIn una vez desplegado.
+Instagram en Android; en un navegador normal no cambia nada. Desplegado desde una copia limpia del
+commit 81f79e3, sin tocar la configuración del servicio. Falta probarlo en un móvil de verdad
+desde la app de LinkedIn.
 
 ### News como feed con scroll infinito (2026-10-15; **desplegado**, revisión `market-hub-00054-q4w`)
 
