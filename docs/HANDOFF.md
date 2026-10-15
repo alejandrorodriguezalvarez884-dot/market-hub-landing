@@ -24,7 +24,9 @@ Decisiones del usuario:
 
 > 2026-10-15: **Sin enlace al código fuente.** El pie de página ya no lleva "Source" (el enlace al
 > repo de GitHub) y `REPO_URL` ya no existe en `site/src/lib/`: la web no enlaza ni menciona el
-> código, por decisión del usuario. **Sin desplegar**: llega a la web con el próximo `make deploy`.
+> código, por decisión del usuario. **Desplegado** como `market-hub-00056-5nw`, con
+> `gcloud run deploy --source` desde una copia limpia del commit y sin flags: la configuración
+> del servicio es idéntica antes y después.
 
 ### Sign-in dentro de las apps de LinkedIn, Instagram o X (2026-10-15; **desplegado**, revisión `market-hub-00055-5rr`)
 
