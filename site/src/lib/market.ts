@@ -38,8 +38,46 @@ export type Quote = Snapshot & {
   year_low: number; year_high: number; volume: number; avg_volume: number; market_cap: number | null; pe: number | null;
   eps: number | null; dividend_yield: number | null; beta: number | null; return_6m: number | null; return_5y: number | null;
   news: NewsItem[];
+  fund_type?: "ETF" | "Mutual fund" | null; // for a fund: what kind it is
+  net_assets?: number | null; // for a fund: the money it holds
   // The last trade before the open or after the close, while it is newer than the session's price.
   extended?: { session: "pre" | "post"; price: number; change: number; change_pct: number; at: string } | null;
+};
+
+// The rest of a quote page (/api/public/quote/more): the past against the S&P 500 and, for a
+// company or a fund, what the provider says of it. Every figure may be null.
+type F = number | null;
+export type Day = { date: string; return: number };
+export type History = {
+  benchmark: string | null; dates: string[]; closes: number[]; benchmark_closes: (number | null)[] | null;
+  years: { year: number; return: F; benchmark: F; partial: boolean }[];
+  risk: { volatility_1y: F; benchmark_volatility_1y: F; beta_1y: F; up_days_1y: F; best_day: Day | null; worst_day: Day | null;
+          max_drawdown: { depth: number; peak: string; trough: string } | null;
+          benchmark_max_drawdown: { depth: number; peak: string; trough: string } | null };
+};
+export type Period = { end: string; revenue: F; gross_profit: F; operating_income: F; net_income: F; eps: F };
+export type Company = {
+  summary: string; sector: string; industry: string; employees: F; website: string; city: string; state: string; country: string;
+  valuation: { pe: F; forward_pe: F; ps: F; pb: F; ev_ebitda: F; ev_revenue: F; enterprise_value: F };
+  profitability: { gross_margin: F; operating_margin: F; net_margin: F; roe: F; roa: F };
+  growth: { revenue: F; earnings: F };
+  health: { revenue: F; ebitda: F; free_cash_flow: F; cash: F; debt: F; debt_to_equity: F; current_ratio: F };
+  ownership: { insiders: F; institutions: F; short_of_float: F; shares: F; float: F };
+  dividends: { rate: F; payout_ratio: F; ex_date: string | null; five_year_avg_yield: F };
+  next_results: string | null;
+};
+export type Weight = { name: string; weight: number };
+export type Fund = {
+  summary: string; legal_type: string; family: string; category: string; expense_ratio: F; assets: F; yield: F; nav: F;
+  inception: string | null; beta_3y: F; return_3y: F; return_5y: F; return_ytd: F;
+  holdings: { symbol: string | null; label: string; name: string; weight: number }[]; holdings_weight: F;
+  sectors: Weight[]; asset_mix: Weight[];
+};
+export type QuoteMore = {
+  symbol: string; source: string; history: History | null;
+  type?: "stock" | "fund";
+  company?: Company; financials?: { annual: Period[]; quarterly: Period[] };
+  fund_type?: "ETF" | "Mutual fund"; fund?: Fund;
 };
 
 export const RANGES = ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y"] as const;
@@ -54,6 +92,7 @@ export function overview(detail = false): Promise<Overview> {
 export const chartData = (symbol: string, range: string) =>
   api<ChartData>(`/api/public/chart?symbol=${encodeURIComponent(symbol)}&range=${encodeURIComponent(range)}`);
 export const quote = (t: string) => api<Quote>(`/api/public/quote?t=${encodeURIComponent(t)}`);
+export const quoteMore = (t: string) => api<QuoteMore>(`/api/public/quote/more?t=${encodeURIComponent(t)}`);
 export function news(opts: { category?: string; ticker?: string; limit?: number } = {}) {
   const q = new URLSearchParams();
   if (opts.category) q.set("category", opts.category);

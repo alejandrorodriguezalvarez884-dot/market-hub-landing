@@ -39,11 +39,13 @@
     POST   /api/competitions/comments {month, text, parent_id}: comment or answer
     GET    /api/competitions/mine   the user's own entries
     GET    /api/dashboard           positions valued at today's prices, favourites, history
-    GET    /api/search?q=           companies by ticker or name
+    GET    /api/search?q=           companies by ticker or name, and US funds (ETFs, mutual funds)
     GET    /api/public/overview     markets: indices, rates, commodities, currencies, sectors, movers
                                     (?detail=1 adds 1-month, YTD and 1-year returns)
     GET    /api/public/chart        ?symbol=&range=  price bars for the charts
     GET    /api/public/quote        ?t=  a stock's figures and its own news
+    GET    /api/public/quote/more   ?t=  the rest of its page: its past against the S&P 500, and
+                                    what the provider says of the company or the fund
     GET    /api/public/news         ?category=&ticker=  the news, and whether it is stale
     GET    /api/public/news/item    ?id=  one item, with its article
     POST   /api/public/news/refresh read the news sources, if the news is stale
@@ -189,6 +191,20 @@ class HostScopedCookieDomain:
             await send(message)
 
         return await self.app(scope, receive, strip)
+
+
+def merge_found(companies: list[dict], funds: list[dict], query: str, limit: int = 8) -> list[dict]:
+    """The search's answers: the exact ticker first, then up to five companies, then the funds the
+    provider found, then the other companies, each ticker once."""
+    exact = query.strip().upper().replace(".", "-")
+    seen: set[str] = set()
+    out: list[dict] = []
+    first = [x for x in companies + funds if x["ticker"] == exact]
+    for x in first + companies[:5] + funds + companies[5:]:
+        if x["ticker"] not in seen and len(out) < limit:
+            seen.add(x["ticker"])
+            out.append(x)
+    return out
 
 
 def create_app(users: UserStore | None = None, market: Fmp | None = None, directory: Directory | None = None,
@@ -668,7 +684,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def save_portfolio(request: Request, positions: list = Body(default=[]), watchlist: list = Body(default=[])) -> dict:
         user = current_user(request)
         try:
-            pos, watch = clean(positions, watchlist, known=directory.known)
+            pos, watch = clean(positions, watchlist, known=known)
         except InvalidPortfolio as exc:
             raise HTTPException(400, str(exc)) from None
         except MarketUnavailable as exc:
@@ -719,7 +735,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             return user, None
         t = symbol(t).replace(".", "-")
         try:
-            if not directory.known(t):
+            if not known(t):
                 raise HTTPException(404, "No such stock.")
         except MarketUnavailable:
             pass  # the list of companies is not there to check against: the provider will say
@@ -849,10 +865,17 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.get("/api/search")
     def search(request: Request, q: str = Query(min_length=1, max_length=60)) -> dict:
         try:
-            found = directory.search(q)
+            found = [{"ticker": c.ticker, "name": c.name} for c in directory.search(q)]
         except MarketUnavailable as exc:
             raise HTTPException(503, str(exc)) from None
-        return {"companies": [{"ticker": c.ticker, "name": c.name} for c in found]}
+        # Funds are not in the SEC's list of companies: the provider's own search finds them.
+        funds = market.find_funds(q) if len(q.strip()) >= 2 and hasattr(market, "find_funds") else []
+        return {"companies": merge_found(found, funds, q)}
+
+    def known(ticker: str) -> bool:
+        """Whether a ticker can go in a portfolio or a watchlist: a company in the SEC's list, or
+        a fund the provider knows."""
+        return directory.known(ticker) or bool(market.profile(ticker).get("is_etf"))
 
     def symbol(value: str) -> str:
         value = value.strip().upper()
@@ -892,6 +915,10 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         # The company's own items from the news desk; sample headlines are not shown on a quote.
         q["news"] = [] if news.sample else news.news(tickers={t}, limit=5)["items"]
         return q
+
+    @app.get("/api/public/quote/more")
+    def public_quote_more(t: str = Query(max_length=12)) -> dict:
+        return markets.more(symbol(t))
 
     @app.get("/api/public/news")
     def public_news(category: str | None = Query(None, max_length=30), ticker: str | None = Query(None, max_length=12),

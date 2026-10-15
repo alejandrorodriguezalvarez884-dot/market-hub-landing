@@ -18,6 +18,7 @@ import csv
 import io
 import logging
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -28,6 +29,7 @@ import httpx
 from .config import HISTORY_DAYS, HISTORY_TTL_SECONDS, PROFILE_TTL_SECONDS, QUOTE_TTL_SECONDS
 from .live import DAILY_TTL, INSTRUMENTS, INTRADAY_TTL, MOVERS_MIN_PRICE, LiveMarkets, _num, _pct, _ytd, provider_symbol
 from .market import Fmp, MarketUnavailable, TTLCache
+from .quotepage import company, fund, statements
 
 log = logging.getLogger("markethub.yahoo")
 
@@ -40,6 +42,11 @@ FAILED_SECONDS = 60
 WORKERS = 8
 BARS_KEPT = 760  # daily bars of a symbol handed to the watchlist: three years
 ESTIMATES_TTL_SECONDS = 24 * 3600
+DETAILS_TTL_SECONDS = 24 * 3600
+SEARCH_TTL_SECONDS = 24 * 3600
+# A fund Yahoo finds that the quote page can open: a US symbol, with no exchange suffix.
+FUND_SYMBOL = re.compile(r"^[A-Z]{1,5}$")
+FUND_TYPES = {"ETF": "ETF", "MUTUALFUND": "Mutual fund"}
 
 # The portal's symbols for what is not a stock (live.INSTRUMENTS) -> Yahoo's. Indices are the same.
 SYMBOLS = {
@@ -109,6 +116,31 @@ def _estimates(frame) -> dict:
     return out
 
 
+def _meta(ticker) -> dict:
+    """What Yahoo says of a symbol with its bars. Read key by key: for a mutual fund, yfinance
+    lists keys it then cannot give (its trading periods)."""
+    meta = getattr(ticker, "history_metadata", None) or {}
+    out = {}
+    for key in list(meta.keys()):
+        try:
+            out[key] = meta[key]
+        except KeyError:
+            continue
+    return out
+
+
+def _statements(ticker):
+    """A company's yearly and quarterly income statements."""
+    return ticker.income_stmt, ticker.quarterly_income_stmt
+
+
+def _holdings(ticker):
+    """A fund's holdings, sectors and asset mix: yfinance reads them all at the first one asked for."""
+    data = ticker.funds_data
+    data.fund_overview  # noqa: B018 (asked here, so a refusal is caught as one)
+    return data
+
+
 class Yahoo:
     def __init__(self, yf=None):
         self._yf = yf  # the yfinance module; tests pass a stand-in
@@ -117,7 +149,11 @@ class Yahoo:
         self._minutes = TTLCache()
         self._lates = TTLCache()
         self._outlooks = TTLCache()
+        self._infos = TTLCache()
+        self._details = TTLCache()
+        self._finds = TTLCache()
         self._quiet_until = 0.0
+        self._search_quiet_until = 0.0
         self._lock = threading.Lock()
 
     @property
@@ -161,7 +197,7 @@ class Yahoo:
         def ask(yf):
             ticker = yf.Ticker(SYMBOLS.get(key, key))
             frame = ticker.history(period="5y", interval="1d", auto_adjust=False, actions=False)
-            return frame, dict(getattr(ticker, "history_metadata", None) or {})
+            return frame, _meta(ticker)
 
         got = self._call(f"bars {key}", ask)
         bars = [{"time": ts.strftime("%Y-%m-%d"), "open": o, "high": h, "low": lo, "close": c, "volume": v}
@@ -223,13 +259,22 @@ class Yahoo:
         since = (date.today() - timedelta(days=HISTORY_DAYS)).isoformat()
         return [{"date": b["time"], "close": b["close"]} for b in self._read(ticker, HISTORY_TTL_SECONDS)["bars"] if b["time"] >= since]
 
+    def _info(self, key: str) -> dict:
+        """Everything Yahoo says of a symbol in one answer, kept as long as a company's facts."""
+        hit = self._infos.get(key, PROFILE_TTL_SECONDS)
+        if hit is None:
+            hit = self._call(f"facts {key}", lambda yf: dict(yf.Ticker(SYMBOLS.get(key, key)).info or {})) or {}
+            self._infos.put(key, hit)
+        return hit
+
     def profile(self, ticker: str) -> dict:
         key = ticker.upper()
         hit = self._facts.get(key, PROFILE_TTL_SECONDS)
         if hit is not None:
             return hit
-        info = self._call(f"facts {key}", lambda yf: dict(yf.Ticker(SYMBOLS.get(key, key)).info or {})) or {}
-        fund = str(info.get("quoteType") or "").upper() in ("ETF", "MUTUALFUND")
+        info = self._info(key)
+        quote_type = str(info.get("quoteType") or "").upper()
+        fund = quote_type in FUND_TYPES
         exchange = str(info.get("fullExchangeName") or info.get("exchange") or "")
         p = {"sector": info.get("sector") or "", "industry": info.get("industry") or "",
              "name": info.get("longName") or info.get("shortName") or ticker, "is_etf": fund,
@@ -239,9 +284,65 @@ class Yahoo:
              "average_volume": _num(info.get("averageVolume")), "market_cap": _num(info.get("marketCap")),
              "shares": _num(info.get("sharesOutstanding")), "country": info.get("country") or "",
              "pe": _num(info.get("trailingPE")), "eps": _num(info.get("trailingEps")),
-             "forward_pe": _num(info.get("forwardPE")), "next_results": _day(info.get("earningsTimestampStart"))}
+             "forward_pe": _num(info.get("forwardPE")), "next_results": _day(info.get("earningsTimestampStart")),
+             "fund_type": FUND_TYPES.get(quote_type),
+             # A fund's yield as it reports it, and the money it holds.
+             "fund_yield": _num(info.get("yield")), "net_assets": _num(info.get("totalAssets")) or _num(info.get("netAssets"))}
         self._facts.put(key, p)
         return p
+
+    def details(self, ticker: str) -> dict:
+        """What the quote page tells of a symbol beyond its price: for a company, its business,
+        valuation, margins, balance sheet, owners, dividends and its last income statements (four
+        years and five quarters); for a fund, its costs, size, holdings, sectors and asset mix.
+        Empty for what is neither."""
+        key = ticker.upper()
+        hit = self._details.get(key, DETAILS_TTL_SECONDS)
+        if hit is not None:
+            return hit
+        info = self._info(key)
+        quote_type = str(info.get("quoteType") or "").upper()
+        out: dict = {}
+        if quote_type == "EQUITY":
+            out = {"type": "stock", "company": company(info)}
+            try:  # the statements are a request of their own: the page stands without them
+                got = self._call(f"statements {key}", lambda yf: _statements(yf.Ticker(key)))
+            except MarketUnavailable:
+                got = None
+            if got:
+                out["financials"] = {"annual": statements(got[0])[-4:], "quarterly": statements(got[1])[-5:]}
+        elif quote_type in FUND_TYPES:
+            try:
+                data = self._call(f"holdings {key}", lambda yf: _holdings(yf.Ticker(key)))
+            except MarketUnavailable:
+                data = None
+            out = {"type": "fund", "fund_type": FUND_TYPES[quote_type], "fund": fund(info, data)}
+        self._details.put(key, out)
+        return out
+
+    def find_funds(self, query: str, limit: int = 6) -> list[dict]:
+        """US funds (ETFs and mutual funds) whose name or symbol matches, as Yahoo's own search
+        finds them: symbol, name and type. Its failures keep only the search quiet, not the prices."""
+        key = " ".join(query.lower().split())
+        hit = self._finds.get(key, SEARCH_TTL_SECONDS)
+        if hit is not None:
+            return hit
+        if time.monotonic() < self._search_quiet_until:
+            return []
+        try:
+            got = self.yf.Search(query, max_results=10, news_count=0, lists_count=0).quotes or []
+        except Exception as exc:  # noqa: BLE001 (yfinance's own errors and its HTTP library's)
+            self._search_quiet_until = time.monotonic() + (REFUSED_SECONDS if "RateLimit" in type(exc).__name__ else FAILED_SECONDS)
+            log.warning("yahoo search -> %s", type(exc).__name__)
+            return []
+        out = []
+        for q in got:
+            sym, kind = str(q.get("symbol") or "").upper(), str(q.get("quoteType") or "").upper()
+            if kind in FUND_TYPES and FUND_SYMBOL.match(sym):
+                out.append({"ticker": sym, "name": q.get("longname") or q.get("shortname") or sym, "kind": FUND_TYPES[kind]})
+        out = out[:limit]
+        self._finds.put(key, out)
+        return out
 
     def bars(self, ticker: str) -> list[dict]:
         """Three years of daily bars, oldest first: time, open, high, low, close and volume. The
@@ -292,7 +393,7 @@ class Yahoo:
         def ask(yf):
             ticker = yf.Ticker(SYMBOLS.get(key, key))
             frame = ticker.history(period="1d", interval="1m", prepost=True, auto_adjust=False, actions=False)
-            return frame, dict(getattr(ticker, "history_metadata", None) or {})
+            return frame, _meta(ticker)
 
         got = self._call(f"extended {key}", ask)
         late = _late(*got) if got else None
@@ -346,6 +447,12 @@ class Fallback:
 
     def estimates(self, ticker: str) -> dict:
         return self._first(lambda s: s.estimates(ticker) if hasattr(s, "estimates") else {}, bool)
+
+    def details(self, ticker: str) -> dict:
+        return self._first(lambda s: s.details(ticker) if hasattr(s, "details") else {}, bool)
+
+    def find_funds(self, query: str) -> list[dict]:
+        return next((s.find_funds(query) for s in self.sources if hasattr(s, "find_funds")), [])
 
 
 def default_market():

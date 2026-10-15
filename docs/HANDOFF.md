@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-10-14.
+Última actualización: 2026-10-15.
 
 ## Qué se pidió
 
@@ -21,6 +21,36 @@ Decisiones del usuario:
 - Cada posición guarda **acciones y precio medio**; los favoritos son solo tickers.
 
 ## Dónde estamos
+
+### La ficha de valor (`/quote/`) crece, y admite ETFs y fondos de inversión (2026-10-15; **sin desplegar**)
+
+El usuario pidió mejorar bastante la página que abre el buscador, con fondos indexados y ETFs además
+de acciones, y más datos y gráficas:
+- **Fondos en el buscador**: `/api/search` añade los fondos de EE. UU. (ETF y mutual funds) que
+  encuentra la búsqueda de Yahoo (`Yahoo.find_funds`, guardada 24 h por consulta; un fallo solo
+  calla la búsqueda, no los precios), con su tipo (`kind`), detrás de las 5 primeras empresas
+  (`merge_found`). Desde 2 letras. Solo símbolos sin sufijo de bolsa: nada de UCITS europeos.
+- **Un fondo se puede seguir**: la cartera y la watchlist aceptan un ticker que no está en la lista
+  de la SEC si el proveedor dice que es un fondo (`known` en `api.py`).
+- **Los mutual funds se leen**: yfinance fallaba al copiar sus metadatos (`tradingPeriods`); ahora
+  se leen clave a clave (`_meta`). Su gráfico es el propio (TradingView no los tiene), y la ficha no
+  muestra apertura ni rango del día (tienen un precio al día).
+- **`GET /api/public/quote/more`** (`LiveMarkets.more`, cálculos en `quotepage.py`): cinco años de
+  cierres con los de SPY en los mismos días, la rentabilidad de cada año natural de los dos y
+  volatilidad, beta a un año, peor caída, mejor y peor día; para una empresa, lo que Yahoo dice
+  (`company`: negocio, valoración, márgenes, balance, accionistas, dividendos) y sus cuentas de
+  resultados (4 años, 5 trimestres); para un fondo, `fund` (tipo, familia, categoría, comisión,
+  patrimonio, yield, top 10 posiciones, sectores, mezcla de activos). Sin precios objetivo ni
+  recomendaciones de analistas (un test lo comprueba). `quote` lleva además `fund_type` y
+  `net_assets`, y el yield de un fondo como "dividend yield".
+- **La página** (`quote.astro`, gráficas en `lib/quotecharts.ts`): "Against the S&P 500" (1, 3 y 5
+  años), "Year by year", "Falls from its high"; para una empresa, "Revenue and earnings" (años o
+  trimestres), "The company" y "The numbers"; para un fondo, "Top holdings", "Sectors" y su ficha.
+  Las pestañas Fundamentals / Results release solo salen para acciones.
+- **Tests**: `tests/test_quotepage.py` (16). `make test` en verde y `astro check` sin errores. Visto en
+  local con Yahoo de verdad (AAPL, SCHD, VFIAX; escritorio y móvil, sin desbordes). La beta de
+  AAPL (0,63) cuadra con un cálculo aparte.
+- **Pendiente**: desplegar (decisión del usuario); llevar estas secciones a la app de móvil.
 
 ### Google, segunda vuelta: la portada con los últimos artículos, una imagen al compartir, `/tools/` al día y 404 de verdad (2026-10-14; **desplegado**, revisión `market-hub-00050-ghz`)
 

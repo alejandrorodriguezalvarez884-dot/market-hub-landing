@@ -1,15 +1,16 @@
 ---
 // One instrument: price, chart, key figures and past returns, with the way to the same company
-// in the analysis tools.
+// in the analysis tools. Below, its past against the S&P 500 and, for a company, its business
+// and its accounts; for a fund, what it costs and what it holds.
 import Search from "../components/Search.astro";
 import Site from "../components/Site.astro";
 import { link } from "../lib/site";
 ---
 
-<Site noindex title="Quote" description="Price, chart, key figures and past returns for any US-listed stock, index or market.">
+<Site noindex title="Quote" description="Price, chart, key figures, past returns and what is behind them for any US-listed stock, fund, index or market.">
 	<section id="empty" class="mx-auto max-w-xl py-16" hidden>
-		<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Look up a stock</h1>
-		<p class="mt-2 text-ink">Any US-listed company or fund, by name or ticker.</p>
+		<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">Look up a stock or a fund</h1>
+		<p class="mt-2 text-ink">Any US-listed company, ETF or mutual fund, by name or ticker.</p>
 		<div class="mt-6"><Search large autofocus id="quote-search" /></div>
 	</section>
 
@@ -41,18 +42,22 @@ import { link } from "../lib/site";
 				</section>
 			</aside>
 		</div>
+
+		<div id="q-more" class="mt-14 space-y-14"></div>
 	</div>
 </Site>
 
 <script>
 	import { api, ApiError, signedIn, type Portfolio } from "../lib/api";
 	import { add, h, linkTo } from "../lib/dom";
-	import { change, compact, level, money, signedPct, toneClass } from "../lib/format";
-	import { isEquity, quote, type Quote } from "../lib/market";
+	import { change, compact, count, level, money, mult, num, pct, shortDate, signedPct, toneClass } from "../lib/format";
+	import { priceChart } from "../lib/lwc";
+	import { isEquity, quote, quoteMore, type Company, type Fund, type History, type Period, type Quote, type QuoteMore } from "../lib/market";
 	import { newsLine } from "../lib/news";
+	import { BENCH, EARNINGS, REVENUE, SELF, SPANS, columns, drawdowns, growth, mix, picker, spansOf, weights, type Span } from "../lib/quotecharts";
 	import { SITE_NAME, fundamentalsUrl, link, radarUrl, tidyName } from "../lib/site";
 	import { fromTv, tvChart } from "../lib/tv";
-	import { failed } from "../lib/widgets";
+	import { failed, quoteHref } from "../lib/widgets";
 
 	const $ = (id: string) => document.getElementById(id)!;
 	// The ticker in the address; a block of TradingView's map arrives with it in TradingView's own writing.
@@ -64,7 +69,8 @@ import { link } from "../lib/site";
 		document.title = `${q.symbol} ${level(q.price, q.kind)} — ${tidyName(q.name)} — ${SITE_NAME}`;
 		const late = q.extended;
 		$("q-head").replaceChildren(
-			h("p", "text-[13px] text-muted", [q.symbol, isEquity(q.kind) ? q.exchange : kindLabel[q.kind], isEquity(q.kind) && q.sector !== "—" ? q.sector : null].filter(Boolean).join(" · ")),
+			h("p", "text-[13px] text-muted", [q.symbol, q.fund_type ?? (q.kind === "stock" ? null : kindLabel[q.kind]), isEquity(q.kind) ? q.exchange : null,
+				q.kind === "stock" && q.sector !== "—" ? q.sector : null].filter(Boolean).join(" · ")),
 			h("h1", "mt-1 text-[2rem] font-medium leading-tight tracking-tight text-ink-strong", tidyName(q.name)),
 			add(h("div", "mt-4 flex flex-wrap items-baseline gap-x-4"),
 				h("span", "num text-[2.75rem] leading-none text-ink-strong", level(q.price, q.kind)),
@@ -105,14 +111,17 @@ import { link } from "../lib/site";
 
 	function stats(q: Quote) {
 		const eq = isEquity(q.kind);
+		const mutual = q.fund_type === "Mutual fund";
 		const items: (HTMLElement | null)[] = [
 			row("Previous close", level(q.prev_close, q.kind)),
-			row("Open", level(q.open, q.kind)),
-			row("Day range", `${level(q.day_low, q.kind)} – ${level(q.day_high, q.kind)}`),
+			// A mutual fund has one price a day, its net asset value: no open and no range within the day.
+			mutual ? null : row("Open", level(q.open, q.kind)),
+			mutual ? null : row("Day range", `${level(q.day_low, q.kind)} – ${level(q.day_high, q.kind)}`),
 			range52(q),
 			q.volume ? row("Volume", compact(q.volume)) : null,
 			q.avg_volume ? row("Avg. volume (3M)", compact(q.avg_volume)) : null,
 			eq && q.market_cap ? row("Market cap", money(q.market_cap)) : null,
+			q.net_assets ? row("Net assets", money(q.net_assets)) : null,
 			q.kind === "stock" && q.pe != null ? row("P/E (trailing)", q.pe.toFixed(1)) : null,
 			q.kind === "stock" && q.eps != null ? row("EPS (trailing)", `$${q.eps.toFixed(2)}`) : null,
 			eq ? row("Dividend yield", q.dividend_yield == null ? "—" : `${(q.dividend_yield * 100).toFixed(2)}%`) : null,
@@ -161,9 +170,9 @@ import { link } from "../lib/site";
 	// The same company in the three parts of Market Hub: its price here, its numbers in
 	// Fundamentals Lab and its latest results release in the Earnings Radar (companies only).
 	function tabs(q: Quote) {
-		if (!isEquity(q.kind)) return;
-		const items: [string, string, boolean][] = [["Price", location.href, true], ["Fundamentals", fundamentalsUrl(q.symbol), false]];
-		if (q.kind === "stock") items.push(["Results release", radarUrl(q.symbol), false]);
+		if (q.kind !== "stock" || q.fund_type) return; // a fund's own figures are on this page
+		const items: [string, string, boolean][] = [["Price", location.href, true], ["Fundamentals", fundamentalsUrl(q.symbol), false],
+			["Results release", radarUrl(q.symbol), false]];
 		const nav = $("q-tabs");
 		nav.replaceChildren(...items.map(([label, href, current]) => {
 			const a = linkTo(href, "tab-btn", label);
@@ -173,12 +182,195 @@ import { link } from "../lib/site";
 		nav.hidden = false;
 	}
 
+	// --- below the price -------------------------------------------------------------------------
+
+	const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+	const month = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+
+	function section(title: string, note?: string | HTMLElement): { el: HTMLElement; body: HTMLElement } {
+		const body = h("div");
+		const head = add(h("div", "sec-head"), h("h2", "sec-title", title), typeof note === "string" ? h("span", "sec-note", note) : note);
+		return { el: add(h("section", "sec"), head, body), body };
+	}
+
+	// A list of figures under a small heading; rows with nothing to show are left out, and so is a
+	// list with none.
+	type Fig = [label: string, value: string | null | undefined, tone?: string];
+	function figures(title: string, items: Fig[]): HTMLElement | null {
+		const shown = items.filter(([, v]) => v && v !== "—");
+		if (!shown.length) return null;
+		return add(h("div", "min-w-0"), title ? h("h3", "mb-1 text-[13px] font-medium text-ink-strong", title) : null,
+			...shown.map(([label, v, tone]) => add(h("div", "flex items-baseline justify-between gap-3 border-b border-line py-2 text-sm last:border-0"),
+				h("span", "text-muted", label), h("span", `num text-right text-[13px] ${tone ?? "text-ink-strong"}`, v!))));
+	}
+
+	function grid(cols: string, ...items: (HTMLElement | null)[]): HTMLElement | null {
+		const shown = items.filter((x): x is HTMLElement => !!x);
+		return shown.length ? add(h("div", `grid gap-x-14 gap-y-12 ${cols}`), ...shown) : null;
+	}
+
+	// Charts are drawn once they are on the page, where they have a width.
+	const pending: (() => void)[] = [];
+
+	function rest(q: Quote, m: QuoteMore) {
+		const parts: (HTMLElement | null)[] = [];
+		if (m.history) parts.push(versus(q, m.history), grid("lg:grid-cols-2", years(q, m.history), falls(m.history)));
+		if (m.company) parts.push(...company(m.company, m.financials));
+		if (m.fund) parts.push(...fund(m.fund, m.fund_type ?? q.fund_type ?? "Fund"));
+		$("q-more").replaceChildren(...parts.filter((x): x is HTMLElement => !!x));
+		for (const draw of pending.splice(0)) draw();
+	}
+
+	function versus(q: Quote, hist: History): HTMLElement {
+		const spans = spansOf(hist);
+		const span: Span = spans.includes("5Y") ? "5Y" : spans[spans.length - 1];
+		const box = h("div");
+		const labels = Object.fromEntries(spans.map((k) => [k, k === "1Y" ? "1 year" : `${SPANS[k] / 252} years`]));
+		const s = section(hist.benchmark ? "Against the S&P 500" : "Over the years", picker(spans, span, (v) => growth(box, hist, q.symbol, v), labels));
+		s.body.append(box, h("p", "mt-2 text-[12.5px] text-muted", `Price only, without dividends.${hist.benchmark ? " The S&P 500 is the SPDR S&P 500 ETF (SPY)." : ""}`));
+		pending.push(() => growth(box, hist, q.symbol, span));
+		return s.el;
+	}
+
+	function years(q: Quote, hist: History): HTMLElement | null {
+		const ys = hist.years.slice(-6);
+		if (ys.length < 2) return null;
+		const series = [{ name: q.symbol, color: SELF }, ...(hist.benchmark ? [{ name: "S&P 500", color: BENCH }] : [])];
+		const last = ys[ys.length - 1];
+		const s = section("Year by year", "Price return in each calendar year");
+		s.body.append(columns(ys.map((y) => ({ label: String(y.year), note: y.partial ? (y === last ? "to date" : "in part") : undefined,
+			values: hist.benchmark ? [y.return, y.benchmark] : [y.return] })), series, (v) => signedPct(v, 0)));
+		return s.el;
+	}
+
+	function falls(hist: History): HTMLElement {
+		const r = hist.risk;
+		const n = Math.min(hist.dates.length, SPANS["5Y"] + 1);
+		const box = h("div");
+		const s = section("Falls from its high", "How far below its highest close so far, each day");
+		const dd = r.max_drawdown, bd = r.benchmark_max_drawdown;
+		const rows = figures("", [
+			["Deepest fall", dd ? `${pct(dd.depth)} · ${month(dd.peak)} → ${month(dd.trough)}` : null, "down"],
+			["S&P 500's deepest fall", bd ? `${pct(bd.depth)} · ${month(bd.peak)} → ${month(bd.trough)}` : null, "text-muted"],
+			["Volatility, last year", r.volatility_1y == null ? null : `${pct(r.volatility_1y)}${r.benchmark_volatility_1y != null ? ` (S&P 500 ${pct(r.benchmark_volatility_1y)})` : ""}`],
+			["Beta to the S&P 500, last year", r.beta_1y == null ? null : num(r.beta_1y, 2)],
+			["Best day, last year", r.best_day ? `${signedPct(r.best_day.return)} · ${day(r.best_day.date)}` : null, "up"],
+			["Worst day, last year", r.worst_day ? `${signedPct(r.worst_day.return)} · ${day(r.worst_day.date)}` : null, "down"],
+			["Days it closed up, last year", r.up_days_1y == null ? null : pct(r.up_days_1y, 0)],
+		]);
+		s.body.append(box);
+		if (rows) s.body.append(add(h("div", "mt-4"), rows));
+		pending.push(() => drawdowns(box, hist.dates.slice(-n), hist.closes.slice(-n)));
+		return s.el;
+	}
+
+	// --- a company --------------------------------------------------------------------------------
+
+	function about(text: string): HTMLElement {
+		const p = h("p", "max-w-[68ch] whitespace-pre-line text-[14.5px] leading-relaxed text-ink line-clamp-5", text);
+		const box = add(h("div"), p);
+		if (text.length > 420) {
+			const more = h("button", "mt-2 text-[13px] text-muted hover:text-ink-strong", "Read more");
+			more.type = "button";
+			more.addEventListener("click", () => {
+				const closed = p.classList.toggle("line-clamp-5");
+				more.textContent = closed ? "Read more" : "Show less";
+			});
+			box.append(more);
+		}
+		return box;
+	}
+
+	const fiscal = (end: string) => `FY${end.slice(0, 4)}`;
+	const quarter = (end: string) => new Date(`${end}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" }).replace(" ", " '");
+	type Accounts = { annual: Period[]; quarterly: Period[] };
+
+	function accounts(fin: Accounts): HTMLElement | null {
+		const names = { annual: "Years", quarterly: "Quarters" } as const;
+		const views = (["annual", "quarterly"] as const).filter((k) => fin[k].length);
+		if (!views.length) return null;
+		const box = h("div");
+		const draw = (k: keyof Accounts) => box.replaceChildren(columns(fin[k].map((p) => ({
+			label: k === "annual" ? fiscal(p.end) : quarter(p.end),
+			note: p.revenue && p.net_income != null ? `${pct(p.net_income / p.revenue, 0)} margin` : undefined,
+			values: [p.revenue, p.net_income],
+		})), [{ name: "Revenue", color: REVENUE }, { name: "Net income", color: EARNINGS }], (v) => money(v, Math.abs(v) >= 1e11 ? 0 : 1), 210));
+		const s = section("Revenue and earnings", picker(views, views[0], draw, names));
+		draw(views[0]);
+		s.body.append(box, h("p", "mt-3 text-[12.5px] text-muted", "From the company's income statements. The margin is net income over revenue."));
+		return s.el;
+	}
+
+	function company(c: Company, fin?: Accounts): (HTMLElement | null)[] {
+		const place = [c.city, c.state, c.country].filter(Boolean).join(", ");
+		let site: HTMLAnchorElement | null = null;
+		if (/^https?:\/\//.test(c.website)) {
+			site = linkTo(c.website, "text-ink-strong hover:underline", c.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""));
+			site.target = "_blank";
+			site.rel = "noopener nofollow";
+		}
+		const known: [string, string][] = [["Sector", c.sector], ["Industry", c.industry], ["Employees", c.employees ? count(c.employees) : ""],
+			["Headquarters", place], ["Next results", c.next_results ? shortDate(c.next_results) : ""]];
+		const facts = add(h("div", "mt-5 grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-3"),
+			...known.filter(([, v]) => v).map(([k, v]) => add(h("div", "min-w-0"), h("div", "text-[12.5px] text-muted", k), h("div", "truncate text-ink-strong", v))),
+			site ? add(h("div", "min-w-0"), h("div", "text-[12.5px] text-muted", "Website"), add(h("div", "truncate"), site)) : null);
+		const biz = section("The company");
+		if (c.summary) biz.body.append(about(c.summary));
+		biz.body.append(facts);
+
+		const v = c.valuation, p = c.profitability, g = c.growth, hl = c.health, o = c.ownership, d = c.dividends;
+		const books = grid("sm:grid-cols-2 xl:grid-cols-4",
+			figures("Valuation", [["P/E, trailing", v.pe == null ? null : num(v.pe, 1)], ["P/E, forward", v.forward_pe == null ? null : num(v.forward_pe, 1)],
+				["Price to sales", mult(v.ps)], ["Price to book", mult(v.pb)], ["EV to EBITDA", mult(v.ev_ebitda)], ["Enterprise value", money(v.enterprise_value)]]),
+			figures("Margins and growth", [["Gross margin", pct(p.gross_margin)], ["Operating margin", pct(p.operating_margin)], ["Net margin", pct(p.net_margin)],
+				["Return on equity", pct(p.roe)], ["Return on assets", pct(p.roa)],
+				["Revenue growth, last quarter", signedPct(g.revenue), toneClass(g.revenue)], ["Earnings growth, last quarter", signedPct(g.earnings), toneClass(g.earnings)]]),
+			figures("Balance sheet and cash", [["Revenue, last 12 months", money(hl.revenue)], ["EBITDA", money(hl.ebitda)], ["Free cash flow", money(hl.free_cash_flow)],
+				["Cash", money(hl.cash)], ["Debt", money(hl.debt)], ["Debt to equity", mult(hl.debt_to_equity, 2)],
+				["Current ratio", hl.current_ratio == null ? null : num(hl.current_ratio, 2)]]),
+			figures("Owners and dividends", [["Held by insiders", pct(o.insiders)], ["Held by institutions", pct(o.institutions)],
+				["Short, of the float", pct(o.short_of_float)], ["Shares outstanding", compact(o.shares)],
+				["Dividend a share, a year", d.rate ? `$${d.rate.toFixed(2)}` : null], ["Payout ratio", d.payout_ratio ? pct(d.payout_ratio, 0) : null],
+				["Ex-dividend date", d.ex_date ? shortDate(d.ex_date) : null], ["Average yield, 5 years", d.five_year_avg_yield ? pct(d.five_year_avg_yield, 2) : null]]));
+		const numbers = books ? section("The numbers", "As Yahoo Finance reports them") : null;
+		if (numbers && books) numbers.body.append(books);
+		const statements = fin ? accounts(fin) : null;
+		return [statements ? grid("lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]", statements, biz.el) : biz.el, numbers?.el ?? null];
+	}
+
+	// --- a fund -----------------------------------------------------------------------------------
+
+	function fund(f: Fund, type: string): (HTMLElement | null)[] {
+		const held = f.holdings.length ? section("Top holdings", f.holdings_weight ? `The top ${f.holdings.length} are ${pct(f.holdings_weight, 0)} of the fund` : undefined) : null;
+		held?.body.append(weights(f.holdings.map((x) => ({ name: tidyName(x.name), weight: x.weight, tag: x.label, href: x.symbol ? quoteHref(x.symbol) : null }))));
+		const sectors = f.sectors.length ? section("Sectors") : null;
+		sectors?.body.append(weights(f.sectors));
+
+		const facts = section(type === "ETF" ? "The ETF" : "The fund");
+		const sheet = grid("sm:grid-cols-2",
+			figures("What it is", [["Type", f.legal_type || type], ["Family", f.family], ["Category", f.category],
+				["Started", f.inception ? shortDate(f.inception) : null], ["Beta, 3 years", f.beta_3y == null ? null : num(f.beta_3y, 2)]]),
+			figures("What it costs and returns", [["Expense ratio, a year", f.expense_ratio == null ? null : pct(f.expense_ratio, 2)],
+				["Net assets", money(f.assets)], ["Yield", f.yield == null ? null : pct(f.yield, 2)], ["Net asset value", f.nav ? `$${f.nav.toFixed(2)}` : null],
+				["Total return, 3 years, a year on average", signedPct(f.return_3y), toneClass(f.return_3y)],
+				["Total return, 5 years, a year on average", signedPct(f.return_5y), toneClass(f.return_5y)]]));
+		if (sheet) facts.body.append(sheet);
+		if (f.asset_mix.length) facts.body.append(add(h("div", "mt-8"), h("h3", "mb-3 text-[13px] font-medium text-ink-strong", "What it holds"), mix(f.asset_mix)));
+		if (f.summary) facts.body.append(add(h("div", "mt-8"), h("h3", "mb-2 text-[13px] font-medium text-ink-strong", "What it does"), about(f.summary)));
+		return [grid("lg:grid-cols-2", held?.el ?? null, sectors?.el ?? null), facts.el];
+	}
+
 	async function start() {
 		if (!ticker) return void ($("empty").hidden = false);
 		$("quote").hidden = false;
 		tvChart($("q-chart"), { symbol: ticker, range: "12M", height: 520 });
+		const more = quoteMore(ticker);
+		more.catch(() => {}); // drawn, or left out, once the quote is there
+		$("q-more").replaceChildren(h("span", "skeleton block h-[340px] w-full"));
 		try {
 			const q = await quote(ticker);
+			// TradingView has no chart for a mutual fund: it gets the site's own, from its daily prices.
+			if (q.fund_type === "Mutual fund") priceChart($("q-chart"), { symbol: ticker, range: "1Y", height: 460, intraday: false, style: "area" });
 			head(q);
 			stats(q);
 			performance(q);
@@ -186,7 +378,9 @@ import { link } from "../lib/site";
 			$("q-news").replaceChildren(...q.news.map(newsLine));
 			follow(q).catch(() => {});
 			tabs(q);
+			more.then((m) => rest(q, m), () => $("q-more").replaceChildren());
 		} catch (e) {
+			$("q-more").replaceChildren();
 			failed($("q-head"), e instanceof ApiError && e.status === 400 ? "That is not a ticker." : "This quote is not available right now.");
 		}
 	}

@@ -18,7 +18,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 
-from . import sample
+from . import quotepage, sample
 from .market import Fmp, MarketUnavailable, NotInPlan
 
 log = logging.getLogger("markethub.live")
@@ -373,13 +373,37 @@ class LiveMarkets:
             "avg_volume": profile.get("average_volume") or (sum(volumes) / len(volumes) if volumes else None),
             "market_cap": cap if kind in ("stock", "etf") else None,
             "pe": profile.get("pe"), "eps": profile.get("eps"),
-            "dividend_yield": last_dividend / price if last_dividend and price else None,
+            "dividend_yield": last_dividend / price if last_dividend and price else profile.get("fund_yield"),
+            "net_assets": profile.get("net_assets"),
             "beta": profile.get("beta"),
             "return_1m": _ret(closes, 21), "return_6m": _ret(closes, 126),
             "return_ytd": _ytd([b["time"] for b in daily], closes), "return_1y": _ret(closes, 252),
             "return_5y": _ret(closes, 1250), "spark": closes[-30:],
+            "fund_type": profile.get("fund_type") or ("ETF" if kind == "etf" else None),
             "news": [],  # the API fills it from the news desk
         }
+
+    def more(self, ticker: str) -> dict:
+        """The rest of the quote page: the symbol's past set against the S&P 500 and, for a
+        company or a fund, what the provider says of it. Each part is there only when it could be read."""
+        provider, kind, _ = provider_symbol(ticker)
+        try:
+            bars = self._daily(provider)
+        except MarketUnavailable:
+            bars = []
+        bench = None
+        if provider.upper() != quotepage.BENCHMARK:
+            try:
+                bench = self._daily(quotepage.BENCHMARK)
+            except MarketUnavailable:
+                bench = None
+        details: dict = {}
+        if kind == "stock" and hasattr(self.fmp, "details"):
+            try:
+                details = self.fmp.details(provider)
+            except MarketUnavailable:
+                details = {}
+        return {"symbol": ticker, "source": self.SOURCE, "history": quotepage.history(bars, bench), **details}
 
 
 def _ytd(dates: list[str], closes: list[float]) -> float | None:
@@ -401,6 +425,12 @@ class SampleMarkets:
 
     def quote(self, ticker: str, name: str | None = None) -> dict:
         return sample.quote(ticker, name=name)
+
+    def more(self, ticker: str) -> dict:
+        def bars(symbol: str) -> list[dict]:
+            return [{"time": r[0].isoformat(), "close": r[4]} for r in sample.daily(symbol)]
+        bench = None if ticker.upper() == quotepage.BENCHMARK else bars(quotepage.BENCHMARK)
+        return {"symbol": ticker, "source": "sample", "history": quotepage.history(bars(ticker), bench)}
 
 
 def default_markets(market) -> LiveMarkets | SampleMarkets:

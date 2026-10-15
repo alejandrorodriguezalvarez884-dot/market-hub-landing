@@ -51,7 +51,7 @@ const { large = false, compact = false, autofocus = false, mode = "open", button
 	import { API } from "../lib/api";
 	import { tidyName } from "../lib/site";
 
-	type Found = { ticker: string; name: string };
+	type Found = { ticker: string; name: string; kind?: string }; // kind: "ETF" or "Mutual fund", for a fund
 
 	for (const form of document.querySelectorAll<HTMLFormElement>(".company-search")) {
 		const input = form.querySelector("input")!;
@@ -85,7 +85,7 @@ const { large = false, compact = false, autofocus = false, mode = "open", button
 					name.textContent = tidyName(c.name);
 					const ticker = document.createElement("span");
 					ticker.className = "num flex-none text-xs text-muted";
-					ticker.textContent = c.ticker;
+					ticker.textContent = c.kind ? `${c.ticker} · ${c.kind}` : c.ticker;
 					li.append(name, ticker);
 					li.addEventListener("pointerdown", (e) => (e.preventDefault(), go(c)));
 					return li;
@@ -113,7 +113,7 @@ const { large = false, compact = false, autofocus = false, mode = "open", button
 				const res = await fetch(`${API}/api/search?q=${encodeURIComponent(q)}`);
 				if (!res.ok) throw new Error(String(res.status));
 				next = (await res.json()).companies;
-				if (!next.length) message = "No US-listed company with that name or ticker.";
+				if (!next.length) message = "No US-listed company or fund with that name or ticker.";
 			} catch {
 				message = "The search is not available right now. You can still type a ticker and press Enter.";
 			}
