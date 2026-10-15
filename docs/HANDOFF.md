@@ -47,7 +47,7 @@ de acciones, y más datos y gráficas:
   años), "Year by year", "Falls from its high"; para una empresa, "Revenue and earnings" (años o
   trimestres), "The company" y "The numbers"; para un fondo, "Top holdings", "Sectors" y su ficha.
   Las pestañas Fundamentals / Results release solo salen para acciones.
-- **Tests**: `tests/test_quotepage.py` (16). `make test` en verde y `astro check` sin errores. Visto en
+- **Tests**: `tests/test_quotepage.py` (14). `make test` en verde y `astro check` sin errores. Visto en
   local con Yahoo de verdad (AAPL, SCHD, VFIAX; escritorio y móvil, sin desbordes). La beta de
   AAPL (0,63) cuadra con un cálculo aparte.
 - **Pendiente**: desplegar (decisión del usuario); llevar estas secciones a la app de móvil.
