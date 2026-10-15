@@ -28,9 +28,12 @@ Decisiones del usuario:
 > con el Chrome de la máquina) dibuja desde `favicon.svg` `favicon.ico` (16, 32 y 48 px),
 > `favicon-192.png`, `apple-touch-icon.png` (180, opaco) y `logo.png` (512), todos en
 > `site/public`. `Layout.astro` los declara, y el logo de los datos estructurados (Organization en
-> la portada y publisher de los artículos, `previews.py`) pasa de SVG a `logo.png`. **Sin
-> desplegar.** Después del despliegue hay que pedir en Search Console que vuelva a rastrear la
-> portada; aun así, Google tarda días en actualizar el favicon.
+> la portada y publisher de los artículos, `previews.py`) pasa de SVG a `logo.png`. **Desplegado**
+> como `market-hub-00057-cwx`, con `gcloud run deploy --source` desde una copia limpia de 2e689c9
+> y sin flags: la configuración del servicio es idéntica antes y después, y en producción los
+> cinco iconos responden 200. Pedida en Search Console la indexación de la portada el mismo día;
+> Google tarda días en cambiar el favicon (se comprueba con
+> `google.com/s2/favicons?domain=themarkethub.app`, que hoy da 404).
 
 > 2026-10-15: **Sin enlace al código fuente.** El pie de página ya no lleva "Source" (el enlace al
 > repo de GitHub) y `REPO_URL` ya no existe en `site/src/lib/`: la web no enlaza ni menciona el
