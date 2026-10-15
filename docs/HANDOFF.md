@@ -22,7 +22,7 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-### News como feed con scroll infinito (2026-10-15; **sin desplegar**)
+### News como feed con scroll infinito (2026-10-15; **desplegado**, revisión `market-hub-00054-q4w`)
 
 El usuario pidió que `/news/` fuera "más adictiva", con scroll infinito y varias noticias a la vez:
 - **Tarjetas en rejilla** (`feedCard` en `lib/news.ts`, que sustituye a `newsItem` y `byDay`): portada
@@ -45,6 +45,10 @@ El usuario pidió que `/news/` fuera "más adictiva", con scroll infinito y vari
   el final, filtros, vuelta desde un artículo y móvil a 375 px sin desbordes. El botón de nuevas no
   se vio en vivo (pide un refresco con noticias nuevas). `make test` en verde, `astro check` sin
   errores, build.
+- **Desplegado** a petición del usuario desde una copia limpia de `dffcf2b` (`git archive`), con
+  `gcloud run deploy market-hub --source` sin flags: variables (comparadas por hash), recursos,
+  anotaciones y cuenta de servicio iguales antes y después. En producción `/news/` pinta el feed,
+  carga más al bajar y la visita pidió el refresco de siempre ("Updated just now").
 
 ### Media: el episodio 4 de Money 101 (2026-10-15; **desplegado**, revisión `market-hub-00053-dm8`)
 
