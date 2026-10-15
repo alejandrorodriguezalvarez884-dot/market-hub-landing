@@ -123,7 +123,7 @@ def home_page(page: str, cards: list[dict]) -> str:
 
 
 def _article_data(card: dict, site: str, address: str, image: str | None) -> dict:
-    publisher = {"@type": "Organization", "name": SITE_NAME, "url": f"{site}/", "logo": {"@type": "ImageObject", "url": f"{site}/favicon.svg"}}
+    publisher = {"@type": "Organization", "name": SITE_NAME, "url": f"{site}/", "logo": {"@type": "ImageObject", "url": f"{site}/logo.png"}}
     author = {"@type": "Person", "name": card["author"]} if card.get("author") else {"@type": "Organization", "name": SITE_NAME, "url": f"{site}/"}
     data = {"@context": "https://schema.org", "@type": "Article", "headline": card["title"], "description": card.get("dek") or "",
             "url": address, "mainEntityOfPage": address, "author": author, "publisher": publisher, "inLanguage": "en"}

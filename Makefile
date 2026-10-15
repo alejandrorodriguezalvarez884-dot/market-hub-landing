@@ -7,7 +7,7 @@
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
-.PHONY: help install env test check site api dev serve deploy film share covers
+.PHONY: help install env test check site api dev serve deploy film share icons covers
 
 help: ## List the targets
 	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  make %-9s %s\n", $$1, $$2}'
@@ -42,6 +42,9 @@ film: ## Draw, score and encode the landing page's film into site/public (uses t
 
 share: ## Draw the picture a shared link to the site shows (site/public/share.png, uses this machine's Chrome)
 	cd film && npm ci && node share.mjs
+
+icons: ## Draw favicon.ico, the PNG icons and logo.png from site/public/favicon.svg (uses this machine's Chrome)
+	cd film && npm ci && node icons.mjs
 
 covers: ## Draw the library of news covers into site/public (uses this machine's Chrome); ONLY=Energy for one scope
 	cd covers && npm ci && node render.mjs --sheet $(if $(ONLY),--only "$(ONLY)") && node overview.mjs

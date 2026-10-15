@@ -22,6 +22,16 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-15: **Favicons para Google.** En la búsqueda de Google la web salía con el globo gris:
+> Google no tenía ningún favicon suyo (`google.com/s2/favicons?domain=themarkethub.app` daba 404),
+> porque solo había `favicon.svg` y `/favicon.ico` daba 404. Ahora `make icons` (`film/icons.mjs`,
+> con el Chrome de la máquina) dibuja desde `favicon.svg` `favicon.ico` (16, 32 y 48 px),
+> `favicon-192.png`, `apple-touch-icon.png` (180, opaco) y `logo.png` (512), todos en
+> `site/public`. `Layout.astro` los declara, y el logo de los datos estructurados (Organization en
+> la portada y publisher de los artículos, `previews.py`) pasa de SVG a `logo.png`. **Sin
+> desplegar.** Después del despliegue hay que pedir en Search Console que vuelva a rastrear la
+> portada; aun así, Google tarda días en actualizar el favicon.
+
 > 2026-10-15: **Sin enlace al código fuente.** El pie de página ya no lleva "Source" (el enlace al
 > repo de GitHub) y `REPO_URL` ya no existe en `site/src/lib/`: la web no enlaza ni menciona el
 > código, por decisión del usuario. **Desplegado** como `market-hub-00056-5nw`, con
