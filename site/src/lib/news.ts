@@ -68,18 +68,28 @@ export function byline(n: NewsItem): HTMLElement {
 
 export const tickers = (n: NewsItem) => (n.tickers.length ? add(h("p", "mt-2 flex flex-wrap gap-1.5"), ...n.tickers.slice(0, 6).map((t) => linkTo(quoteHref(t), "chip", t))) : null);
 
-// A full item: byline, title, summary, the instruments it is about, and its picture beside them.
-export function newsItem(n: NewsItem): HTMLElement {
-  const src = cover(n, true);
-  const shown = src ? add(linkTo(articleHref(n), "order-last flex-none self-start"), picture(src, "aspect-video w-24 sm:w-44")) : null;
-  if (shown) (shown.tabIndex = -1), shown.setAttribute("aria-hidden", "true");
-  return add(h("article", "flex gap-4 border-b border-line py-4 first:pt-1 sm:gap-6"),
-    add(h("div", "min-w-0 flex-1"),
+// A card of the news feed: its picture, byline, title, summary and the instruments it is about.
+// The whole card opens the item; the instruments keep their own links above it. The card that
+// leads its day is wider, with its picture beside the text.
+export function feedCard(n: NewsItem, lead = false): HTMLElement {
+  const small = cover(n, true);
+  let frame: HTMLElement | null = null;
+  if (small) {
+    const img = picture(small, `aspect-video w-full !rounded-none ${lead ? "sm:aspect-auto sm:h-full sm:min-h-56" : ""}`);
+    img.srcset = `${small} 480w, ${cover(n)} 1280w`;
+    img.sizes = lead ? "(min-width: 1024px) 420px, (min-width: 640px) 55vw, 100vw" : "(min-width: 1024px) 340px, (min-width: 640px) 45vw, 100vw";
+    frame = add(h("div", `feed-frame flex-none overflow-hidden ${lead ? "sm:w-[56%]" : ""}`), img);
+  }
+  const shown = tickers(n);
+  shown?.classList.add("relative", "z-10");
+  return add(h("article", `feed-card group relative flex flex-col overflow-hidden rounded-md border border-line bg-panel transition-colors hover:border-line-strong ${lead ? "sm:col-span-2 sm:flex-row" : ""}`),
+    frame,
+    add(h("div", `flex min-w-0 flex-1 flex-col p-4 ${lead ? "sm:justify-center sm:p-6" : ""}`),
       byline(n),
-      add(h("h3", "mt-1.5 max-w-[44rem] text-[1.0625rem] font-medium leading-snug text-ink-strong"), linked(n, "hover:underline")),
-      n.summary ? h("p", "mt-1.5 max-w-[44rem] text-sm text-ink", n.summary) : null,
-      tickers(n)),
-    shown);
+      add(h("h3", lead ? "mt-2 text-[1.25rem] font-medium leading-tight tracking-tight text-ink-strong sm:text-[1.5rem]" : "mt-2 text-[1.0625rem] font-medium leading-snug text-ink-strong"),
+        linked(n, "after:absolute after:inset-0 group-hover:underline")),
+      n.summary ? h("p", `mt-2 text-sm text-ink ${lead ? "line-clamp-4" : "line-clamp-3"}`, n.summary) : null,
+      shown));
 }
 
 // A short one, for a side column: byline and title.
@@ -102,16 +112,4 @@ export function dayLabel(iso: string, now = new Date()): string {
 export function dayKey(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-// Items under a heading per day, newest day first (they arrive newest first).
-export function byDay(items: NewsItem[]): HTMLElement[] {
-  const out: HTMLElement[] = [];
-  let label = "";
-  for (const n of items) {
-    const day = dayLabel(n.published_utc);
-    if (day !== label) out.push(h("h2", "mt-8 text-[13px] text-muted first:mt-0", (label = day)));
-    out.push(newsItem(n));
-  }
-  return out;
 }

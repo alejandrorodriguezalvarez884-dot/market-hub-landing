@@ -22,6 +22,30 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+### News como feed con scroll infinito (2026-10-15; **sin desplegar**)
+
+El usuario pidió que `/news/` fuera "más adictiva", con scroll infinito y varias noticias a la vez:
+- **Tarjetas en rejilla** (`feedCard` en `lib/news.ts`, que sustituye a `newsItem` y `byDay`): portada
+  arriba, byline, título, resumen cortado a 3 líneas y tickers; toda la tarjeta abre la noticia. La
+  primera de cada día va ancha, con la portada al lado. Dos columnas desde `sm`, una en móvil.
+  Las portadas usan `srcset` (la pequeña de 480 px y la de 1.280).
+- **Por tandas de 12** según se baja (un `IntersectionObserver` 1.200 px antes del final), cada
+  tarjeta entra con un fundido al aparecer; al acabar, "You're all caught up" con cuántas hay
+  desde qué día. Todo sale de lo que ya trae `GET /api/public/news?limit=200`: no hay paginación en
+  el servidor. Hoy son ~95 noticias; si la portada llega a las 200 (`NEWS_FRONT_ITEMS`), el feed
+  acaba ahí, y seguir más atrás pediría leer el archivo (`news/{id}`) con un cursor.
+- **Barra fija** con pestañas y filtros bajo la cabecera, que se aparta al bajar y vuelve al subir;
+  cada día lleva su nombre fijo encima de sus tarjetas; una línea bajo la cabecera dice cuánto del
+  feed se ha visto; botón flotante para volver arriba. Cambiar un filtro reinicia el feed arriba.
+- **Volver de una noticia** deja el feed como estaba (tarjetas y posición, en `sessionStorage`).
+- **Si un refresco trae noticias nuevas** con el lector ya abajo, no mueve nada: sale un botón
+  "↑ N new stories" que las pone arriba.
+- **Probado** en local con las 95 noticias de producción copiadas a un directorio temporal (config
+  `hub-news-windows` del `launch.json` del workspace, sin claves de IA ni de precios): carga hasta
+  el final, filtros, vuelta desde un artículo y móvil a 375 px sin desbordes. El botón de nuevas no
+  se vio en vivo (pide un refresco con noticias nuevas). `make test` en verde, `astro check` sin
+  errores, build.
+
 ### Media: el episodio 4 de Money 101 (2026-10-15; **desplegado**, revisión `market-hub-00053-dm8`)
 
 El vídeo "Your payslip: gross, net, and the tax bracket myth" (`cEmKr7Sr9IA`) y su Short
