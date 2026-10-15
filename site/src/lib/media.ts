@@ -33,8 +33,10 @@ export const YOUTUBE = {
         { id: "VXJU88A1oJw", title: "Compound interest: why time matters more than the amount", length: "4:16", cover: "compound-interest.jpg", note: "Episode 1" },
         { id: "gSV_7yoBPF0", title: "Inflation: why the same money buys less every year", length: "4:33", cover: "inflation.jpg", note: "Episode 2" },
         { id: "nApfz535ZbM", title: "Debt: what borrowing really costs", length: "4:20", cover: "debt.jpg", note: "Episode 3" },
+        { id: "cEmKr7Sr9IA", title: "Your payslip: gross, net, and the tax bracket myth", length: "4:45", cover: "payslip.jpg", note: "Episode 4" },
       ],
       shorts: [
+        { id: "diVlnbWR5OQ", title: "Can a raise into a higher tax bracket cost you money?", length: "0:43", cover: "payslip-short.jpg" },
         { id: "WKDiiXEf17A", title: "The credit card minimum that takes eleven years", length: "0:43", cover: "debt-short.jpg" },
         { id: "4LCtdOLN4DI", title: "The hundred-dollar bill that lost half its value in a drawer", length: "0:44", cover: "inflation-short.jpg" },
         { id: "B0TP-VL4Ov4", title: "The lily pad riddle most people get wrong", length: "0:41", cover: "compound-interest-short.jpg" },
