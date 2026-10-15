@@ -22,6 +22,12 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-15: **Una instancia siempre encendida.** Para el lanzamiento, por decisión del usuario,
+> `market-hub` tiene `--min-instances 1` (revisión `market-hub-00058-nfx`, hecha con `gcloud run services update`,
+> sin reconstruir): nadie espera un arranque en frío y las cachés en memoria duran. Cuesta
+> tener la instancia parada pero viva todo el mes. `scripts/deploy-cloudrun.sh` lo fija con
+> `MIN_INSTANCES` (1 por defecto; `MIN_INSTANCES=0 make deploy` vuelve a escalar a cero).
+
 > 2026-10-15: **Favicons para Google.** En la búsqueda de Google la web salía con el globo gris:
 > Google no tenía ningún favicon suyo (`google.com/s2/favicons?domain=themarkethub.app` daba 404),
 > porque solo había `favicon.svg` y `/favicon.ico` daba 404. Ahora `make icons` (`film/icons.mjs`,

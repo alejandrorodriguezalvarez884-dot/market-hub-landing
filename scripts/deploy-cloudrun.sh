@@ -29,7 +29,7 @@
 # makes (private, in the same region as the database), where the owner reads them: nothing is
 # published from here. The market-hub-opinion repo lists what is waiting (`make inbox`).
 #
-# Optional overrides: GCP_PROJECT, GCP_REGION, SERVICE_NAME, MAX_INSTANCES, FIRESTORE_LOCATION,
+# Optional overrides: GCP_PROJECT, GCP_REGION, SERVICE_NAME, MIN_INSTANCES, MAX_INSTANCES, FIRESTORE_LOCATION,
 # FIRESTORE_DATABASE, SUBMISSIONS_BUCKET.
 set -euo pipefail
 
@@ -49,6 +49,8 @@ FIRESTORE_LOCATION="${FIRESTORE_LOCATION:-europe-west1}"
 # A database of its own: the project's "(default)" one belongs to other apps and is in the US.
 FIRESTORE_DATABASE="${FIRESTORE_DATABASE:-market-hub}"
 SERVICE_NAME="${SERVICE_NAME:-market-hub}"
+# One instance stays warm so nobody waits for a cold start.
+MIN_INSTANCES="${MIN_INSTANCES:-1}"
 MAX_INSTANCES="${MAX_INSTANCES:-2}"
 ENV_FILE=".env"
 
@@ -187,7 +189,7 @@ gcp run deploy "$SERVICE_NAME" \
   --port 8080 \
   --cpu 1 \
   --memory 1Gi \
-  --min-instances 0 \
+  --min-instances "$MIN_INSTANCES" \
   --max-instances "$MAX_INSTANCES" \
   --timeout 60 \
   --set-secrets "$SECRETS" \
