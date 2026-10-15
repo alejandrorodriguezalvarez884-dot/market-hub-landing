@@ -2,7 +2,7 @@
 // Shell of the public portal: one header line with the search at its centre, and the footer.
 // Signed-in users get a "My Hub" button to their private area.
 import Layout from "../layouts/Layout.astro";
-import { AUTHOR_URL, REPO_URL, SITE_NAME, link } from "../lib/site";
+import { AUTHOR_URL, SITE_NAME, link } from "../lib/site";
 import AccountMenu from "./AccountMenu.astro";
 import Logo from "./Logo.astro";
 import Search from "./Search.astro";
@@ -76,7 +76,6 @@ const nav = [
 				<a href={link("/privacy/")} class="hover:text-ink-strong">Privacy</a>
 				<a href={link("/terms/")} class="hover:text-ink-strong">Terms</a>
 				<a href={link("/contact/")} class="hover:text-ink-strong">Contact</a>
-				<a href={REPO_URL} class="hover:text-ink-strong">Source</a>
 				<a href={AUTHOR_URL} class="hover:text-ink-strong">Built by Alejandro Rodríguez Álvarez</a>
 			</div>
 		</div>

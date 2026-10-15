@@ -22,6 +22,10 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-15: **Sin enlace al código fuente.** El pie de página ya no lleva "Source" (el enlace al
+> repo de GitHub) y `REPO_URL` ya no existe en `site/src/lib/`: la web no enlaza ni menciona el
+> código, por decisión del usuario. **Sin desplegar**: llega a la web con el próximo `make deploy`.
+
 ### Sign-in dentro de las apps de LinkedIn, Instagram o X (2026-10-15; **desplegado**, revisión `market-hub-00055-5rr`)
 
 Para el lanzamiento en LinkedIn: Google no deja iniciar sesión desde los navegadores que llevan

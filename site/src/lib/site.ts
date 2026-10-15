@@ -2,7 +2,6 @@
 // The name of the site, wherever it is named: the mark at the top of every page, titles, shared
 // links, search engines.
 export const SITE_NAME = "The Market Hub";
-export const REPO_URL = "https://github.com/alejandrorodriguezalvarez884-dot/market-hub-landing";
 export const AUTHOR_URL = "https://alejandrorodriguez.dev/";
 // Where readers reach us: published on /contact/, which the app and its store pages link to.
 export const CONTACT_EMAIL = "alejandrorodriguezalvarez884@gmail.com";
