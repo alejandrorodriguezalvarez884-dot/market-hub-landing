@@ -1,7 +1,8 @@
 ---
 // The landing page. It says one thing first: your portfolio, read by AI, with the film beside
-// it. Then what that AI is for the reader (personal, effortless, cutting-edge), the rest of
-// Market Hub in three lines, and what the site commits to. It sells in general terms and names
+// it. Right under it, the analysis tools, the site's strongest part, each a door of its own.
+// Then what that AI is for the reader (personal, effortless, cutting-edge), the rest of
+// Market Hub in two lines, and what the site commits to. It sells in general terms and names
 // no model and no provider, as the owner asked; what the site does in detail is on its pages. It asks the data provider
 // for nothing, so a visit to it costs no market-data calls.
 // The film is drawn and scored by code (film/, `make film`); it is no recording of the site.
@@ -15,13 +16,17 @@ const reading = [
 	["Effortless", "Clarity in seconds", "Forget the spreadsheets and the endless charts. Open Market Hub and understand your portfolio at a glance, in plain words."],
 	["State of the art", "Cutting-edge AI, working for you", "Powered by the latest generation of AI, the kind that is changing how people understand their money. And what is yours stays yours."],
 ];
+// The analysis tools, each in a line, with a mark drawn for it. A tool asks a visitor who is not
+// signed in to sign in first, and brings them back to it.
+const tools = [
+	{ name: "Fundamentals Lab", about: "The numbers", text: "Statements, valuation, forward multiples and an AI reading of any US company.", url: FUNDAMENTALS_URL, icon: "M3 17V10m5 7V5m5 12v-5m5 5V3" },
+	{ name: "Earnings Radar", about: "The results release", text: "What a company just told its investors: guidance, demand, margins and its themes.", url: RADAR_URL, icon: "M10 10l5.5-5.5M3 10a7 7 0 1 0 14 0a7 7 0 1 0-14 0M6.5 10a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0" },
+	{ name: "Peer Map", about: "Who does the same thing", text: "1,500 US companies, each next to the ones whose business reads the most alike.", url: PEERS_URL, icon: "M6 6l4 4l4-5M10 10l-4 5M10 10l5 5M3.4 5a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M13.4 4a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M3.4 16a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0M14.4 16a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0" },
+	{ name: "Options Lab", about: "Options, read in detail", text: "Implied volatility, the Greeks, and strategies of up to eight legs with their payoff.", url: OPTIONS_URL, icon: "M2 15h5l6-10h5M2 5h5l2 3.4M11 11.6l2 3.4h5" },
+	{ name: "Playground", about: "A board you ask for", text: "Ask in plain words for the charts and tables you want, side by side on one board.", url: PLAYGROUND_URL, icon: "M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM14 11v6M11 14h6" },
+];
 // The rest of Market Hub, each part in a line and the ways into it.
 const rest = [
-	{
-		title: "AI tools for any company",
-		text: "Go deep on any US company in minutes, from its numbers to what it just told its investors.",
-		links: [["Fundamentals Lab", `${FUNDAMENTALS_URL}/`], ["Earnings Radar", `${RADAR_URL}/`], ["Peer Map", `${PEERS_URL}/`], ["Playground", `${PLAYGROUND_URL}/`], ["Options Lab", `${OPTIONS_URL}/`]],
-	},
 	{
 		title: "The market, every day",
 		text: "Follow the day as it happens, with the news, opinion and video that matter. Open to everyone.",
@@ -92,7 +97,7 @@ const phones = [
 					</p>
 					<div class="mt-7 flex flex-wrap items-center gap-3" data-rv style="--i:3">
 						<a href={link("/signin/")} class="btn btn-primary" data-hub>Start with your portfolio</a>
-						<a href={link("/today/")} class="btn btn-ghost">See today's market</a>
+						<a href="#tools" class="btn btn-tools">Explore the 5 AI tools<span aria-hidden="true">↓</span></a>
 					</div>
 					<p class="mt-5 text-[13px] text-muted" data-rv style="--i:4">
 						Also an app for iPhone: <a href={APP_STORE_URL} class="link" rel="noopener">download it on the App Store</a>
@@ -107,7 +112,36 @@ const phones = [
 					<figcaption class="mt-2 flex items-baseline justify-between text-[12.5px] text-muted"><span>Market Hub in a minute</span><span>With sound</span></figcaption>
 				</figure>
 			</div>
-			<a id="cue" href="#ai" class="cue">See what it does<span aria-hidden="true"></span></a>
+			<a id="cue" href="#tools" class="cue">See the tools<span aria-hidden="true"></span></a>
+		</section>
+
+		<section id="tools" class="chapter" aria-labelledby="tools-title">
+			<header class="chapter-head" data-rv>
+				<div class="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-1">
+					<h2 id="tools-title" class="chapter-title">Five AI tools to go deep on any US company.</h2>
+					<p class="sec-note">One sign-in opens them all</p>
+				</div>
+				<p class="mt-3 max-w-2xl text-ink">
+					From a company's numbers to what it just told its investors, who it really competes with and how its options are priced. Pick one and start.
+				</p>
+			</header>
+			<ul class="tool-grid mt-8">
+				{tools.map((t, i) => (
+					<li data-rv style={`--i:${i}`}>
+						<a href={`${t.url}/`} class="tool">
+							<svg viewBox="0 0 20 20" class="h-6 w-6 flex-none text-ink-strong" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={t.icon}></path></svg>
+							<span class="mt-5 block text-[12.5px] text-muted">{t.about}</span>
+							<span class="mt-1 block text-[1.2rem] font-medium leading-snug tracking-tight text-ink-strong">{t.name}</span>
+							<span class="mt-2 block flex-1 text-sm text-ink">{t.text}</span>
+							<span class="tool-go mt-5">Open {t.name}<span aria-hidden="true">→</span></span>
+						</a>
+					</li>
+				))}
+			</ul>
+			<div class="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3" data-rv style="--i:5">
+				<a href={link("/signin/")} class="btn btn-primary" data-tools>Sign in and open the tools</a>
+				<a href={link("/tools/")} class="link text-[13px]">What each tool does</a>
+			</div>
 		</section>
 
 		<section id="ai" class="chapter" aria-labelledby="ai-title">
@@ -153,7 +187,7 @@ const phones = [
 			<header class="chapter-head" data-rv>
 				<h2 id="rest-title" class="chapter-title">And there is more to Market Hub</h2>
 			</header>
-			<div class="mt-8 grid gap-x-14 gap-y-10 md:grid-cols-3">
+			<div class="mt-8 grid gap-x-14 gap-y-10 md:grid-cols-2">
 				{rest.map((r, i) => (
 					<div data-rv style={`--i:${i}`}>
 						<h3 class="text-lg font-medium leading-snug text-ink-strong">{r.title}</h3>
@@ -186,7 +220,7 @@ const phones = [
 				<h2 id="start-title" class="lede !text-ink-strong" data-rv>Add your stocks. The AI does the rest.</h2>
 				<div class="flex flex-wrap items-center gap-3" data-rv style="--i:1">
 					<a href={link("/signin/")} class="btn btn-primary" data-hub>Start with your portfolio</a>
-					<a href={link("/today/")} class="btn btn-ghost">See today's market</a>
+					<a href="#tools" class="btn btn-tools">Explore the AI tools</a>
 					<a href={APP_STORE_URL} class="btn btn-ghost" rel="noopener">Download on the App Store</a>
 				</div>
 			</div>
@@ -292,6 +326,58 @@ const phones = [
 		text-wrap: balance;
 	}
 
+	/* The second way in, beside the first: the tools, outlined in full ink so it reads as a
+	   button of its own and not as a lesser one. */
+	.btn-tools {
+		border: 1px solid var(--color-ink-strong);
+		color: var(--color-ink-strong);
+		transition: background-color 0.15s, color 0.15s;
+	}
+	.btn-tools:hover {
+		background: var(--color-ink-strong);
+		color: var(--color-page);
+	}
+
+	/* The tools: five doors, each a card that is a link as a whole. */
+	.tool-grid {
+		display: grid;
+		gap: 12px;
+		grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.5rem), 1fr));
+	}
+	.tool-grid > li {
+		display: flex;
+	}
+	.tool {
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		border: 1px solid var(--color-line-strong);
+		border-radius: 4px;
+		background: var(--color-panel);
+		padding: 20px 20px 18px;
+		transition: border-color 0.2s, background-color 0.2s, transform 0.3s var(--ease);
+	}
+	.tool:hover,
+	.tool:focus-visible {
+		border-color: var(--color-ink-strong);
+		background: var(--color-raised);
+		transform: translateY(-3px);
+	}
+	.tool-go {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--color-ink-strong);
+	}
+	.tool-go span {
+		transition: transform 0.2s var(--ease);
+	}
+	.tool:hover .tool-go span {
+		transform: translateX(4px);
+	}
+
 	/* The app's screens, in three phones. The two at the sides drift against the one in the middle
 	   as the page goes by (--p is how far the block has gone through the window). */
 	.phones {
@@ -342,7 +428,10 @@ const phones = [
 		.home.moves [data-rv],
 		.home.moves .chapter-head:not(.in)::before,
 		.phone,
-		.phone.side {
+		.phone.side,
+		.tool,
+		.tool:hover,
+		.tool:hover .tool-go span {
 			transform: none;
 			transition: none;
 		}
@@ -387,6 +476,8 @@ const phones = [
 				a.textContent = "Open My Hub";
 				a.href = link("/dashboard/");
 			});
+			// Someone signed in needs no sign-in to open a tool: the cards are the way in.
+			page.querySelectorAll("[data-tools]").forEach((a) => a.remove());
 		})
 		.catch(() => {});
 </script>

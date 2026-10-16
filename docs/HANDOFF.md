@@ -22,6 +22,18 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-16: **Las herramientas, a la vista en la portada.** El usuario pidió un CTA muy claro
+> hacia las herramientas, "el mayor asset de la web". En `index.astro`: la cabecera lleva al lado
+> de "Start with your portfolio" el botón "Explore the 5 AI tools ↓" (sustituye a "See today's
+> market", que ya está en la cabecera del sitio), que baja a una sección nueva justo debajo,
+> "Five AI tools to go deep on any US company": una tarjeta por herramienta, entera un enlace
+> (icono, de qué va, nombre, una línea y "Open …"), y debajo "Sign in and open the tools" (que
+> desaparece con sesión) y "What each tool does" (`/tools/`). La columna de herramientas de "And
+> there is more" se va (queda en dos), y el cierre de la página también ofrece las herramientas.
+> Una herramienta sin sesión ya manda a `/signin/?next=` y vuelve. La cabecera pública sigue sin
+> nombrar las herramientas (decisión del 2026-10-06). Probado en local (1.440 px y 375 px, sin
+> desbordes), `astro check` y `pytest` en verde. **Sin desplegar.**
+
 > 2026-10-15: **Una instancia siempre encendida.** Para el lanzamiento, por decisión del usuario,
 > `market-hub` tiene `--min-instances 1` (revisión `market-hub-00058-nfx`, hecha con `gcloud run services update`,
 > sin reconstruir): nadie espera un arranque en frío y las cachés en memoria duran. Cuesta
