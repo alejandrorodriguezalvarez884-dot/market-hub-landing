@@ -34,8 +34,10 @@ export const YOUTUBE = {
         { id: "gSV_7yoBPF0", title: "Inflation: why the same money buys less every year", length: "4:33", cover: "inflation.jpg", note: "Episode 2" },
         { id: "nApfz535ZbM", title: "Debt: what borrowing really costs", length: "4:20", cover: "debt.jpg", note: "Episode 3" },
         { id: "cEmKr7Sr9IA", title: "Your payslip: gross, net, and the tax bracket myth", length: "4:45", cover: "payslip.jpg", note: "Episode 4" },
+        { id: "CflEf8cR8RI", title: "A budget is not a diet: how to share out what arrives", length: "4:30", cover: "budget.jpg", note: "Episode 5" },
       ],
       shorts: [
+        { id: "heJc9QM5ObQ", title: "Is the daily coffee really where your money goes?", length: "0:37", cover: "budget-short.jpg" },
         { id: "diVlnbWR5OQ", title: "Can a raise into a higher tax bracket cost you money?", length: "0:43", cover: "payslip-short.jpg" },
         { id: "WKDiiXEf17A", title: "The credit card minimum that takes eleven years", length: "0:43", cover: "debt-short.jpg" },
         { id: "4LCtdOLN4DI", title: "The hundred-dollar bill that lost half its value in a drawer", length: "0:44", cover: "inflation-short.jpg" },
