@@ -41,7 +41,10 @@ Decisiones del usuario:
 >   móvil, las imágenes de la App Store (otro commit allí). No se han tocado los textos de
 >   `the-market-hub-media` que dicen "The market, read by AI" (cabecera de X y el vídeo de
 >   lanzamiento, ya publicados).
-> Probado en local a 1.024 px y 375 px. **Sin desplegar.**
+> Probado en local a 1.024 px y 375 px. **Desplegado** a petición del usuario como
+> `market-hub-00061-zg2`, desde un export limpio de 635bd81 con `gcloud run deploy market-hub
+> --source <export>` sin opciones: variables (por hash), recursos, anotaciones y cuenta de
+> servicio iguales antes y después, y la portada en producción ya lo enseña.
 
 > 2026-10-16: **Las herramientas, a la vista en la portada.** El usuario pidió un CTA muy claro
 > hacia las herramientas, "el mayor asset de la web". En `index.astro`: la cabecera lleva al lado
