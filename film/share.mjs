@@ -27,7 +27,7 @@ const card = `<!doctype html><html><head><meta charset="utf-8">
     <svg viewBox="0 0 20 20" fill="none" stroke="#f2f0ea" stroke-width="2" stroke-linecap="round"><path d="M4 2v16M4 10h8"/><circle cx="14.5" cy="10" r="2.75" fill="#f2f0ea" stroke="none"/></svg>
     <span class="name">The Market Hub</span>
   </div>
-  <p class="what">Your portfolio, read by AI.</p>
+  <p class="what">Your portfolio, powered by AI.</p>
   <p class="where">themarkethub.app</p>
 </body></html>`;
 

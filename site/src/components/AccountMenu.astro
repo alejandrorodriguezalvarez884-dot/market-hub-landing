@@ -1,11 +1,15 @@
 ---
-// Top-right of the public header: "Sign in" for visitors, the user's picture and a menu for
-// signed-in users.
+// Top-right of the public header. For visitors, the way into My Hub, the site's private area
+// with its tools, as the main button, and "Sign in" beside it for those who have an account; for
+// signed-in users, the same button straight to My Hub, their picture and a menu.
 import { link } from "../lib/site";
 ---
 
-<div id="account" class="relative flex flex-none items-center gap-2">
-	<a href={link("/signin/")} id="signin-link" class="btn btn-primary" hidden>Sign in</a>
+<div id="account" class="relative flex flex-none items-center gap-3">
+	<span id="signin-link" class="flex items-center gap-3" hidden>
+		<a href={link("/signin/")} class="hidden text-sm text-muted hover:text-ink-strong sm:inline">Sign in</a>
+		<a href={link("/signin/")} class="btn btn-primary">Open My Hub</a>
+	</span>
 </div>
 
 <script>
@@ -20,7 +24,7 @@ import { link } from "../lib/site";
 		.then((who) => {
 			if (!who) return void (signin.hidden = false);
 			signin.remove();
-			const hub = linkTo(link("/dashboard/"), "btn btn-ghost hidden sm:inline-flex", "My Hub");
+			const hub = linkTo(link("/dashboard/"), "btn btn-primary hidden sm:inline-flex", "Open My Hub");
 			const button = h("button", "rounded-full ring-2 ring-transparent hover:ring-line-strong");
 			button.type = "button";
 			button.setAttribute("aria-label", "Account");

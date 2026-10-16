@@ -1,5 +1,5 @@
 ---
-// The landing page. It says one thing first: your portfolio, read by AI, with the film beside
+// The landing page. It says one thing first: your portfolio, powered by AI, with the film beside
 // it. Right under it, the analysis tools, the site's strongest part, each a door of its own.
 // Then what that AI is for the reader (personal, effortless, cutting-edge), the rest of
 // Market Hub in two lines, and what the site commits to. It sells in general terms and names
@@ -25,6 +25,14 @@ const tools = [
 	{ name: "Options Lab", about: "Options, read in detail", text: "Implied volatility, the Greeks, and strategies of up to eight legs with their payoff.", url: OPTIONS_URL, icon: "M2 15h5l6-10h5M2 5h5l2 3.4M11 11.6l2 3.4h5" },
 	{ name: "Playground", about: "A board you ask for", text: "Ask in plain words for the charts and tables you want, side by side on one board.", url: PLAYGROUND_URL, icon: "M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM14 11v6M11 14h6" },
 ];
+// What My Hub holds, said as its own pages say it, and its sections as its sidebar names them.
+const inside = [
+	["Overview", "What your portfolio is worth today, how it reads and how it stands against the indices."],
+	["Analysis", "Your portfolio taken apart: what it is made of and how it moves."],
+	["Watchlist", "The stocks you follow, side by side, with their charts and how each one stands."],
+	["Five AI tools", "Fundamentals Lab, Earnings Radar, Peer Map, Options Lab and Playground, ready to open."],
+];
+const space = ["Overview", "Analysis", "Watchlist", "Community", "Portfolio"];
 // The rest of Market Hub, each part in a line and the ways into it.
 const rest = [
 	{
@@ -72,7 +80,7 @@ const phones = [
 ];
 ---
 
-<Site title={`${SITE_NAME} — Your portfolio, read by AI`} schema={schema} description="AI portfolio analysis: a clear, personal reading of your own stocks in seconds, on the web and on iPhone. The Market Hub describes; it never tells you what to buy.">
+<Site title={`${SITE_NAME} — Your portfolio, powered by AI`} schema={schema} description="AI portfolio analysis: a clear, personal reading of your own stocks in seconds, on the web and on iPhone. The Market Hub describes; it never tells you what to buy.">
 	<div class="home">
 		<script is:inline>
 			// The parts wait to come in only where a script is there to bring them in; if the page's own
@@ -90,17 +98,17 @@ const phones = [
 					<svg class="h-12 w-12 text-ink-strong sm:h-14 sm:w-14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" role="img" aria-label={SITE_NAME} data-rv>
 						<path d="M4 2v16M4 10h8"></path><circle cx="14.5" cy="10" r="2.75" fill="currentColor" stroke="none"></circle>
 					</svg>
-					<h1 class="headline mt-7" data-rv style="--i:1">Your portfolio, read by AI.</h1>
+					<h1 class="headline mt-7" data-rv style="--i:1">Your portfolio, powered by AI.</h1>
 					<p class="mt-5 max-w-md text-[1.0625rem] text-ink" data-rv style="--i:2">
 						AI portfolio analysis, on your own stocks. Add what you hold or follow and get a clear, personal reading of
 						your portfolio in seconds, on the web and on your iPhone.
 					</p>
 					<div class="mt-7 flex flex-wrap items-center gap-3" data-rv style="--i:3">
-						<a href={link("/signin/")} class="btn btn-primary" data-hub>Start with your portfolio</a>
-						<a href="#tools" class="btn btn-tools">Explore the 5 AI tools<span aria-hidden="true">↓</span></a>
+						<a href={link("/signin/")} class="btn btn-primary btn-big" data-hub>Open My Hub, it's free<span aria-hidden="true">→</span></a>
+						<a href="#tools" class="btn btn-tools btn-big">Explore the 5 AI tools<span aria-hidden="true">↓</span></a>
 					</div>
 					<p class="mt-5 text-[13px] text-muted" data-rv style="--i:4">
-						Also an app for iPhone: <a href={APP_STORE_URL} class="link" rel="noopener">download it on the App Store</a>
+						Sign in with Google or your email. Also on iPhone: <a href={APP_STORE_URL} class="link" rel="noopener">download it on the App Store</a>
 					</p>
 				</div>
 				<figure data-rv style="--i:2">
@@ -138,9 +146,45 @@ const phones = [
 					</li>
 				))}
 			</ul>
-			<div class="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3" data-rv style="--i:5">
-				<a href={link("/signin/")} class="btn btn-primary" data-tools>Sign in and open the tools</a>
-				<a href={link("/tools/")} class="link text-[13px]">What each tool does</a>
+			<p class="mt-6 text-[13px] text-muted" data-rv style="--i:5">
+				They live in My Hub, behind one free sign-in. <a href={link("/tools/")} class="link">What each tool does</a>
+			</p>
+		</section>
+
+		<section id="hub" class="chapter" aria-labelledby="hub-title">
+			<div class="hub-band" data-rv>
+				<div class="grid items-center gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)]">
+					<div>
+						<p class="label">My Hub</p>
+						<h2 id="hub-title" class="hub-title mt-3">Your private space, with everything inside.</h2>
+						<p class="mt-4 max-w-xl text-ink">
+							Add the stocks you hold or follow, and My Hub turns them into your own dashboard, with the five AI tools one click away. Free, and only you see it.
+						</p>
+						<ul class="mt-7 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+							{inside.map(([t, d]) => (
+								<li class="hub-point"><span class="block font-medium text-ink-strong">{t}</span><span class="mt-1 block text-sm text-ink">{d}</span></li>
+							))}
+						</ul>
+						<div class="mt-9 flex flex-wrap items-center gap-x-5 gap-y-3">
+							<a href={link("/signin/")} class="btn btn-primary btn-big" data-hub>Open My Hub, it's free<span aria-hidden="true">→</span></a>
+							<span class="text-[13px] text-muted">Google or email. Delete it all whenever you like.</span>
+						</div>
+					</div>
+					<div class="hub-window" aria-hidden="true">
+						<div class="hub-bar"><i></i><i></i><i></i><span>themarkethub.app/dashboard</span></div>
+						<div class="hub-side">
+							<div class="flex items-center gap-2 text-[13px] font-semibold text-ink-strong">
+								<svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 2v16M4 10h8"></path><circle cx="14.5" cy="10" r="2.75" fill="currentColor" stroke="none"></circle></svg>
+								The Market Hub <span class="hub-tag">My Hub</span>
+							</div>
+							<p class="hub-private"><span></span>Private area. Only you see it.</p>
+							<p class="hub-group">Your space</p>
+							{space.map((s, i) => <p class:list={["hub-item", i === 0 && "on"]}>{s}</p>)}
+							<p class="hub-group">Tools</p>
+							{tools.map((t) => <p class="hub-item tool-item">{t.name}<span>AI</span></p>)}
+						</div>
+					</div>
+				</div>
 			</div>
 		</section>
 
@@ -162,7 +206,7 @@ const phones = [
 						))}
 					</dl>
 					<div class="mt-7 flex flex-wrap items-center gap-3" data-rv style="--i:3">
-						<a href={link("/signin/")} class="btn btn-primary" data-hub>Sign in or create an account</a>
+						<a href={link("/signin/")} class="btn btn-primary" data-hub>Open My Hub, it's free</a>
 						<a href={APP_STORE_URL} class="store" rel="noopener" aria-label="Download Market Hub on the App Store">
 							<svg viewBox="0 0 20 20" class="h-7 w-7 flex-none" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
 								<rect x="5.5" y="1.75" width="9" height="16.5" rx="2.2"></rect><path d="M8.6 4h2.8"></path>
@@ -214,17 +258,24 @@ const phones = [
 			</dl>
 		</section>
 
-		<section class="chapter pb-6" aria-labelledby="start-title">
+		<section id="start" class="chapter pb-6" aria-labelledby="start-title">
 			<div class="chapter-head" data-rv></div>
 			<div class="mt-10 grid items-end gap-x-14 gap-y-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
 				<h2 id="start-title" class="lede !text-ink-strong" data-rv>Add your stocks. The AI does the rest.</h2>
 				<div class="flex flex-wrap items-center gap-3" data-rv style="--i:1">
-					<a href={link("/signin/")} class="btn btn-primary" data-hub>Start with your portfolio</a>
+					<a href={link("/signin/")} class="btn btn-primary" data-hub>Open My Hub, it's free</a>
 					<a href="#tools" class="btn btn-tools">Explore the AI tools</a>
 					<a href={APP_STORE_URL} class="btn btn-ghost" rel="noopener">Download on the App Store</a>
 				</div>
 			</div>
 		</section>
+
+		{/* For visitors only, once the top of the page is behind them: the way into My Hub stays at
+		   hand, and steps aside where the page itself already offers it. */}
+		<div id="dock" class="dock up" hidden>
+			<p><span class="font-medium text-ink-strong">My Hub</span><span class="hidden sm:inline"> · your portfolio and five AI tools</span><span class="text-muted"> · free</span></p>
+			<a href={link("/signin/")} class="btn btn-primary">Open My Hub<span aria-hidden="true">→</span></a>
+		</div>
 	</div>
 </Site>
 
@@ -336,6 +387,151 @@ const phones = [
 	.btn-tools:hover {
 		background: var(--color-ink-strong);
 		color: var(--color-page);
+	}
+
+	/* The ways into My Hub, a size up from the site's buttons. */
+	.btn-big {
+		padding: 11px 20px;
+		font-size: 15px;
+		font-weight: 500;
+	}
+
+	/* My Hub: a band of its own, lit from one corner, with a drawing of its sidebar. */
+	.hub-band {
+		position: relative;
+		overflow: hidden;
+		border: 1px solid var(--color-line-strong);
+		border-radius: 6px;
+		background:
+			radial-gradient(120% 90% at 100% 0%, rgb(53 201 143 / 0.09), transparent 55%),
+			var(--color-panel);
+		padding: clamp(24px, 5vw, 56px);
+	}
+	.hub-title {
+		max-width: 16em;
+		font-size: clamp(1.7rem, 1.1rem + 2vw, 2.6rem);
+		font-weight: 500;
+		line-height: 1.08;
+		letter-spacing: -0.02em;
+		color: var(--color-ink-strong);
+		text-wrap: balance;
+	}
+	.hub-point {
+		border-left: 2px solid var(--color-up);
+		padding-left: 14px;
+	}
+	.hub-window {
+		overflow: hidden;
+		border: 1px solid var(--color-line-strong);
+		border-radius: 8px;
+		background: var(--color-deep);
+		box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.8);
+		max-width: 22rem;
+		width: 100%;
+		justify-self: center;
+	}
+	.hub-bar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		border-bottom: 1px solid var(--color-line);
+		padding: 9px 12px;
+		font-size: 11px;
+		color: var(--color-faint);
+	}
+	.hub-bar i {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--color-line-strong);
+	}
+	.hub-bar span {
+		margin-left: 8px;
+	}
+	.hub-side {
+		padding: 16px 14px 18px;
+	}
+	.hub-tag {
+		border: 1px solid var(--color-line-strong);
+		border-radius: 3px;
+		padding: 1px 5px;
+		font-size: 10px;
+		font-weight: 500;
+		color: var(--color-muted);
+	}
+	.hub-private {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 14px;
+		border: 1px solid var(--color-line);
+		border-radius: 5px;
+		background: var(--color-panel);
+		padding: 7px 10px;
+		font-size: 11px;
+		color: var(--color-muted);
+	}
+	.hub-private span {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--color-up);
+	}
+	.hub-group {
+		margin: 16px 8px 4px;
+		font-size: 10.5px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-faint);
+	}
+	.hub-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		border-radius: 4px;
+		padding: 6px 8px;
+		font-size: 13px;
+		font-weight: 600;
+		color: var(--color-ink);
+	}
+	.hub-item.on {
+		background: var(--color-raised);
+		color: var(--color-ink-strong);
+	}
+	.tool-item span {
+		border-radius: 3px;
+		background: var(--color-up-soft);
+		padding: 1px 5px;
+		font-size: 10px;
+		color: var(--color-up);
+	}
+
+	/* The dock at the foot of the window, for visitors. */
+	.dock {
+		position: fixed;
+		left: 50%;
+		bottom: max(16px, env(safe-area-inset-bottom));
+		z-index: 40;
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		width: max-content;
+		max-width: calc(100vw - 32px);
+		border: 1px solid var(--color-line-strong);
+		border-radius: 8px;
+		background: rgb(16 18 19 / 0.92);
+		backdrop-filter: blur(10px);
+		box-shadow: 0 18px 50px -12px rgb(0 0 0 / 0.85);
+		padding: 8px 8px 8px 16px;
+		font-size: 13.5px;
+		color: var(--color-ink);
+		transform: translate(-50%, 0);
+		transition: transform 0.45s var(--ease), opacity 0.3s;
+	}
+	.dock.up {
+		opacity: 0;
+		pointer-events: none;
+		transform: translate(-50%, 140%);
 	}
 
 	/* The tools: five doors, each a card that is a link as a whole. */
@@ -469,15 +665,27 @@ const phones = [
 	if (!still()) new IntersectionObserver(([e]) => (e.isIntersecting ? film.play().catch(() => {}) : film.pause()), { threshold: 0.5 }).observe(film);
 
 	// Someone who is signed in is sent to their hub, not to the sign-in page.
+	// A visitor gets the dock instead.
 	signedIn()
+		.catch(() => null)
 		.then((who) => {
-			if (!who) return;
+			if (!who) return dock();
 			page.querySelectorAll<HTMLAnchorElement>("a[data-hub]").forEach((a) => {
 				a.textContent = "Open My Hub";
 				a.href = link("/dashboard/");
 			});
-			// Someone signed in needs no sign-in to open a tool: the cards are the way in.
-			page.querySelectorAll("[data-tools]").forEach((a) => a.remove());
-		})
-		.catch(() => {});
+		});
+
+	// The dock: shown once the top of the page has gone by, hidden again while the My Hub band or
+	// the closing call is on screen.
+	function dock() {
+		const bar = $("dock");
+		bar.hidden = false;
+		const seen = new Set<Element>();
+		const io = new IntersectionObserver((entries) => {
+			entries.forEach((e) => (e.isIntersecting ? seen.add(e.target) : seen.delete(e.target)));
+			bar.classList.toggle("up", seen.size > 0);
+		});
+		[page.querySelector(".hero")!, $("hub"), $("start")].forEach((el) => io.observe(el));
+	}
 </script>

@@ -22,6 +22,27 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-16: **My Hub, la puerta principal, y "powered by AI".** El usuario pidió que entrar en
+> My Hub y probar las herramientas fuera mucho más claro ("el verdadero potencial de la web"):
+> - **Cabecera de todo el portal** (`AccountMenu.astro`): a quien no ha entrado, botón principal
+>   "Open My Hub" (a `/signin/`, que sin `next` acaba en My Hub) y "Sign in" como texto al lado
+>   (desde `sm`). Con sesión, "Open My Hub" pasa de fantasma a principal.
+> - **Portada**: el primer botón es "Open My Hub, it's free →" (las condiciones ya dicen que el
+>   sitio es gratis), más grande (`btn-big`), y debajo "Sign in with Google or your email". Tras
+>   las herramientas, una banda nueva `#hub`: "Your private space, with everything inside", qué
+>   hay dentro (Overview, Analysis, Watchlist, las cinco herramientas, con las palabras de sus
+>   propias páginas), una ventana dibujada con la barra lateral de My Hub y su CTA. Todos los
+>   botones de entrada dicen "Open My Hub, it's free" (con sesión, "Open My Hub" a `/dashboard/`).
+> - **Barra fija** abajo (`#dock`), solo para visitantes: "My Hub · your portfolio and five AI
+>   tools · free" con su botón. Se esconde mientras se ve la cabecera de la portada, la banda de My
+>   Hub o el cierre.
+> - **Eslogan**: "Your portfolio, read by AI" pasa a "Your portfolio, **powered** by AI" en el
+>   titular, el título, `og:image:alt` y `share.png` (`make share`, redibujada). En la app de
+>   móvil, las imágenes de la App Store (otro commit allí). No se han tocado los textos de
+>   `the-market-hub-media` que dicen "The market, read by AI" (cabecera de X y el vídeo de
+>   lanzamiento, ya publicados).
+> Probado en local a 1.024 px y 375 px. **Sin desplegar.**
+
 > 2026-10-16: **Las herramientas, a la vista en la portada.** El usuario pidió un CTA muy claro
 > hacia las herramientas, "el mayor asset de la web". En `index.astro`: la cabecera lleva al lado
 > de "Start with your portfolio" el botón "Explore the 5 AI tools ↓" (sustituye a "See today's
