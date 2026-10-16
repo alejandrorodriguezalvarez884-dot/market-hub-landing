@@ -36,6 +36,9 @@ Decisiones del usuario:
 > Markets y News. Ahora la película sí nombra las herramientas (antes no, "porque irán
 > cambiando"): si cambian, se cambia `NAMED`. El corte de prueba `progress` (descartado) lee
 > `film.js` y ya no casa con este guion. Cifras ilustrativas y fijas, como siempre.
+> **Desplegada** como `market-hub-00062-8xs`, desde un export limpio de 0fc8b84 sin opciones: la
+> configuración del servicio es la misma antes y después, y `film.mp4` en producción es idéntico
+> al del commit.
 
 > 2026-10-16: **My Hub, la puerta principal, y "powered by AI".** El usuario pidió que entrar en
 > My Hub y probar las herramientas fuera mucho más claro ("el verdadero potencial de la web"):
