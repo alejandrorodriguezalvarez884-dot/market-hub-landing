@@ -22,6 +22,21 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-16: **Película nueva de la portada: My Hub y las cinco herramientas.** El usuario pidió
+> una versión que potenciara My Hub y las herramientas; la vio y la aprobó. Sigue siendo 60 s
+> dibujados en canvas con sonido sintetizado (`film/film.js`, `make film`), pero cambia el guion:
+> el logo y Today (0–11,6 s) como antes; My Hub, la cartera privada (11,6–22,1, la escena de
+> antes con su reloj adelantado `SHIFT` = 19,4 s); "And inside it, five AI tools." con el punto
+> que lee (22,1–27,7); **las cinco herramientas con su nombre**, cuatro segundos cada una con una
+> viñeta (barras y margen con lectura de IA; un comunicado leído que da Guidance/Demand/Margins;
+> el mapa de puntos con NVDA unido a sus vecinos; el pago de una call con breakeven y griegas; una
+> pregunta escrita y el tablero que sale) y una fila abajo que marca por cuál va (27,7–47,5); la
+> barra lateral de My Hub dibujada, "All of it in My Hub. Free." (47,5–52,5); y el logo con "Your
+> portfolio, powered by AI." y el botón "Open My Hub — it's free" (52,5–60). Se quitan el dial,
+> Markets y News. Ahora la película sí nombra las herramientas (antes no, "porque irán
+> cambiando"): si cambian, se cambia `NAMED`. El corte de prueba `progress` (descartado) lee
+> `film.js` y ya no casa con este guion. Cifras ilustrativas y fijas, como siempre.
+
 > 2026-10-16: **My Hub, la puerta principal, y "powered by AI".** El usuario pidió que entrar en
 > My Hub y probar las herramientas fuera mucho más claro ("el verdadero potencial de la web"):
 > - **Cabecera de todo el portal** (`AccountMenu.astro`): a quien no ha entrado, botón principal
