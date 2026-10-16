@@ -88,12 +88,15 @@ El usuario pidió que `/news/` fuera "más adictiva", con scroll infinito y vari
   anotaciones y cuenta de servicio iguales antes y después. En producción `/news/` pinta el feed,
   carga más al bajar y la visita pidió el refresco de siempre ("Updated just now").
 
-### Media: el episodio 5 de Money 101 (2026-10-16; **sin desplegar**)
+### Media: el episodio 5 de Money 101 (2026-10-16; **desplegado**, revisión `market-hub-00059-wj5`)
 
 El vídeo "A budget is not a diet: how to share out what arrives" (`CflEf8cR8RI`) y su Short
 (`heJc9QM5ObQ`) en la lista Money 101 de `site/src/lib/media.ts`, con sus carátulas
-`site/public/media/budget.jpg` y `budget-short.jpg`. `make check` en verde. El reel ya sale solo
-(`make posts`). Desplegar el portal es decisión del usuario.
+`site/public/media/budget.jpg` y `budget-short.jpg` (commit 2b62ad4). El reel ya sale solo
+(`make posts`). Desplegado a petición del usuario desde un export limpio de 2b62ad4 con
+`gcloud run deploy market-hub --source <export>` sin opciones: variables (por hash), recursos,
+anotaciones (la instancia mínima incluida) y cuenta de servicio iguales antes y después, y /media/
+lo enseña.
 
 ### Media: el episodio 4 de Money 101 (2026-10-15; **desplegado**, revisión `market-hub-00053-dm8`)
 
