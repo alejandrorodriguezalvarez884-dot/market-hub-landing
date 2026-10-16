@@ -32,7 +32,10 @@ Decisiones del usuario:
 > there is more" se va (queda en dos), y el cierre de la página también ofrece las herramientas.
 > Una herramienta sin sesión ya manda a `/signin/?next=` y vuelve. La cabecera pública sigue sin
 > nombrar las herramientas (decisión del 2026-10-06). Probado en local (1.440 px y 375 px, sin
-> desbordes), `astro check` y `pytest` en verde. **Sin desplegar.**
+> desbordes), `astro check` y `pytest` en verde. **Desplegado** a petición del usuario como
+> `market-hub-00060-6r4`, desde un export limpio de 973b014 con `gcloud run deploy market-hub
+> --source <export>` sin opciones: variables (por hash), recursos, anotaciones (la instancia
+> mínima incluida) y cuenta de servicio iguales antes y después, y la portada la enseña.
 
 > 2026-10-15: **Una instancia siempre encendida.** Para el lanzamiento, por decisión del usuario,
 > `market-hub` tiene `--min-instances 1` (revisión `market-hub-00058-nfx`, hecha con `gcloud run services update`,
