@@ -79,6 +79,15 @@ Decisiones del usuario:
 > --source <export>` sin opciones: variables (por hash), recursos, anotaciones (la instancia
 > mínima incluida) y cuenta de servicio iguales antes y después, y la portada la enseña.
 
+> 2026-10-17: **`www` "caído" desde Vodafone en día de fútbol.** Desde la red del usuario
+> (Vodafone España), un sábado, `https://www.themarkethub.app` no respondía y `http://` daba 200
+> con una página "Acceso bloqueado / Por causas ajenas a Vodafone": son los bloqueos de IPs de
+> Cloudflare que LaLiga obtuvo de los tribunales para los partidos. `www` va con proxy de
+> Cloudflare (IPs `188.114.96.5` y `.97.5`) y por eso cae; la raíz no, porque va en "solo DNS" a
+> Cloud Run. No hay nada roto en la web ni en las reglas de redirección. Si alguna vez molesta,
+> la salida es sacar `www` de Cloudflare: un mapeo de dominio de Cloud Run para `www` (CNAME a
+> `ghs.googlehosted.com`, sin proxy) y el 301 a la raíz en la app.
+
 > 2026-10-17: **De vuelta a escalar a cero.** Por decisión del usuario, `market-hub` vuelve a
 > `--min-instances 0` (revisión `market-hub-00063-lsb`, hecha con `gcloud run services update`, sin
 > reconstruir), y `scripts/deploy-cloudrun.sh` pone 0 por defecto (`MIN_INSTANCES=1 make deploy`
