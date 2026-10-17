@@ -159,6 +159,13 @@ El usuario pidió que `/news/` fuera "más adictiva", con scroll infinito y vari
   anotaciones y cuenta de servicio iguales antes y después. En producción `/news/` pinta el feed,
   carga más al bajar y la visita pidió el refresco de siempre ("Updated just now").
 
+### Media: el episodio 6 de Money 101 (2026-10-17; **sin desplegar**)
+
+El vídeo "The emergency fund: what it's for, and how it works" (`C_Ji4ChWFfw`) y su Short
+(`dtHW8bEsoYc`) en la lista Money 101 de `site/src/lib/media.ts`, con sus carátulas
+`site/public/media/emergency-fund.jpg` y `emergency-fund-short.jpg`. `make check` en verde. El
+reel ya sale solo (`make posts`). Desplegar el portal es decisión del usuario.
+
 ### Media: el episodio 5 de Money 101 (2026-10-16; **desplegado**, revisión `market-hub-00059-wj5`)
 
 El vídeo "A budget is not a diet: how to share out what arrives" (`CflEf8cR8RI`) y su Short

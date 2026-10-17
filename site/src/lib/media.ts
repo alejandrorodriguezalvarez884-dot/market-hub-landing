@@ -35,8 +35,10 @@ export const YOUTUBE = {
         { id: "nApfz535ZbM", title: "Debt: what borrowing really costs", length: "4:20", cover: "debt.jpg", note: "Episode 3" },
         { id: "cEmKr7Sr9IA", title: "Your payslip: gross, net, and the tax bracket myth", length: "4:45", cover: "payslip.jpg", note: "Episode 4" },
         { id: "CflEf8cR8RI", title: "A budget is not a diet: how to share out what arrives", length: "4:30", cover: "budget.jpg", note: "Episode 5" },
+        { id: "C_Ji4ChWFfw", title: "The emergency fund: what it's for, and how it works", length: "4:40", cover: "emergency-fund.jpg", note: "Episode 6" },
       ],
       shorts: [
+        { id: "dtHW8bEsoYc", title: "A surprise 400-dollar bill. Who could pay it?", length: "0:40", cover: "emergency-fund-short.jpg" },
         { id: "heJc9QM5ObQ", title: "Is the daily coffee really where your money goes?", length: "0:37", cover: "budget-short.jpg" },
         { id: "diVlnbWR5OQ", title: "Can a raise into a higher tax bracket cost you money?", length: "0:43", cover: "payslip-short.jpg" },
         { id: "WKDiiXEf17A", title: "The credit card minimum that takes eleven years", length: "0:43", cover: "debt-short.jpg" },
