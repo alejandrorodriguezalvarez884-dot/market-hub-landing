@@ -79,6 +79,11 @@ Decisiones del usuario:
 > --source <export>` sin opciones: variables (por hash), recursos, anotaciones (la instancia
 > mínima incluida) y cuenta de servicio iguales antes y después, y la portada la enseña.
 
+> 2026-10-17: **De vuelta a escalar a cero.** Por decisión del usuario, `market-hub` vuelve a
+> `--min-instances 0` (revisión `market-hub-00063-lsb`, hecha con `gcloud run services update`, sin
+> reconstruir), y `scripts/deploy-cloudrun.sh` pone 0 por defecto (`MIN_INSTANCES=1 make deploy`
+> deja una instancia encendida). La nota de abajo queda como historia.
+
 > 2026-10-15: **Una instancia siempre encendida.** Para el lanzamiento, por decisión del usuario,
 > `market-hub` tiene `--min-instances 1` (revisión `market-hub-00058-nfx`, hecha con `gcloud run services update`,
 > sin reconstruir): nadie espera un arranque en frío y las cachés en memoria duran. Cuesta

@@ -49,8 +49,8 @@ FIRESTORE_LOCATION="${FIRESTORE_LOCATION:-europe-west1}"
 # A database of its own: the project's "(default)" one belongs to other apps and is in the US.
 FIRESTORE_DATABASE="${FIRESTORE_DATABASE:-market-hub}"
 SERVICE_NAME="${SERVICE_NAME:-market-hub}"
-# One instance stays warm so nobody waits for a cold start.
-MIN_INSTANCES="${MIN_INSTANCES:-1}"
+# Scales to zero; MIN_INSTANCES=1 keeps one instance warm.
+MIN_INSTANCES="${MIN_INSTANCES:-0}"
 MAX_INSTANCES="${MAX_INSTANCES:-2}"
 ENV_FILE=".env"
 
