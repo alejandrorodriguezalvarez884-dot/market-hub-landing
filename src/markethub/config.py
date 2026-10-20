@@ -152,15 +152,16 @@ COMPETITION_CACHE_SECONDS = 300
 # settled with the closes there are (a stock that stopped trading keeps its last one).
 COMPETITION_SETTLE_DAYS = 5
 
-# The bot competition (bots.py): rules that pick stocks, run on paper by the portal.
+# The bot competition (bots.py): rules that pick stocks, run on paper. It has its own site, Bot
+# League (repo market-hub-bots), the one service that moves the bots on, makes the kit and the keys
+# and answers the member's agent; the portal reads the same documents and deletes them with the
+# account.
+BOT_LEAGUE_URL = os.environ.get("BOT_LEAGUE_URL", "https://bots.themarkethub.app").rstrip("/")
 BOT_UNIVERSE_MAX = 500  # a bot chooses among the largest US companies, at most this many
 BOT_HOLD_MAX = 50
 BOT_COST = 0.001  # paid on each unit of the portfolio traded at a rebalance (0.10%)
 BOTS_MAX = 500  # bots the competition takes
 BOT_BACKTEST_YEARS_MAX = 3
-# Backtests a member's key can ask for in an hour, and bots it can send in a day.
-BOT_BACKTESTS_PER_USER_PER_HOUR = 30
-BOT_SUBMISSIONS_PER_USER_PER_DAY = 10
 # The board is worked out from the kept curves and held in memory this long. A visit that finds
 # the bots behind the last close asks for them to be moved on, at most this often.
 BOTS_CACHE_SECONDS = 120

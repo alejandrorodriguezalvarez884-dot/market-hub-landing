@@ -302,96 +302,93 @@ API_DAYS = sessions(700, date(2023, 11, 6))
 COMPANIES = [Company(f"C{i:02d}", f"Company {i}", i + 1) for i in range(40)]
 
 
+class League:
+    """Bot League, as the portal asks it to move the bots on."""
+
+    def __init__(self):
+        self.asked = 0
+
+    def __call__(self):
+        self.asked += 1
+
+
 @pytest.fixture
 def api(users, market, opinion, shared, writer, logins, captcha, entries, reader, submissions, posts, x_posts, option_strategies, bot_store):
     clock = Clock(at(API_DAYS[-1], 18))
+    league = League()
+    closes = lambda tickers: {t: walk(t, API_DAYS) for t in tickers}  # noqa: E731
     app = create_app(users=users, market=market, directory=Directory(loader=lambda: list(COMPANIES)), verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion, community_store=shared,
                      insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha, competition_store=entries,
                      stock_reader=reader, submissions=submissions, posts=Posts(posts), x_posts=XPosts(x_posts),
-                     option_strategies=option_strategies, bot_store=bot_store, clock=clock,
-                     bot_closes=lambda tickers: {t: walk(t, API_DAYS) for t in tickers})
+                     option_strategies=option_strategies, bot_store=bot_store, clock=clock, bot_closes=closes, bot_league=league)
     page = TestClient(app)
     page.headers.update({"origin": ORIGIN})
-    app.state.clock = clock
+    # What Bot League does on the same documents: makes the key, takes the bot in, moves it on.
+    app.state.clock, app.state.league = clock, league
+    app.state.engine = Bots(bot_store, closes, lambda n: [c.ticker for c in COMPANIES][:n], now=clock)
     return page, TestClient(app)
 
 
 BOT = {"format": FORMAT, "name": "Api bot", "universe": {"largest": 30}, "score": [{"factor": "momentum", "days": 126, "skip": 21, "weight": 1}],
        "hold": 8, "rebalance": "monthly"}
+USER = "1001"  # the account sign_in() makes
 
 
-def test_the_kit_comes_with_a_key_and_the_agent_uses_it(api, bot_store):
-    page, agent = api
+def test_the_page_reads_the_bot_bot_league_took_in(api, bot_store):
+    page, _ = api
     sign_in(page)
-    assert page.get("/api/bots").json()["key"] is None
-    got = page.post("/api/bots/kit")
-    assert got.status_code == 200 and got.headers["content-type"] == "application/zip"
-    files = zipfile.ZipFile(io.BytesIO(got.content))
-    names = set(files.namelist())
-    assert {"markethub-bot/AGENTS.md", "markethub-bot/CLAUDE.md", "markethub-bot/SPEC.md", "markethub-bot/tools/mh.py",
-            "markethub-bot/.claude/skills/build-bot/SKILL.md", "markethub-bot/examples/momentum.json", "markethub-bot/.env"} <= names
-    env = files.read("markethub-bot/.env").decode()
-    assert "MARKETHUB_URL=http://testserver" in env and "{{SITE}}" not in files.read("markethub-bot/.env.example").decode()
-    key = env.split("MARKETHUB_BOT_KEY=")[1].strip()
-    assert page.get("/api/bots").json()["key"]["created_utc"]
-
-    with_key = {"authorization": f"Bearer {key}"}
-    assert agent.get("/api/bot/spec").json()["format"] == FORMAT
-    assert agent.post("/api/bot/check", json={"bot": BOT}).status_code == 401
-    ok = agent.post("/api/bot/check", json={"bot": BOT}, headers=with_key).json()
-    assert ok["ok"] and ok["universe"] == 30 and ok["rules"][0] == "Looks at the 30 largest US companies."
-    bad = agent.post("/api/bot/check", json={"bot": {**BOT, "hold": 99, "extra": 1}}, headers=with_key)
-    assert bad.status_code == 400 and len(bad.json()["problems"]) == 2
-    test = agent.post("/api/bot/backtest", json={"bot": BOT, "years": 2}, headers=with_key).json()
-    assert test["sessions"] == 504 and test["holdings"]
-    # No name yet anywhere in the community: the first bot needs one.
-    assert "Pick a name" in agent.put("/api/bot", json={"bot": BOT}, headers=with_key).json()["detail"]
-    sent = agent.put("/api/bot", json={"bot": BOT, "handle": "ana bots"}, headers=with_key).json()
-    assert sent["name"] == "Api bot" and sent["handle"] == "ana bots"
-    assert agent.get("/api/bot", headers=with_key).json()["bot"]["since"] is None  # it starts at the next close
-
-    # The page sees it; the board never shows an account id.
-    board = page.get("/api/bots").json()
+    assert page.get("/api/bots/mine").json() == {"bot": None, "key": None}
+    engine = page.app.state.engine
+    engine.issue_key(USER)
+    engine.submit(USER, BOT, handle="ana bots")
+    board = page.get("/api/bots").json()  # the board is held a couple of minutes: read after Bot League took it in
+    assert board["league"] == "https://bots.themarkethub.app"
     assert board["you"]["name"] == "Api bot" and board["rows"][0]["you"] and "user_id" not in board["rows"][0]
+    assert board["key"]["created_utc"]
     assert page.get("/api/bots/mine").json()["bot"]["handle"] == "ana bots"
 
 
-def test_the_agent_routes_take_the_key_and_never_the_cookie(api):
+def test_the_kit_and_the_keys_are_made_in_bot_league_now(api):
     page, agent = api
     sign_in(page)
-    assert page.post("/api/bot/check", json={"bot": BOT}).status_code == 401  # signed in, but no key
-    assert agent.post("/api/bots/key").status_code == 403  # the page's routes still check the Origin
-    key = page.post("/api/bots/key").json()["key"]
-    assert agent.get("/api/bot", headers={"authorization": f"Bearer {key}"}).status_code == 200
-    newer = page.post("/api/bots/key").json()["key"]
-    assert agent.get("/api/bot", headers={"authorization": f"Bearer {key}"}).status_code == 401
-    assert page.delete("/api/bots/key").json() == {"revoked": True}
-    assert agent.get("/api/bot", headers={"authorization": f"Bearer {newer}"}).status_code == 401
+    assert page.post("/api/bots/kit").status_code in (404, 405)
+    assert page.post("/api/bots/key").status_code == 405
 
 
-def test_withdrawing_and_deleting_the_account(api, bot_store):
+def test_an_old_kit_is_told_where_the_competition_went(api):
     page, agent = api
+    key = page.app.state.engine.issue_key(USER)
+    for method, path in (("get", "/api/bot/spec"), ("post", "/api/bot/check"), ("put", "/api/bot"), ("get", "/api/bot")):
+        got = getattr(agent, method)(path, headers={"authorization": f"Bearer {key}"}, **({"json": {"bot": BOT}} if method != "get" else {}))
+        assert got.status_code == 410, (method, path)  # no Origin needed: the agent sends none
+        assert got.json()["moved_to"] == "https://bots.themarkethub.app" and "MARKETHUB_URL=" in got.json()["detail"]
+
+
+def test_withdrawing_taking_the_key_back_and_deleting_the_account(api, bot_store):
+    page, _ = api
     sign_in(page)
-    key = page.post("/api/bots/key").json()["key"]
-    agent.put("/api/bot", json={"bot": BOT, "handle": "ana bots"}, headers={"authorization": f"Bearer {key}"})
+    engine = page.app.state.engine
+    key = engine.issue_key(USER)
+    engine.submit(USER, BOT, handle="ana bots")
     assert page.delete("/api/bots/mine").json() == {"withdrawn": True} and bot_store.bots == {}
-    agent.put("/api/bot", json={"bot": BOT, "handle": "ana bots"}, headers={"authorization": f"Bearer {key}"})
+    assert page.delete("/api/bots/key").json() == {"revoked": True} and engine.who(key) is None
+    key = engine.issue_key(USER)
+    engine.submit(USER, BOT, handle="ana bots")
     assert page.delete("/api/me").json() == {"deleted": True}
-    assert bot_store.bots == {} and bot_store.keys == {}
-    assert agent.get("/api/bot", headers={"authorization": f"Bearer {key}"}).status_code == 401
+    assert bot_store.bots == {} and bot_store.keys == {} and engine.who(key) is None
 
 
-def test_a_visit_moves_the_bots_on(api, bot_store):
-    page, agent = api
+def test_a_visit_asks_bot_league_to_move_the_bots_on(api, bot_store):
+    page, _ = api
     sign_in(page)
-    key = page.post("/api/bots/key").json()["key"]
-    clock = page.app.state.clock
+    engine, clock, league = page.app.state.engine, page.app.state.clock, page.app.state.league
     clock.when = at(API_DAYS[-6], 12)  # sent in a week ago
-    agent.put("/api/bot", json={"bot": BOT, "handle": "ana bots"}, headers={"authorization": f"Bearer {key}"})
+    engine.submit(USER, BOT, handle="ana bots")
     clock.when = at(API_DAYS[-1], 18)
     assert page.get("/api/bots").json()["stale"] is True
-    assert page.post("/api/bots/refresh").json()["moved"] == 1
+    assert page.post("/api/bots/refresh").json() == {"moved": 0, "asked": True} and league.asked == 1
+    engine.refresh()  # Bot League moves it on, on the same documents
     board = page.get("/api/bots").json()
     assert board["stale"] is False and board["you"]["since"] == API_DAYS[-6] and board["you"]["sessions"] == 6
-    assert board["you"]["returns"]["1w"] is not None and board["as_of"] == API_DAYS[-1]
+    assert page.post("/api/bots/refresh").json() == {"moved": 0} and league.asked == 1

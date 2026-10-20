@@ -22,6 +22,28 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-20: **La competición de bots pasa a Bot League** (repo `market-hub-bots`,
+> https://bots.themarkethub.app, sin desplegar aún). Decisión del usuario: la competición es un
+> producto con su web, sobre los mismos datos (`bots`, `bot_keys`, `bot_meta`), y **Bot League es el
+> único que avanza las curvas** y el dueño del kit, las claves y `/api/bot/*`. El tablero es
+> **público** (también decisión suya). En el portal:
+> - `POST /api/bots/refresh` ya no avanza nada: si los bots están atrasados, se lo pide a Bot League
+>   (`BOT_LEAGUE_URL/api/board/refresh`, en segundo plano; nunca con cifras de muestra). La app de
+>   móvil lo sigue llamando igual.
+> - Se quitan `POST /api/bots/kit` y `POST /api/bots/key`: el kit y las claves se hacen en Bot League.
+>   Siguen `GET /api/bots` (ahora con `league`, la dirección), `GET /api/bots/mine`,
+>   `DELETE /api/bots/key` y `DELETE /api/bots/mine` (la app los usa) y el borrado con la cuenta.
+> - `/api/bot/*` contesta `410` con la dirección nueva, para los kits descargados del portal: la misma
+>   clave vale en Bot League; basta cambiar `MARKETHUB_URL` en su `.env`.
+> - `/community/bots/` es un resumen: tu bot, los 20 primeros del tablero y el camino a Bot League (kit,
+>   tablero entero, página del bot). La clave se puede retirar desde aquí; una nueva se hace allí.
+> - Privacidad: el bot se ve en Bot League y en Community, y **el tablero es público** (antes: solo
+>   miembros con sesión). `BOT_LEAGUE_URL` en `config.py` y `PUBLIC_BOT_LEAGUE_URL` en la web.
+> - `bots.py` no cambia: Bot League lleva una copia (`engine.py`) y los dos se cambian a la vez.
+>   `src/markethub/botkit/` ya no se sirve; solo se usan sus `examples/` (la muestra). El resto de
+>   la carpeta sobra y se puede borrar (no se borró en esta sesión).
+> Tests en verde. Sin desplegar.
+
 > 2026-10-20: **Bot competition, la tercera sección de Community** (`/community/bots/`). El usuario
 > pidió una competición de trading con robots hechos con Claude, Codex u otro agente, con un kit
 > que el usuario descarga, abre con su agente y que le guía hasta enviar el robot, y una

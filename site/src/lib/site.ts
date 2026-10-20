@@ -14,6 +14,8 @@ export const RADAR_URL = site(import.meta.env.PUBLIC_RADAR_URL, "https://radar.t
 export const PEERS_URL = site(import.meta.env.PUBLIC_PEERS_URL, "https://peers.themarkethub.app");
 export const PLAYGROUND_URL = site(import.meta.env.PUBLIC_PLAYGROUND_URL, "https://playground.themarkethub.app");
 export const OPTIONS_URL = site(import.meta.env.PUBLIC_OPTIONS_URL, "https://options.themarkethub.app");
+// The bot competition has its own site: the kit, the keys and the whole board are there.
+export const BOT_LEAGUE_URL = site(import.meta.env.PUBLIC_BOT_LEAGUE_URL, "https://bots.themarkethub.app");
 // The phone app's page on the App Store: where the iPhone app is downloaded from.
 export const APP_STORE_URL = "https://apps.apple.com/app/id6822290220";
 export const fundamentalsUrl = (ticker: string) => `${FUNDAMENTALS_URL}/stock/?t=${encodeURIComponent(ticker)}`;

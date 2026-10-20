@@ -38,19 +38,16 @@
     GET    /api/competitions/comments ?month=  the month's discussion (signed in)
     POST   /api/competitions/comments {month, text, parent_id}: comment or answer
     GET    /api/competitions/mine   the user's own entries
-    GET    /api/bots                the bot competition: the board, the user's bot and key, and
-                                    whether the bots are behind the last close
-    POST   /api/bots/refresh        move the bots on to the last close, if they are behind
-    POST   /api/bots/kit            a new key, and the kit with it in its .env (a zip)
-    POST   /api/bots/key            a new key, shown once      DELETE /api/bots/key  take it back
+    The bot competition lives in Bot League (BOT_LEAGUE_URL, the repo market-hub-bots): it moves the
+    bots on, makes the kit and the keys and answers the member's agent. The portal reads the same
+    documents for Community and the phone app, and deletes them with the account:
+    GET    /api/bots                the board, the user's bot and key, whether the bots are behind
+                                    the last close, and Bot League's address
+    POST   /api/bots/refresh        ask Bot League to move the bots on, if they are behind
+    DELETE /api/bots/key            take the user's key back
     DELETE /api/bots/mine           withdraw the user's bot
     GET    /api/bots/mine           what is kept of the user's bot and key (the account page)
-    The routes of the user's agent, with the bot key (Authorization: Bearer mhb_...), never the cookie:
-    GET    /api/bot/spec            what a bot can be (no key needed)
-    POST   /api/bot/check           {bot}: whether it is a bot, and its rules in words
-    POST   /api/bot/backtest        {bot, years}: what it would have done, for its owner
-    PUT    /api/bot                 {bot, handle?}: send it in, in place of the one there was
-    GET    /api/bot                 the user's bot: returns, rank, holdings, rules
+    /api/bot/*                      the agent's routes, now Bot League's: 410, with its address
     GET    /api/dashboard           positions valued at today's prices, favourites, history
     GET    /api/search?q=           companies by ticker or name, and US funds (ETFs, mutual funds)
     GET    /api/public/overview     markets: indices, rates, commodities, currencies, sectors, movers
@@ -113,6 +110,7 @@ from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import httpx
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -126,7 +124,6 @@ from .captcha import app_page, default_captcha, open_without
 from .community import PERIODS as BOARD_PERIODS
 from .community import Community, CommunityStore, default_community
 from .community import Refused as SharingRefused
-from . import bots as bots_
 from .bots import BotStore, Bots, default_bots
 from . import competitions as competitions_
 from .competitions import CompetitionStore, Competitions, default_competitions
@@ -148,7 +145,7 @@ from .applerevoke import AppleRevoker, NotRevoked, default_revoker
 from .appweb import ToolPages, entering_page
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
-from .config import (APP_REDIRECTS, BOT_BACKTESTS_PER_USER_PER_HOUR, BOT_SUBMISSIONS_PER_USER_PER_DAY, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
+from .config import (APP_REDIRECTS, BOT_LEAGUE_URL, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, OPTIONS_LAB_URL, PEER_MAP_URL, PER_IP_PER_HOUR, PLAYGROUND_URL,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, SITE_URL, SUBMISSIONS_PER_USER_PER_DAY, WATCH_PER_IP_PER_HOUR)
 from .market import EXTRA, Directory, Fmp, MarketUnavailable
@@ -235,7 +232,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                app_redirects: str | None = None, submissions: Submissions | None = None,
                apple_verifier: applesignin.Verifier | None = None, apple_revoker: AppleRevoker | None | str = "default",
                posts: Posts | None = None, x_posts: XPosts | None = None,
-               option_strategies: OptionStrategies | None = None, bot_store: BotStore | None = None, bot_closes=None) -> FastAPI:
+               option_strategies: OptionStrategies | None = None, bot_store: BotStore | None = None, bot_closes=None,
+               bot_league=None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -326,8 +324,6 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     limiter = RateLimiter(PER_IP_PER_HOUR)
     commenting = RateLimiter(COMMENTS_PER_USER_PER_HOUR)
     submitting = RateLimiter(SUBMISSIONS_PER_USER_PER_DAY, window=86400.0)
-    backtesting = RateLimiter(BOT_BACKTESTS_PER_USER_PER_HOUR)
-    sending_bots = RateLimiter(BOT_SUBMISSIONS_PER_USER_PER_DAY, window=86400.0)
     watching = RateLimiter(WATCH_PER_IP_PER_HOUR)
     # Checking a password is slow on purpose, and an account costs nothing to ask for: both are
     # counted per address they come from.
@@ -893,40 +889,40 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         """What the account page shows as kept: the user's own entries."""
         return {"entries": competitions.mine(current_user(request)["id"])}
 
-    # --- The bot competition, from the page ---
+    # --- The bot competition: Bot League's, read here ---
 
-    def refused(exc: bots_.Refused) -> JSONResponse:
-        return JSONResponse({"detail": str(exc), "problems": exc.problems}, status_code=400)
+    def ask_league() -> None:
+        """Asks Bot League, the one service that moves the bots on, to do it. In the background: a
+        refresh reads five years of closes and can take a minute. Not on sample figures: a local run
+        asks nobody."""
+        if only_sample:
+            return
+
+        def go():
+            try:
+                httpx.post(f"{BOT_LEAGUE_URL}/api/board/refresh", timeout=300)
+            except httpx.HTTPError:
+                log.warning("bot league did not answer a refresh")
+        threading.Thread(target=go, daemon=True).start()
+
+    league_refresh = bot_league or ask_league
 
     @app.get("/api/bots")
     def bot_board(request: Request) -> dict:
         user = current_user(request)
         allow(request)
-        return bots.overview(user["id"])
+        return {**bots.overview(user["id"]), "league": BOT_LEAGUE_URL}
 
     @app.post("/api/bots/refresh")
     def refresh_bots(request: Request) -> dict:
-        """A visit that finds the bots behind the last close asks for this: not more often than
-        the competition allows, and not while another refresh runs."""
+        """A visit that finds the bots behind the last close asks for this: the portal passes it on
+        to Bot League, which keeps the competition's pace and lock."""
         current_user(request)
         allow(request)
-        return bots.refresh()
-
-    @app.post("/api/bots/kit")
-    def bot_kit(request: Request) -> Response:
-        user = current_user(request)
-        allow(request)
-        key = bots.issue_key(user["id"])
-        log.info("bot kit downloaded with a new key")
-        return Response(bots_.kit(str(request.base_url).rstrip("/"), key), media_type="application/zip",
-                        headers={"Content-Disposition": 'attachment; filename="markethub-bot.zip"'})
-
-    @app.post("/api/bots/key")
-    def new_bot_key(request: Request) -> dict:
-        user = current_user(request)
-        allow(request)
-        log.info("bot key issued")
-        return {"key": bots.issue_key(user["id"]), "status": bots.key_status(user["id"])}
+        if bots.behind():
+            league_refresh()
+            return {"moved": 0, "asked": True}
+        return {"moved": 0}
 
     @app.delete("/api/bots/key")
     def drop_bot_key(request: Request) -> dict:
@@ -944,61 +940,14 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         """What the account page shows as kept: the user's bot and whether they have a key."""
         return bots.kept(current_user(request)["id"])
 
-    # --- The bot competition, from the member's agent ---
-
-    def agent(request: Request) -> str:
-        """The member a bot key belongs to. The cookie is never looked at here."""
+    @app.api_route("/api/bot", methods=["GET", "PUT", "POST"])
+    @app.api_route("/api/bot/{rest:path}", methods=["GET", "PUT", "POST"])
+    def bot_moved(request: Request) -> JSONResponse:
+        """A kit from before the competition had its own site still asks here: it is told where to
+        go. The same key works there."""
         allow(request)
-        user_id = bots.who(bearer(request.headers.get("authorization")))
-        if not user_id:
-            raise HTTPException(401, "No key, or not a good one: make one on the Bot competition page of My Hub and put it in .env.")
-        return user_id
-
-    @app.get("/api/bot/spec")
-    def bot_spec(request: Request) -> dict:
-        allow(request)
-        return bots_.spec()
-
-    @app.post("/api/bot/check")
-    def check_bot(request: Request, bot: dict = Body(embed=True)):
-        agent(request)
-        try:
-            return bots.check(bot)
-        except bots_.Refused as exc:
-            return refused(exc)
-        except MarketUnavailable as exc:
-            raise HTTPException(503, str(exc)) from None
-
-    @app.post("/api/bot/backtest")
-    def backtest_bot(request: Request, bot: dict = Body(embed=True), years: int = Body(1, embed=True)):
-        user_id = agent(request)
-        if not backtesting.allow(user_id):
-            raise HTTPException(429, f"That is {BOT_BACKTESTS_PER_USER_PER_HOUR} backtests in an hour. Try again later.")
-        try:
-            return bots.backtest(bot, years)
-        except bots_.Refused as exc:
-            return refused(exc)
-        except MarketUnavailable as exc:
-            raise HTTPException(503, str(exc)) from None
-
-    @app.put("/api/bot")
-    def submit_bot(request: Request, bot: dict = Body(embed=True), handle: str | None = Body(None, embed=True, max_length=40)):
-        user_id = agent(request)
-        if not sending_bots.allow(user_id):
-            raise HTTPException(429, f"That is {BOT_SUBMISSIONS_PER_USER_PER_DAY} bots sent in a day. Try again tomorrow.")
-        try:
-            mine = bots.submit(user_id, bot, handle)
-        except bots_.Refused as exc:
-            return refused(exc)
-        except MarketUnavailable as exc:
-            raise HTTPException(503, str(exc)) from None
-        log.info("bot sent in")
-        return mine
-
-    @app.get("/api/bot")
-    def my_bot(request: Request) -> dict:
-        user_id = agent(request)
-        return {"bot": bots.mine(user_id), "name": bots.overview(user_id)["name"]}
+        return JSONResponse({"detail": f"The bot competition has moved to Bot League: set MARKETHUB_URL={BOT_LEAGUE_URL} in .env "
+                                       f"(your key works there too) and try again.", "moved_to": BOT_LEAGUE_URL}, status_code=410)
 
     def month_thread(month: str, writing: bool = False) -> str:
         """The discussion of a month: any month up to the one entries are open for is read, and
