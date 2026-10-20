@@ -1,0 +1,11 @@
+{
+  "format": "markethub-bot/1",
+  "name": "Pullbacks in uptrends",
+  "about": "Stocks in a long uptrend that have just pulled back hard: the lowest short-term RSI among those over their 200-session average.",
+  "universe": {"largest": 500},
+  "rebalance": "daily",
+  "filters": [{"factor": "trend", "days": 200, "min": 0.02}],
+  "score": [{"factor": "rsi", "days": 3, "weight": -1}],
+  "hold": 10,
+  "weighting": "equal"
+}

@@ -38,6 +38,19 @@
     GET    /api/competitions/comments ?month=  the month's discussion (signed in)
     POST   /api/competitions/comments {month, text, parent_id}: comment or answer
     GET    /api/competitions/mine   the user's own entries
+    GET    /api/bots                the bot competition: the board, the user's bot and key, and
+                                    whether the bots are behind the last close
+    POST   /api/bots/refresh        move the bots on to the last close, if they are behind
+    POST   /api/bots/kit            a new key, and the kit with it in its .env (a zip)
+    POST   /api/bots/key            a new key, shown once      DELETE /api/bots/key  take it back
+    DELETE /api/bots/mine           withdraw the user's bot
+    GET    /api/bots/mine           what is kept of the user's bot and key (the account page)
+    The routes of the user's agent, with the bot key (Authorization: Bearer mhb_...), never the cookie:
+    GET    /api/bot/spec            what a bot can be (no key needed)
+    POST   /api/bot/check           {bot}: whether it is a bot, and its rules in words
+    POST   /api/bot/backtest        {bot, years}: what it would have done, for its owner
+    PUT    /api/bot                 {bot, handle?}: send it in, in place of the one there was
+    GET    /api/bot                 the user's bot: returns, rank, holdings, rules
     GET    /api/dashboard           positions valued at today's prices, favourites, history
     GET    /api/search?q=           companies by ticker or name, and US funds (ETFs, mutual funds)
     GET    /api/public/overview     markets: indices, rates, commodities, currencies, sectors, movers
@@ -97,6 +110,7 @@ import threading
 import time
 from urllib.parse import parse_qs
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request
@@ -112,9 +126,12 @@ from .captcha import app_page, default_captcha, open_without
 from .community import PERIODS as BOARD_PERIODS
 from .community import Community, CommunityStore, default_community
 from .community import Refused as SharingRefused
+from . import bots as bots_
+from .bots import BotStore, Bots, default_bots
 from . import competitions as competitions_
 from .competitions import CompetitionStore, Competitions, default_competitions
-from .holdings import SampleData, sample_only
+from .holdings import BENCHMARK, SampleData, sample_only
+from . import sample as sample_data
 from .insights import default_writer
 from .instagram import Posts, default_posts
 from .xposts import XPosts, default_x
@@ -131,12 +148,12 @@ from .applerevoke import AppleRevoker, NotRevoked, default_revoker
 from .appweb import ToolPages, entering_page
 from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
-from .config import (APP_REDIRECTS, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
+from .config import (APP_REDIRECTS, BOT_BACKTESTS_PER_USER_PER_HOUR, BOT_SUBMISSIONS_PER_USER_PER_DAY, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, OPTIONS_LAB_URL, PEER_MAP_URL, PER_IP_PER_HOUR, PLAYGROUND_URL,
                      SECURE_COOKIES, SESSION_DAYS, SESSION_SECRET, SITE_URL, SUBMISSIONS_PER_USER_PER_DAY, WATCH_PER_IP_PER_HOUR)
-from .market import Directory, Fmp, MarketUnavailable
+from .market import EXTRA, Directory, Fmp, MarketUnavailable
 from .tokens import AppTokens, bearer
-from .yahoo import default_market
+from .yahoo import Yahoo, daily_bars, default_market
 from .users import InvalidPortfolio, UserStore, clean, default_users, empty, touch
 
 log = logging.getLogger("markethub.api")
@@ -218,7 +235,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                app_redirects: str | None = None, submissions: Submissions | None = None,
                apple_verifier: applesignin.Verifier | None = None, apple_revoker: AppleRevoker | None | str = "default",
                posts: Posts | None = None, x_posts: XPosts | None = None,
-               option_strategies: OptionStrategies | None = None) -> FastAPI:
+               option_strategies: OptionStrategies | None = None, bot_store: BotStore | None = None, bot_closes=None) -> FastAPI:
     """App factory. Tests pass their own pieces, so they need no network and no Google."""
     logging.basicConfig(level=logging.INFO)
     # httpx logs every request URL at INFO, and FMP takes the key in the query string: keep the
@@ -267,6 +284,39 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         competition_store or default_competitions(), market, stand_in, known=directory.known, name_of=lambda ticker: company_name(ticker),
         taken=lambda key, user_id: any(m.get("handle_key") == key and m.get("user_id") != user_id for m in community_store.all(COMMUNITY_MEMBERS)),
         shared_name=lambda user_id: community.status(user_id)["handle"], sample=only_sample, now=clock)
+
+    # The bot competition: rules run on paper on the closes of the largest companies.
+    funds = {c.ticker for c in EXTRA}
+
+    def largest_companies(n: int) -> list[str]:
+        if only_sample:
+            return [s.symbol for s in sample_data.STOCKS if s.kind == "stock"][:n]
+        return [c.ticker for c in directory.largest(n + 40).values() if c.ticker not in funds][:n]
+
+    def closes_of(tickers: set[str]) -> dict[str, list[tuple[str, float]]]:
+        if bot_closes:
+            return bot_closes(tickers)
+        if only_sample:
+            return {t: [(b["time"], b["close"]) for b in stand_in.bars(t)] for t in tickers}
+        yahoo = next((s for s in [market, *getattr(market, "sources", [])] if isinstance(s, Yahoo)), None)
+        if yahoo:
+            got = yahoo.closes(sorted(tickers))
+        else:
+            def one(t: str) -> list[tuple[str, float]]:
+                try:
+                    return [(b["time"], b["close"]) for b in daily_bars(market, t)]
+                except MarketUnavailable:
+                    return []
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                got = dict(zip(sorted(tickers), pool.map(one, sorted(tickers))))
+        if not got.get(BENCHMARK):
+            raise MarketUnavailable("The market data provider is not answering for now.")
+        return got
+
+    bots = Bots(bot_store or default_bots(), closes_of, largest_companies,
+                taken=lambda key, user_id: any(m.get("handle_key") == key and m.get("user_id") != user_id for m in community_store.all(COMMUNITY_MEMBERS)),
+                member_name=competitions.name, sample=only_sample, now=clock)
     client_id = GOOGLE_CLIENT_ID if client_id is None else client_id
     secret = session_secret or SESSION_SECRET
     if not secret:
@@ -276,6 +326,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     limiter = RateLimiter(PER_IP_PER_HOUR)
     commenting = RateLimiter(COMMENTS_PER_USER_PER_HOUR)
     submitting = RateLimiter(SUBMISSIONS_PER_USER_PER_DAY, window=86400.0)
+    backtesting = RateLimiter(BOT_BACKTESTS_PER_USER_PER_HOUR)
+    sending_bots = RateLimiter(BOT_SUBMISSIONS_PER_USER_PER_DAY, window=86400.0)
     watching = RateLimiter(WATCH_PER_IP_PER_HOUR)
     # Checking a password is slow on purpose, and an account costs nothing to ask for: both are
     # counted per address they come from.
@@ -300,7 +352,11 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         is a foreign page using the cookie a browser sends by itself: the routes under /api/app/
         neither read that cookie nor set one, and a request that carries a good token is answered
         for the token's user alone (signed_in)."""
-        return request.url.path.startswith("/api/app/") or tokens.read(app_token(request)) is not None
+        return request.url.path.startswith("/api/app/") or tokens.read(app_token(request)) is not None or agent_route(request)
+
+    def agent_route(request: Request) -> bool:
+        """The routes of a member's agent: they take the bot key and never read the cookie."""
+        return request.url.path == "/api/bot" or request.url.path.startswith("/api/bot/")
 
     origins = [o.strip() for o in os.environ.get("MARKETHUB_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
@@ -663,6 +719,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         submissions.forget(user["id"])  # and the articles sent in for review
         community.stop(user["id"])  # and so does the shared portfolio
         competitions.forget(user["id"])  # and the entries to the competition
+        bots.forget(user["id"])  # and the bot, with its key
         option_strategies.forget(user["id"])  # and the strategies kept in Options Lab
         accounts.forget(user)  # and its password, if it had one of ours
         users.delete(user["id"])
@@ -835,6 +892,113 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def my_entries(request: Request) -> dict:
         """What the account page shows as kept: the user's own entries."""
         return {"entries": competitions.mine(current_user(request)["id"])}
+
+    # --- The bot competition, from the page ---
+
+    def refused(exc: bots_.Refused) -> JSONResponse:
+        return JSONResponse({"detail": str(exc), "problems": exc.problems}, status_code=400)
+
+    @app.get("/api/bots")
+    def bot_board(request: Request) -> dict:
+        user = current_user(request)
+        allow(request)
+        return bots.overview(user["id"])
+
+    @app.post("/api/bots/refresh")
+    def refresh_bots(request: Request) -> dict:
+        """A visit that finds the bots behind the last close asks for this: not more often than
+        the competition allows, and not while another refresh runs."""
+        current_user(request)
+        allow(request)
+        return bots.refresh()
+
+    @app.post("/api/bots/kit")
+    def bot_kit(request: Request) -> Response:
+        user = current_user(request)
+        allow(request)
+        key = bots.issue_key(user["id"])
+        log.info("bot kit downloaded with a new key")
+        return Response(bots_.kit(str(request.base_url).rstrip("/"), key), media_type="application/zip",
+                        headers={"Content-Disposition": 'attachment; filename="markethub-bot.zip"'})
+
+    @app.post("/api/bots/key")
+    def new_bot_key(request: Request) -> dict:
+        user = current_user(request)
+        allow(request)
+        log.info("bot key issued")
+        return {"key": bots.issue_key(user["id"]), "status": bots.key_status(user["id"])}
+
+    @app.delete("/api/bots/key")
+    def drop_bot_key(request: Request) -> dict:
+        bots.revoke_key(current_user(request)["id"])
+        return {"revoked": True}
+
+    @app.delete("/api/bots/mine")
+    def withdraw_bot(request: Request) -> dict:
+        bots.withdraw(current_user(request)["id"])
+        log.info("bot withdrawn")
+        return {"withdrawn": True}
+
+    @app.get("/api/bots/mine")
+    def kept_bot(request: Request) -> dict:
+        """What the account page shows as kept: the user's bot and whether they have a key."""
+        return bots.kept(current_user(request)["id"])
+
+    # --- The bot competition, from the member's agent ---
+
+    def agent(request: Request) -> str:
+        """The member a bot key belongs to. The cookie is never looked at here."""
+        allow(request)
+        user_id = bots.who(bearer(request.headers.get("authorization")))
+        if not user_id:
+            raise HTTPException(401, "No key, or not a good one: make one on the Bot competition page of My Hub and put it in .env.")
+        return user_id
+
+    @app.get("/api/bot/spec")
+    def bot_spec(request: Request) -> dict:
+        allow(request)
+        return bots_.spec()
+
+    @app.post("/api/bot/check")
+    def check_bot(request: Request, bot: dict = Body(embed=True)):
+        agent(request)
+        try:
+            return bots.check(bot)
+        except bots_.Refused as exc:
+            return refused(exc)
+        except MarketUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+
+    @app.post("/api/bot/backtest")
+    def backtest_bot(request: Request, bot: dict = Body(embed=True), years: int = Body(1, embed=True)):
+        user_id = agent(request)
+        if not backtesting.allow(user_id):
+            raise HTTPException(429, f"That is {BOT_BACKTESTS_PER_USER_PER_HOUR} backtests in an hour. Try again later.")
+        try:
+            return bots.backtest(bot, years)
+        except bots_.Refused as exc:
+            return refused(exc)
+        except MarketUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+
+    @app.put("/api/bot")
+    def submit_bot(request: Request, bot: dict = Body(embed=True), handle: str | None = Body(None, embed=True, max_length=40)):
+        user_id = agent(request)
+        if not sending_bots.allow(user_id):
+            raise HTTPException(429, f"That is {BOT_SUBMISSIONS_PER_USER_PER_DAY} bots sent in a day. Try again tomorrow.")
+        try:
+            mine = bots.submit(user_id, bot, handle)
+        except bots_.Refused as exc:
+            return refused(exc)
+        except MarketUnavailable as exc:
+            raise HTTPException(503, str(exc)) from None
+        log.info("bot sent in")
+        return mine
+
+    @app.get("/api/bot")
+    def my_bot(request: Request) -> dict:
+        user_id = agent(request)
+        return {"bot": bots.mine(user_id), "name": bots.overview(user_id)["name"]}
 
     def month_thread(month: str, writing: bool = False) -> str:
         """The discussion of a month: any month up to the one entries are open for is read, and

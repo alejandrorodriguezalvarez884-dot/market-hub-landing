@@ -22,6 +22,36 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-20: **Bot competition, la tercera sección de Community** (`/community/bots/`). El usuario
+> pidió una competición de trading con robots hechos con Claude, Codex u otro agente, con un kit
+> que el usuario descarga, abre con su agente y que le guía hasta enviar el robot, y una
+> clasificación por día, semana, mes y año. Decisiones suyas: el robot es **un fichero de reglas,
+> no código** (formato `markethub-bot/1`), **solo largo entre las 500 mayores de EE. UU.**, el agente
+> envía con **una clave del usuario**, y la clasificación cuenta **solo desde el cierre siguiente al
+> envío** (el backtest lo ve solo su dueño).
+> - `bots.py`: valida el fichero (devuelve todos los problemas a la vez), lo ejecuta en papel con
+>   pandas sobre cierres diarios (7 factores de precio: momentum, trend, sma_cross, volatility, rsi,
+>   drawdown, beta; filtros, puntuación por z-scores, `hold`, tres formas de repartir, tope por
+>   valor, interruptor de mercado sobre SPY; 0,10% por lo que se negocia; rebalanceo diario,
+>   semanal o mensual al cierre). La curva de cada robot se guarda sesión a sesión y se avanza
+>   cuando una visita la encuentra atrasada (`POST /api/bots/refresh`, como las noticias; a lo
+>   sumo cada 30 min y con candado). Un robot por miembro; enviar otro reinicia su historial.
+> - Clave: `mhb_…`, solo se guarda su hash (colección `bot_keys`); una nueva anula la anterior.
+>   Rutas del agente `/api/bot/*` (spec, check, backtest, `PUT` para enviar, `GET` estado): solo
+>   leen la clave, nunca la cookie, y por eso no pasan el control de `Origin`.
+> - El kit está en `src/markethub/botkit/` y se sirve como zip desde `POST /api/bots/kit`, con una
+>   clave nueva en su `.env`: `AGENTS.md` (el flujo entero y sus reglas: papel, ideas sí y consejo
+>   no, la clave no sale de `.env`), `CLAUDE.md`/`GEMINI.md` que lo importan, la skill
+>   `build-bot`, `SPEC.md`, seis ejemplos y `tools/mh.py` (solo stdlib).
+> - Yahoo: `Yahoo.closes()` baja 5 años de cierres de cien en cien (`yf.download`). Se añaden
+>   `numpy` y `pandas` como dependencias explícitas (ya venían con yfinance).
+> - Firestore: colecciones `bots`, `bot_keys` y `bot_meta`. Privacidad y cuenta dicen lo que se
+>   guarda; borrar la cuenta borra el robot y la clave. Navegación: "Bot competition" en el grupo
+>   Community de `App.astro` y de los cinco `HubNav.astro`.
+> Probado en local de punta a punta (kit → `mh.py status/check/backtest/submit` → la página avanza
+> el robot) y con 27 tests nuevos. **Sin desplegar.** Pendiente: la pestaña en la app de móvil, y
+> que el mantenimiento diario mire la página.
+
 > 2026-10-20: **Community, una sección propia de My Hub.** El usuario pidió que Community dejara
 > de ser una entrada de "Your space" con dos tarjetas dentro y fuera su propia sección. La barra
 > lateral (`App.astro`) lleva ahora un grupo "Community" entre "Your space" y "Tools", con "Share

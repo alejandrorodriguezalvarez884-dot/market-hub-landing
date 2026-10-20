@@ -152,6 +152,7 @@ class Yahoo:
         self._infos = TTLCache()
         self._details = TTLCache()
         self._finds = TTLCache()
+        self._closes = TTLCache()  # ticker -> five years of (date, close), from a download of many
         self._quiet_until = 0.0
         self._search_quiet_until = 0.0
         self._lock = threading.Lock()
@@ -253,6 +254,30 @@ class Yahoo:
     def daily(self, symbol: str) -> list[dict]:
         """Five years of daily bars, oldest first: time, open, high, low, close and volume."""
         return self._read(symbol, DAILY_TTL)["bars"]
+
+    def closes(self, tickers: list[str]) -> dict[str, list[tuple[str, float]]]:
+        """Five years of daily closes of many tickers, oldest first: one download for each hundred
+        of those not already kept. A ticker Yahoo does not answer for has none."""
+        out: dict[str, list[tuple[str, float]]] = {}
+        missing = []
+        for t in dict.fromkeys(x.upper() for x in tickers):
+            hit = self._closes.get(t, DAILY_TTL)
+            if hit is None:
+                missing.append(t)
+            else:
+                out[t] = hit
+        for n in range(0, len(missing), 100):
+            chunk = missing[n:n + 100]
+            symbols = [SYMBOLS.get(t, t) for t in chunk]
+            frame = self._call(f"closes of {len(chunk)}", lambda yf: yf.download(
+                symbols, period="5y", interval="1d", auto_adjust=False, actions=False, group_by="column", threads=True, progress=False))
+            close = frame["Close"] if frame is not None and not getattr(frame, "empty", True) and "Close" in frame else None
+            for t, symbol in zip(chunk, symbols):
+                column = close[symbol] if close is not None and symbol in getattr(close, "columns", []) else None
+                rows = [(ts.strftime("%Y-%m-%d"), float(c)) for ts, c in column.items() if c == c and c > 0] if column is not None else []
+                self._closes.put(t, rows)
+                out[t] = rows
+        return out
 
     def history(self, ticker: str) -> list[dict]:
         """Daily closes for the last ``HISTORY_DAYS`` days, oldest first."""

@@ -1,0 +1,263 @@
+---
+// My Hub, Community, Bot competition. A member builds a bot of rules with their own AI agent (the
+// kit they download here has the instructions, and their key in its .env), sends it in from
+// there, and Market Hub runs it on paper. The page has the member's bot, the way to build one,
+// the board over the day, week, month, year and since each bot started, and the rules.
+import App from "../../components/App.astro";
+---
+
+<App title="Bot competition" description="Bots built with an AI agent, run on paper by Market Hub and ranked from the close after each was sent in.">
+	<div id="bots" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-56"></div><div class="skeleton h-96"></div></div>
+</App>
+
+<script>
+	import { requireUser } from "../../lib/api";
+	import { botBoard, downloadKit, dropBotKey, newBotKey, refreshBots, withdrawBot, type BotBoard, type BotHolding, type BotLine, type BotPeriod } from "../../lib/bots";
+	import { add, card, h, linkTo } from "../../lib/dom";
+	import { pct, signedPct, timeAgo } from "../../lib/format";
+	import { cell, failure, ordinal, pageHead, tone } from "../../lib/hub";
+	import { C, returnsChart } from "../../lib/lwc";
+	import { link } from "../../lib/site";
+
+	const root = document.getElementById("bots")!;
+	let data: BotBoard;
+	let period: BotPeriod = "1m";
+	let shownKey: string | null = null; // a key just made: shown once, until the page is left
+	let moving = false;
+
+	const PERIODS: { key: BotPeriod; label: string; long: string }[] = [
+		{ key: "1d", label: "Day", long: "the last session" }, { key: "1w", label: "Week", long: "the last 5 sessions" },
+		{ key: "1m", label: "Month", long: "the last 21 sessions" }, { key: "1y", label: "Year", long: "the last 252 sessions" },
+		{ key: "all", label: "Since start", long: "since each bot started" },
+	];
+	const digits = (p: BotPeriod) => (p === "1d" ? 2 : 1);
+	const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+	const button = (cls: string, text: string, onClick: (b: HTMLButtonElement) => void) => {
+		const b = h("button", cls, text);
+		b.type = "button";
+		b.addEventListener("click", () => onClick(b));
+		return b;
+	};
+	const chip = (text: string) => h("span", "chip !font-sans ml-2", text);
+	const mix = (held: BotHolding[], cash: number | null, max = 12) => [
+		...held.slice(0, max).map((x) => linkTo(link(`/quote/?t=${encodeURIComponent(x.ticker)}`), "chip hover:text-ink-strong", `${x.ticker} ${pct(x.weight, x.weight < 0.1 ? 1 : 0)}`)),
+		cash && cash > 0.005 ? h("span", "chip text-muted", `cash ${pct(cash, 0)}`) : null,
+	];
+
+	// --- The member's bot ---------------------------------------------------------------------------
+
+	function mine(b: BotBoard): HTMLElement {
+		const you = b.you;
+		const panel = add(h("section", "panel p-5 sm:p-6"), h("p", "label", "Your bot"));
+		if (!you) {
+			return add(panel, h("h2", "mt-1 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong", "No bot yet"),
+				h("p", "mt-2 max-w-prose text-[13.5px] text-muted",
+					"A bot here is a few rules, not code: which of the largest US companies it looks at, what it scores them on, how many it holds and how often it looks again. Your AI agent writes them with you, backtests them and sends them in. Market Hub runs the bot on paper, with no money and no broker, and ranks it from the next close."));
+		}
+		const live = you.returns;
+		const stat = (p: (typeof PERIODS)[number]) => {
+			const v = live?.[p.key] ?? null;
+			const rank = you.ranks[p.key];
+			return add(h("div", "min-w-0 bg-page p-3"), h("div", "label", p.label), h("div", `num mt-1 text-lg font-semibold ${v == null ? "text-faint" : tone(v)}`, v == null ? "—" : signedPct(v, digits(p.key))),
+				h("div", "truncate text-[12px] text-muted", rank ? `${ordinal(rank)} of ${you.entrants}` : v == null ? "not yet" : " "));
+		};
+		const started = you.since
+			? `Running since the close of ${day(you.since)} · ${you.sessions} ${you.sessions === 1 ? "session" : "sessions"} · as of ${day(you.as_of!)}`
+			: `Sent in ${timeAgo(you.submitted_utc)}: its record starts at the next close.`;
+		const rules = add(h("details", "mt-4 rounded-[3px] border border-line bg-page"),
+			h("summary", "cursor-pointer px-3 py-2 text-[13px] font-semibold text-ink", "Its rules · only you see them"),
+			add(h("ul", "list-disc space-y-1 px-3 pb-3 pl-7 text-[13px] text-ink"), ...you.rules.map((r) => h("li", "", r))));
+		const chart = h("div", "mt-4");
+		add(panel,
+			h("h2", "mt-1 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong", you.name),
+			h("p", "mt-0.5 text-[12.5px] text-muted", `Shown as ${you.handle} · ${you.universe} companies to choose from`),
+			you.about ? h("p", "mt-2 max-w-prose text-[13.5px] text-ink", you.about) : null,
+			h("p", "mt-3 text-[12.5px] text-muted", started),
+			live ? add(h("div", "mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line sm:grid-cols-3 2xl:grid-cols-5"), ...PERIODS.map(stat)) : null,
+			you.curve.length > 1 ? chart : null,
+			you.holdings.length ? add(h("div", "mt-4"), h("p", "label pb-1.5", "Holds now"), add(h("div", "flex flex-wrap gap-1.5"), ...mix(you.holdings, you.cash, 50))) : null,
+			rules,
+			add(h("p", "mt-4 flex flex-wrap items-center gap-3 text-[12.5px] text-muted"),
+				button("btn btn-ghost py-1.5 text-[13px]", "Withdraw it", async (el) => {
+					if (!confirm("Withdraw your bot? Its record goes with it, and a new one starts from zero.")) return;
+					el.disabled = true;
+					await withdrawBot();
+					await load();
+				}),
+				h("span", "", "To change it, ask your agent: a new bot replaces this one and starts its record again.")));
+		if (you.curve.length > 1) {
+			requestAnimationFrame(() => returnsChart(chart, you.curve.map((p) => p.date), [{ name: you.name, values: you.curve.map((p) => p.value - 1), color: C.ink }], 200));
+		}
+		return panel;
+	}
+
+	// --- Building one ----------------------------------------------------------------------------
+
+	function build(b: BotBoard): HTMLElement {
+		const status = h("p", "mt-1 text-[12.5px] text-muted");
+		const step = (n: number, title: string, ...body: (Node | string | null)[]) => add(h("li", "grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-2"),
+			h("span", "num flex h-6 w-6 items-center justify-center rounded-full border border-line-strong text-[12px] text-ink-strong", String(n)),
+			add(h("div", "min-w-0"), h("div", "text-[14px] font-semibold text-ink-strong", title), ...body));
+		const kit = button("btn btn-primary mt-2", "Download the kit", async (el) => {
+			el.disabled = true;
+			status.textContent = "Making your key and the kit…";
+			try {
+				await downloadKit();
+				status.textContent = "Downloaded, with a new key in its .env. Any key you had before no longer works.";
+				data = await botBoard();
+				keyBox.replaceWith((keyBox = keys(data)));
+			} catch (e) {
+				status.textContent = e instanceof Error ? e.message : "The kit could not be made.";
+			}
+			el.disabled = false;
+		});
+		let keyBox = keys(b);
+		return add(h("section", "panel p-5 sm:p-6"),
+			h("p", "label", "Build yours with your AI agent"),
+			h("h2", "mt-1 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong", b.you ? "Change it, or start again" : "Three steps, and a conversation"),
+			add(h("ol", "mt-4 space-y-4"),
+				step(1, "Download the kit", h("p", "text-[13px] text-muted", "A folder with the instructions for your agent, the format of a bot, examples and a small tool. It comes with your key in it."), kit, status),
+				step(2, "Open the folder with your agent", h("p", "text-[13px] text-muted", "Unzip it and open it with Claude Code, Codex or the agent you use (in a terminal: cd into it and run claude or codex).")),
+				step(3, "Say “Let's build my bot”", h("p", "text-[13px] text-muted", "It asks what you have in mind, or proposes ideas, writes the rules, backtests them against the S&P 500 and sends the bot in when you say so."))),
+			keyBox);
+	}
+
+	function keys(b: BotBoard): HTMLElement {
+		const box = h("div", "mt-5 border-t border-line pt-4");
+		const make = button("btn btn-ghost py-1.5 text-[13px]", b.key ? "New key" : "Make a key", async (el) => {
+			el.disabled = true;
+			shownKey = (await newBotKey()).key;
+			data = await botBoard();
+			box.replaceWith(keys(data));
+		});
+		const drop = b.key ? button("btn btn-ghost py-1.5 text-[13px]", "Take it back", async (el) => {
+			if (!confirm("Take your key back? Your agent can no longer send in or follow your bot until you make a new one.")) return;
+			el.disabled = true;
+			shownKey = null;
+			await dropBotKey();
+			data = await botBoard();
+			box.replaceWith(keys(data));
+		}) : null;
+		add(box, h("p", "label pb-1", "Your key"),
+			h("p", "text-[12.5px] text-muted", b.key
+				? `Made ${timeAgo(b.key.created_utc)}, ${b.key.used_utc ? `last used ${timeAgo(b.key.used_utc)}` : "not used yet"}. It lets your agent check, backtest and send in your bot, nothing else. Keep it to yourself.`
+				: "No key: your agent needs one. Downloading the kit makes one, or make it here for a kit you already have."));
+		if (shownKey && b.key) {
+			const code = h("code", "num block min-w-0 flex-1 truncate rounded-[3px] border border-line bg-page px-2 py-1.5 text-[12.5px] text-ink-strong", shownKey);
+			const copy = button("btn btn-ghost py-1.5 text-[13px]", "Copy", (el) => navigator.clipboard.writeText(shownKey!).then(() => (el.textContent = "Copied")));
+			add(box, add(h("div", "mt-2 flex items-center gap-2"), code, copy),
+				h("p", "mt-1 text-[12px] text-warn", "Shown this once. Paste it in the kit's .env as MARKETHUB_BOT_KEY=…"));
+		}
+		return add(box, add(h("p", "mt-2 flex flex-wrap gap-2"), make, drop));
+	}
+
+	// --- The board -----------------------------------------------------------------------------------
+
+	function board(b: BotBoard): HTMLElement {
+		const p = PERIODS.find((x) => x.key === period)!;
+		const c = card("The board", b.as_of ? `Returns over ${p.long}, to the close of ${day(b.as_of)}` : "No close yet");
+		const tabs = add(h("div", "flex flex-wrap gap-1"));
+		for (const x of PERIODS) {
+			const t = h("button", "tab-btn", x.label);
+			t.type = "button";
+			t.setAttribute("aria-pressed", String(x.key === period));
+			t.addEventListener("click", () => ((period = x.key), draw()));
+			tabs.append(t);
+		}
+		c.head.append(tabs);
+		const rows = b.rows.slice().sort((x, y) => (x.ranks[period] ?? 1e9) - (y.ranks[period] ?? 1e9) || (y.returns.all ?? -1e9) - (x.returns.all ?? -1e9));
+		const bench = b.benchmark.returns?.[period] ?? null;
+		const table = h("table", "data-table");
+		const body = h("tbody");
+		let indexShown = bench == null;
+		const indexRow = () => add(h("tr", ""), cell("", "w-8"), add(h("td", "!text-left !font-sans"), h("span", "text-muted", "S&P 500"), h("span", "ml-2 text-[11.5px] text-faint", b.benchmark.ticker)),
+			cell("", "hidden md:table-cell"), cell(signedPct(bench, digits(period)), "num font-semibold text-muted"), cell("", "hidden sm:table-cell"), cell("", "hidden lg:table-cell"), cell("", "hidden xl:table-cell"));
+		for (const r of rows) {
+			const v = r.returns[period];
+			if (!indexShown && (v == null || v < bench!)) {
+				body.append(indexRow());
+				indexShown = true;
+			}
+			body.append(...line(r, v));
+		}
+		if (!indexShown) body.append(indexRow());
+		add(table, add(h("thead"), add(h("tr"), h("th", "!text-left", "#"), h("th", "!text-left", "Member"), h("th", "!text-left hidden md:table-cell", "Bot"), h("th", "", p.label),
+			h("th", "hidden sm:table-cell", "Since start"), h("th", "hidden lg:table-cell", "Running"), h("th", "!text-left hidden xl:table-cell", "Largest holdings"))), body);
+		c.body.className = "";
+		c.body.append(rows.length ? add(h("div", "overflow-x-auto"), table) : h("p", "px-4 py-6 text-[13px] text-muted", "No bot is running yet. Yours can be the first."),
+			h("p", "border-t border-line px-4 py-3 text-[12.5px] text-muted", `A line opens onto the bot's idea and what it holds. A bot shows in a period once it has run that long. ${b.entrants} ${b.entrants === 1 ? "bot" : "bots"} in the competition.`));
+		return c.el;
+	}
+
+	function line(r: BotLine, v: number | null): HTMLElement[] {
+		const rank = r.ranks[period];
+		const row = add(h("tr", `cursor-pointer ${r.you ? "bg-raised/60" : ""}`),
+			cell(rank ? String(rank) : "", "num w-8 !text-left text-muted"),
+			add(h("td", "!text-left !font-sans"), h("span", "font-semibold text-ink-strong", r.handle), r.you ? chip("you") : null,
+				r.stand_in ? h("span", "ml-2 text-[11.5px] text-warn", "sample") : null,
+				h("span", "block text-[12px] text-muted md:hidden", r.name)),
+			cell(r.name, "!font-sans hidden text-ink md:table-cell !text-left"),
+			cell(v == null ? "—" : signedPct(v, digits(period)), `num font-semibold ${v == null ? "text-faint" : tone(v)}`),
+			cell(signedPct(r.returns.all, 1), `num hidden sm:table-cell ${tone(r.returns.all)}`),
+			cell(r.since ? `${r.sessions} ${r.sessions === 1 ? "session" : "sessions"}` : "starts next close", "hidden !font-sans text-[12.5px] text-muted lg:table-cell"),
+			add(h("td", "!text-left hidden xl:table-cell"), h("span", "text-[12.5px] text-muted", r.holdings.slice(0, 3).map((x) => `${x.ticker} ${pct(x.weight, 0)}`).join(" · "))));
+		const detail = add(h("tr"), add(Object.assign(h("td", "!text-left !font-sans"), { colSpan: 7 }), add(h("div", "px-1 py-3"),
+			r.about ? h("p", "max-w-prose text-[13px] text-ink", r.about) : null,
+			h("p", "mt-1 text-[12.5px] text-muted", r.since ? `Running since the close of ${day(r.since)} · holds ${r.holding} ${r.holding === 1 ? "stock" : "stocks"}` : "Its record starts at the next close."),
+			r.holdings.length ? add(h("div", "mt-2 flex flex-wrap gap-1.5"), ...mix(r.holdings, r.cash)) : null)));
+		detail.hidden = true;
+		row.tabIndex = 0;
+		row.setAttribute("aria-expanded", "false");
+		const toggle = () => ((detail.hidden = !detail.hidden), row.setAttribute("aria-expanded", String(!detail.hidden)));
+		row.addEventListener("click", (e) => (e.target as HTMLElement).closest("a") || toggle());
+		row.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle()));
+		return [row, detail];
+	}
+
+	function rules(b: BotBoard): HTMLElement {
+		const c = card("How it works");
+		const items = [
+			"A bot is a set of rules in a file, not code: the format is in the kit (SPEC.md). Your agent writes it with you.",
+			`It chooses among the ${b.rules.universe} largest US companies, funds left out, and holds up to ${b.rules.hold} of them. Long only: no short sales, no borrowing.`,
+			"Market Hub runs it on paper: no money, no broker, no orders. On the sessions it looks again it decides at the close and trades at that close.",
+			`Each trade pays ${pct(b.rules.cost, 2)} of what is traded. Returns are on price, dividends left out, and cash earns nothing.`,
+			"Its record starts at the first close after you send it in. Nothing before counts: a backtest is for you alone.",
+			"One bot per member. Sending in another one replaces it and starts its record again.",
+			"Other members see your name, the bot's name and idea, its returns and what it holds. Its rules are yours alone.",
+		];
+		c.body.append(add(h("ul", "list-disc space-y-1.5 pl-5 text-[13px] text-ink"), ...items.map((t) => h("li", "", t))));
+		return c.el;
+	}
+
+	function draw() {
+		const b = data;
+		const asOf = moving ? h("span", "text-[12.5px] text-muted", "Moving the bots on to the last close…") : null;
+		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"),
+			pageHead("Bot competition", "Bots built with an AI agent, run on paper by Market Hub and ranked from the close after each was sent in.", { sample: b.sample, over: "Community", action: asOf }),
+			add(h("div", "grid gap-4 lg:grid-cols-2"), mine(b), build(b)),
+			board(b), rules(b)));
+	}
+
+	async function load() {
+		data = await botBoard();
+		draw();
+	}
+
+	async function start() {
+		await requireUser();
+		try {
+			await load();
+			// A visit that finds the bots behind the last close moves them on, then shows them again.
+			if (data.stale) {
+				moving = true;
+				draw();
+				await refreshBots().catch(() => null);
+				moving = false;
+				await load();
+			}
+		} catch (e) {
+			failure(root, e);
+		}
+	}
+	start().catch(() => {});
+</script>

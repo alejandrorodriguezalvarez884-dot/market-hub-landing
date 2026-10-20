@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from markethub.accounts import MemoryLogins
+from markethub.bots import MemoryBots
 from markethub.api import create_app
 from markethub.community import MemoryCommunity
 from markethub.competitions import MemoryCompetitions
@@ -196,13 +197,19 @@ def option_strategies():
 
 
 @pytest.fixture
+def bot_store():
+    """The bots and keys of the bot competition: empty until a test sends one in."""
+    return MemoryBots()
+
+
+@pytest.fixture
 def client(users, market, directory, opinion, shared, writer, logins, captcha, entries, reader, submissions, posts, x_posts,
-           option_strategies):
+           option_strategies, bot_store):
     app = create_app(users=users, market=market, directory=directory, verifier=fake_verifier,
                      client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion,
                      community_store=shared, insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha,
                      competition_store=entries, stock_reader=reader, submissions=submissions, posts=Posts(posts),
-                     x_posts=XPosts(x_posts), option_strategies=option_strategies)
+                     x_posts=XPosts(x_posts), option_strategies=option_strategies, bot_store=bot_store)
     c = TestClient(app)
     c.headers.update({"origin": ORIGIN})
     return c

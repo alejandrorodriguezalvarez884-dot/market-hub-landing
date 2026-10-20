@@ -1,0 +1,12 @@
+{
+  "format": "markethub-bot/1",
+  "name": "Twelve-month momentum",
+  "about": "Holds the 20 large caps that rose the most over the last year, leaving out the last month. Looks again each month.",
+  "universe": {"largest": 500},
+  "rebalance": "monthly",
+  "filters": [],
+  "score": [{"factor": "momentum", "days": 231, "skip": 21, "weight": 1}],
+  "hold": 20,
+  "weighting": "equal",
+  "max_weight": 1
+}

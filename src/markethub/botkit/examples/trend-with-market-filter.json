@@ -1,0 +1,12 @@
+{
+  "format": "markethub-bot/1",
+  "name": "Trend follower",
+  "about": "Large caps over their 200-session average, the strongest of the last six months. Goes to cash when the S&P 500 is under its own 200-session average.",
+  "universe": {"largest": 300},
+  "rebalance": "weekly",
+  "filters": [{"factor": "trend", "days": 200, "min": 0}],
+  "score": [{"factor": "momentum", "days": 126, "skip": 5, "weight": 1}],
+  "hold": 15,
+  "weighting": "equal",
+  "market": {"factor": "trend", "days": 200, "min": 0, "cash": 1}
+}

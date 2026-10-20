@@ -1,0 +1,12 @@
+{
+  "format": "markethub-bot/1",
+  "name": "Megacap rotation",
+  "about": "Among a dozen of the biggest companies, holds the four with the best three-month move, the higher scored with more.",
+  "universe": {"tickers": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "AVGO", "TSLA", "JPM", "LLY", "V", "WMT", "ORCL"]},
+  "rebalance": "weekly",
+  "filters": [],
+  "score": [{"factor": "momentum", "days": 63, "weight": 1}, {"factor": "volatility", "days": 63, "weight": -0.3}],
+  "hold": 4,
+  "weighting": "score",
+  "max_weight": 0.4
+}

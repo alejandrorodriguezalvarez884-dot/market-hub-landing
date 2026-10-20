@@ -1,0 +1,12 @@
+{
+  "format": "markethub-bot/1",
+  "name": "Calm compounders",
+  "about": "The 25 least volatile of the 200 largest companies, the calmest ones with more weight.",
+  "universe": {"largest": 200},
+  "rebalance": "monthly",
+  "filters": [],
+  "score": [{"factor": "volatility", "days": 126, "weight": -1}, {"factor": "beta", "days": 126, "weight": -0.5}],
+  "hold": 25,
+  "weighting": "inverse_volatility",
+  "max_weight": 0.08
+}
