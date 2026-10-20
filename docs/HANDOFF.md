@@ -22,6 +22,9 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-20: **Desplegado** `market-hub-00069-bfc` desde un export limpio de 305c78b, sin cambios de configuración. La
+> privacidad en producción ya dice que en el tablero de bots se ve el nombre de pila.
+
 > 2026-10-20: **Bots: el jugador es el nombre de pila de la cuenta, un id público por bot y renombrar.**
 > Mismo parche que el `engine.py` de Bot League (ver su HANDOFF): `handle` pasa a ser el nombre de pila
 > de la cuenta (nunca elegido ni de la petición), cada bot tiene un `public_id` aleatorio y se puede
