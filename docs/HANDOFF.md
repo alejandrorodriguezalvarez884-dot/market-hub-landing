@@ -52,7 +52,7 @@ Decisiones del usuario:
 > el robot) y con 27 tests nuevos. **Desplegado** a petición del usuario como `market-hub-00065-64z`, desde un
 > export limpio de 07ecf62 con `gcloud run deploy --source` sin opciones (configuración igual antes y
 > después), junto con la navegación de las cinco herramientas (radar: solo `earnings-radar-hub`).
-> Pendiente: la pestaña en la app de móvil, y
+> La app de móvil ya lo enseña en su pestaña Community (`market-hub-mobile` 3dcb8a9). Pendiente:
 > que el mantenimiento diario mire la página.
 
 > 2026-10-20: **Community, una sección propia de My Hub.** El usuario pidió que Community dejara
