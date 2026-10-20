@@ -22,6 +22,14 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-20: **El aviso a Bot League sale dentro de la petición, y fuera el kit antiguo.** Cuando
+> una visita encuentra los bots atrasados, `POST /api/bots/refresh` avisa a Bot League
+> (`/api/board/refresh`) dentro de la misma petición, con 3 s de espera: antes salía de un hilo,
+> y Cloud Run solo da CPU mientras corre una petición, así que el aviso podía no salir. Bot League
+> sigue con el refresco aunque el portal deje de esperar (su ruta es síncrona). Se borra
+> `src/markethub/botkit/` salvo los ejemplos, que pasan a `bot_examples/`, y con él `bots.kit()`.
+> Un test nuevo. Sin desplegar.
+
 > 2026-10-20: **Desplegado** `market-hub-00066-cnb` desde un export limpio de e2c9669 (la entrada
 > de abajo sobre Bot League más el arreglo de Firestore: `FirestoreBots` guarda cada fila de una curva
 > como `{"row": [...]}`, porque Firestore no admite un array dentro de otro y cada refresh fallaba en
@@ -48,8 +56,8 @@ Decisiones del usuario:
 > - Privacidad: el bot se ve en Bot League y en Community, y **el tablero es público** (antes: solo
 >   miembros con sesión). `BOT_LEAGUE_URL` en `config.py` y `PUBLIC_BOT_LEAGUE_URL` en la web.
 > - `bots.py` no cambia: Bot League lleva una copia (`engine.py`) y los dos se cambian a la vez.
->   `src/markethub/botkit/` ya no se sirve; solo se usan sus `examples/` (la muestra). El resto de
->   la carpeta sobra y se puede borrar (no se borró en esta sesión).
+>   El kit antiguo (`src/markethub/botkit/`) se borró el 2026-10-20; sus ejemplos siguen en
+>   `src/markethub/bot_examples/` (copia de los del kit de Bot League), para la muestra y los tests.
 > Tests en verde. Sin desplegar.
 
 > 2026-10-20: **Bot competition, la tercera sección de Community** (`/community/bots/`). El usuario

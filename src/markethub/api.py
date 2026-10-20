@@ -892,18 +892,19 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     # --- The bot competition: Bot League's, read here ---
 
     def ask_league() -> None:
-        """Asks Bot League, the one service that moves the bots on, to do it. In the background: a
-        refresh reads five years of closes and can take a minute. Not on sample figures: a local run
+        """Asks Bot League, the one service that moves the bots on, to do it. The request is sent
+        within this one: a thread left behind would wait for CPU that Cloud Run only gives while a
+        request runs. Its answer is not waited for: a refresh reads five years of closes and can
+        take a minute, and Bot League goes on with it once asked. Not on sample figures: a local run
         asks nobody."""
         if only_sample:
             return
-
-        def go():
-            try:
-                httpx.post(f"{BOT_LEAGUE_URL}/api/board/refresh", timeout=300)
-            except httpx.HTTPError:
-                log.warning("bot league did not answer a refresh")
-        threading.Thread(target=go, daemon=True).start()
+        try:
+            httpx.post(f"{BOT_LEAGUE_URL}/api/board/refresh", timeout=httpx.Timeout(5.0, read=3.0))
+        except httpx.TimeoutException:
+            pass  # asked: Bot League is at it
+        except httpx.HTTPError:
+            log.warning("bot league did not answer a refresh")
 
     league_refresh = bot_league or ask_league
 

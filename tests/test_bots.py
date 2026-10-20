@@ -408,3 +408,32 @@ def test_a_visit_asks_bot_league_to_move_the_bots_on(api, bot_store):
     board = page.get("/api/bots").json()
     assert board["stale"] is False and board["you"]["since"] == API_DAYS[-6] and board["you"]["sessions"] == 6
     assert page.post("/api/bots/refresh").json() == {"moved": 0} and league.asked == 1
+
+
+def test_the_portal_asks_bot_league_within_the_request_and_does_not_wait(monkeypatch, users, market, opinion, shared, writer, logins, captcha,
+                                                                         entries, reader, submissions, posts, x_posts, option_strategies, bot_store):
+    import httpx
+
+    import markethub.api as portal
+
+    clock = Clock(at(API_DAYS[-6], 12))
+    closes = lambda tickers: {t: walk(t, API_DAYS) for t in tickers}  # noqa: E731
+    app = create_app(users=users, market=market, directory=Directory(loader=lambda: list(COMPANIES)), verifier=fake_verifier,
+                     client_id=CLIENT_ID, session_secret="test-secret", secure_cookies=False, opinion=opinion, community_store=shared,
+                     insight_writer=writer, logins=logins, password_cost=(10, 8, 1), captcha=captcha, competition_store=entries,
+                     stock_reader=reader, submissions=submissions, posts=Posts(posts), x_posts=XPosts(x_posts),
+                     option_strategies=option_strategies, bot_store=bot_store, clock=clock, bot_closes=closes)
+    page = TestClient(app)
+    page.headers.update({"origin": ORIGIN})
+    sign_in(page)
+    Bots(bot_store, closes, lambda n: [c.ticker for c in COMPANIES][:n], now=clock).submit(USER, BOT, handle="ana bots")
+    clock.when = at(API_DAYS[-1], 18)
+    sent = []
+
+    def post(url, **kw):
+        sent.append(url)
+        raise httpx.ReadTimeout("still moving the bots on")  # Bot League goes on with it; the portal does not wait
+
+    monkeypatch.setattr(portal.httpx, "post", post)
+    assert page.post("/api/bots/refresh").json() == {"moved": 0, "asked": True}
+    assert sent == ["https://bots.themarkethub.app/api/board/refresh"]  # sent before the answer, not left to a thread

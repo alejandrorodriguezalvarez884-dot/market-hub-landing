@@ -28,7 +28,6 @@ opens nothing but the routes of the member's own bot.
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import math
 import os
@@ -36,7 +35,6 @@ import re
 import secrets
 import threading
 import time
-import zipfile
 from bisect import bisect_right
 from datetime import date, datetime, timedelta, timezone
 from datetime import time as clock
@@ -61,8 +59,9 @@ PERIODS = [("1d", "Day", 1), ("1w", "Week", 5), ("1m", "Month", 21), ("1y", "Yea
 SHOWN = 200  # lines of the board sent to the page
 SHOWN_HOLDINGS = 12
 KEY_PREFIX = "mhb_"
-KIT = Path(__file__).parent / "botkit"
-KIT_FOLDER = "markethub-bot"
+# The example bots of Bot League's kit (market-hub-bots), copied here: the stand-ins of the board
+# while its figures are sample ones, and a check that the format still takes them.
+EXAMPLES = Path(__file__).parent / "bot_examples"
 
 # Each figure a bot can filter or score on, worked out from daily closes: its settings, each with
 # its lowest and highest value and its default (None: it must be given).
@@ -780,21 +779,8 @@ def default_bots() -> BotStore:
 
 
 def examples() -> list[dict]:
-    """The kit's example bots, the stand-ins of the board while its figures are sample ones."""
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted((KIT / "examples").glob("*.json"))]
-
-
-def kit(site: str, key: str | None = None) -> bytes:
-    """The folder a member opens with their agent, zipped. With a key, its .env carries it."""
-    out = io.BytesIO()
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        for path in sorted(KIT.rglob("*")):
-            if path.is_file() and "__pycache__" not in path.parts:
-                text = path.read_bytes().replace(b"{{SITE}}", site.encode())
-                z.writestr(f"{KIT_FOLDER}/{path.relative_to(KIT).as_posix()}", text)
-        if key:
-            z.writestr(f"{KIT_FOLDER}/.env", f"# Your bot key: keep it to yourself. A new one from the page replaces it.\nMARKETHUB_URL={site}\nMARKETHUB_BOT_KEY={key}\n")
-    return out.getvalue()
+    """The example bots of Bot League's kit."""
+    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(EXAMPLES.glob("*.json"))]
 
 
 class Bots:
