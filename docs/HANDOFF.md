@@ -22,6 +22,14 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-20: **Bots: el jugador es el nombre de pila de la cuenta, un id público por bot y renombrar.**
+> Mismo parche que el `engine.py` de Bot League (ver su HANDOFF): `handle` pasa a ser el nombre de pila
+> de la cuenta (nunca elegido ni de la petición), cada bot tiene un `public_id` aleatorio y se puede
+> renombrar sin perder el historial. Fuera las comprobaciones de nombre contra Community en
+> `Bots(...)`. La privacidad y `CLAUDE.md` dicen que en el tablero de bots el nombre de pila es público;
+> el resto de Community no cambia. `/api/bots` sigue igual para la app (`handle` es el nombre de pila, y
+> hay `id`). El enlace de `/community/bots/` a Bot League usa el id. Sin desplegar.
+
 > 2026-10-20: **Desplegado** `market-hub-00068-7hs` desde un export limpio de 997c539 (registro de
 > rebalanceos, cambios en vivo, interruptores, privacidad y cuenta). La configuración del servicio es la
 > misma antes y después. La privacidad en producción ya lo dice.

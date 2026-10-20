@@ -71,7 +71,7 @@ import App from "../../components/App.astro";
 		const chart = h("div", "mt-4");
 		add(panel,
 			h("h2", "mt-1 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong", you.name),
-			h("p", "mt-0.5 text-[12.5px] text-muted", `Shown as ${you.handle} · ${you.universe} companies to choose from`),
+			h("p", "mt-0.5 text-[12.5px] text-muted", `By ${you.handle} · ${you.universe} companies to choose from`),
 			you.about ? h("p", "mt-2 max-w-prose text-[13.5px] text-ink", you.about) : null,
 			h("p", "mt-3 text-[12.5px] text-muted", started),
 			live ? add(h("div", "mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line sm:grid-cols-3 2xl:grid-cols-5"), ...PERIODS.map(stat)) : null,
@@ -85,7 +85,7 @@ import App from "../../components/App.astro";
 					await withdrawBot();
 					await load();
 				}),
-				Object.assign(h("a", "link", "Its page in Bot League ↗"), { href: `${BOT_LEAGUE_URL}/bot/?b=${encodeURIComponent(you.handle.replace(/[\s_-]+/g, "").toLowerCase())}` }),
+				Object.assign(h("a", "link", "Its page in Bot League ↗"), { href: `${BOT_LEAGUE_URL}/bot/?b=${encodeURIComponent(you.id ?? "")}` }),
 				h("span", "", "To change it, ask your agent: a new bot replaces this one and starts its record again.")));
 		if (you.curve.length > 1) {
 			requestAnimationFrame(() => returnsChart(chart, you.curve.map((p) => p.date), [{ name: you.name, values: you.curve.map((p) => p.value - 1), color: C.ink }], 200));
@@ -192,7 +192,7 @@ import App from "../../components/App.astro";
 			`Each trade pays ${pct(b.rules.cost, 2)} of what is traded. Returns are on price, dividends left out, and cash earns nothing.`,
 			"Its record starts at the first close after you send it in. Nothing before counts: a backtest is for you alone.",
 			"One bot per member. Sending in another one replaces it and starts its record again.",
-			"The board is public, here and in Bot League: anyone sees your name, the bot's name and idea, its returns and what it holds. Its rules are yours alone.",
+			"The board is public, here and in Bot League: anyone sees the first name of your account, the bot's name and idea, its returns and what it holds. Its rules are yours alone.",
 		];
 		c.body.append(add(h("ul", "list-disc space-y-1.5 pl-5 text-[13px] text-ink"), ...items.map((t) => h("li", "", t))));
 		return c.el;

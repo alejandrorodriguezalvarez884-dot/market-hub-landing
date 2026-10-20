@@ -15,8 +15,9 @@ lists does not change its past.
 Nothing runs on a timer: a visit that finds the bots behind the last close asks for them to be
 moved on (refresh), as it does with the news.
 
-What is kept of a bot is the member's account id (which never leaves the server), the name they
-chose to be shown under, the rules, the companies it could choose from when it was sent in, its
+What is kept of a bot is the member's account id (which never leaves the server), the first name
+of their account (shown next to the bot: never the surname, the email or the picture), a random
+public id the bot's page is found by, the rules, the companies it could choose from when it was sent in, its
 curve and what it holds, a log of its rebalances (what it held before and after each), and the
 changes its owner made to it (each version of its rules, from the close it applied, and whether it
 is paused). A change keeps the record: it applies from the next close, never backwards, and the
@@ -45,7 +46,7 @@ from pathlib import Path
 from typing import Callable, Protocol
 from zoneinfo import ZoneInfo
 
-from .community import HANDLE, RESERVED, SAMPLE_NAMES, handle_key
+from .community import SAMPLE_NAMES
 from .config import (BOT_BACKTEST_YEARS_MAX, BOT_COST, BOT_HOLD_MAX, BOT_UNIVERSE_MAX, BOTS_CACHE_SECONDS, BOTS_LOCK_SECONDS,
                      BOTS_MAX, BOTS_REFRESH_SECONDS, DATA_DIR, FIRESTORE_DATABASE)
 from .holdings import BENCHMARK
@@ -65,6 +66,18 @@ LOG_KEPT = 260  # rebalances kept in a bot's log, the latest
 VERSIONS_KEPT = 100
 LOGGED_TURNOVER = 0.0005  # a rebalance that trades less than this is not logged
 MOVED = 0.005  # in the log, a weight that moved less than this is drift, not a change
+PLAYER = "Member"  # shown for an account with no first name to show
+
+
+def first_name(name) -> str:
+    """The first name of an account, as the board shows a player: no surname, email or picture."""
+    first = (str(name or "").split() or [""])[0][:30]
+    return first if first and publishable(first) else PLAYER
+
+
+def public_id() -> str:
+    """A bot's id on the board and in its page's address: random, and kept for the bot."""
+    return secrets.token_hex(5)
 KEY_PREFIX = "mhb_"
 # The example bots of Bot League's kit (market-hub-bots), copied here: the stand-ins of the board
 # while its figures are sample ones, and a check that the format still takes them.
@@ -843,15 +856,11 @@ def examples() -> list[dict]:
 
 class Bots:
     def __init__(self, store: BotStore, closes: Callable[[set[str]], dict[str, list[tuple[str, float]]]],
-                 largest: Callable[[int], list[str]], taken: Callable[[str, str], bool] | None = None,
-                 member_name: Callable[[str], str] | None = None, sample: bool = False, now: Callable[[], datetime] | None = None):
+                 largest: Callable[[int], list[str]], sample: bool = False, now: Callable[[], datetime] | None = None):
         """``closes`` gives the daily closes of some tickers, oldest first; ``largest(n)`` the n
-        largest US companies, funds left out; ``taken(key, user_id)`` whether someone else
-        already shows under a name elsewhere in the community, and ``member_name(user_id)`` the
-        name a member already shows under there. ``sample``: the figures are sample ones, and
+        largest US companies, funds left out. ``sample``: the figures are sample ones, and
         stand-ins fill the board."""
-        self.store, self.closes, self.largest, self.taken, self.sample = store, closes, largest, taken, sample
-        self.member_name = member_name or (lambda user_id: "")
+        self.store, self.closes, self.largest, self.sample = store, closes, largest, sample
         self.now = now or (lambda: datetime.now(timezone.utc))
         self._cached: tuple[float, dict] | None = None
         self._lock = threading.Lock()
@@ -859,11 +868,13 @@ class Bots:
 
     # --- The key ---
 
-    def issue_key(self, user_id: str) -> str:
-        """A new key for the member's agent. Their old one stops working."""
+    def issue_key(self, user_id: str, name: str | None = None) -> str:
+        """A new key for the member's agent. Their old one stops working. ``name`` is the account's
+        name from the session it is made in: the agent's bots are shown under its first name."""
         self.revoke_key(user_id)
         key = KEY_PREFIX + secrets.token_urlsafe(32)
-        self.store.put_key({"hash": digest(key), "user_id": user_id, "created_utc": _iso(self.now()), "used_utc": None})
+        self.store.put_key({"hash": digest(key), "user_id": user_id, "created_utc": _iso(self.now()), "used_utc": None,
+                            "name": first_name(name)})
         return key
 
     def revoke_key(self, user_id: str) -> None:
@@ -926,28 +937,23 @@ class Bots:
                       f"It pays {BOT_COST * 100:.2f}% on what it trades. Dividends are left out, as in the competition."],
         }
 
-    def _name(self, user_id: str, handle) -> tuple[str, str]:
-        mine = self.store.get(user_id)
-        handle = " ".join(str(handle or "").split()) or (mine or {}).get("handle") or self.member_name(user_id)
-        if not handle:
-            raise Refused('Pick a name to be shown under: send "handle" with the bot (3 to 20 letters, digits, spaces, hyphens or underscores).')
-        if not HANDLE.fullmatch(handle):
-            raise Refused('"handle" is 3 to 20 letters, digits, spaces, hyphens or underscores.')
-        key = handle_key(handle)
-        if key in {handle_key(r) for r in RESERVED} or key in {handle_key(n) for n in SAMPLE_NAMES} or not publishable(handle):
-            raise Refused("That name is not available.")
-        if any(b.get("handle_key") == key and b["user_id"] != user_id for b in self.store.all()) or (self.taken and self.taken(key, user_id)):
-            raise Refused("Someone else already shows under that name.")
-        return handle, key
+    def _player(self, user_id: str, name: str | None, mine: dict | None) -> str:
+        """The first name a member's bot is shown under: the session's, or the one kept with their key
+        or their bot, never one sent with a request."""
+        if name:
+            return first_name(name)
+        keys = sorted(self.store.keys_of(user_id), key=lambda k: k["created_utc"])
+        return (keys[-1].get("name") if keys else None) or (mine or {}).get("handle") or PLAYER
 
-    def submit(self, user_id: str, raw, handle=None) -> dict:
+    def submit(self, user_id: str, raw, name: str | None = None) -> dict:
         """Send in the member's bot, in place of the one they had: its record starts at the next close."""
         bot = check(raw)
-        handle, key = self._name(user_id, handle)
         universe = resolve(bot, self.largest)
-        if not self.store.get(user_id) and len(self.store.all()) >= BOTS_MAX:
+        mine = self.store.get(user_id)
+        if not mine and len(self.store.all()) >= BOTS_MAX:
             raise Refused("The competition is full for now.")
-        self.store.put({"user_id": user_id, "handle": handle, "handle_key": key, "spec": bot, "universe": universe,
+        self.store.put({"user_id": user_id, "handle": self._player(user_id, name, mine), "public_id": (mine or {}).get("public_id") or public_id(),
+                        "spec": bot, "universe": universe,
                         "submitted_utc": _iso(self.now()), "curve": [], "weights": {}, "as_of": None, "log": [],
                         "preview": self._holds(bot, universe)})
         self._cached = None
@@ -966,6 +972,49 @@ class Bots:
             return None
         held = decide(bot, universe, prices, end)
         return {"as_of": prices.days[end], "weights": {t: round(w, 6) for t, w in sorted(held.items(), key=lambda x: -x[1])}}
+
+    def rename(self, user_id: str, name, about=None) -> dict:
+        """A new name for the member's bot, and its idea if given: at once, keeping the record, and not
+        the day's change of rules. Its page says it was renamed."""
+        doc = self.store.get(user_id)
+        if not doc:
+            raise Refused("There is no bot to rename: send one in first.")
+        checked = check({**doc["spec"], "name": name, "about": doc["spec"]["about"] if about is None else about})
+        old = doc["spec"]["name"]
+        for spec in [doc["spec"], *([doc["pending"]["spec"]] if (doc.get("pending") or {}).get("spec") else [])]:
+            spec["name"], spec["about"] = checked["name"], checked["about"]
+        if checked["name"] != old and doc.get("curve"):
+            now = self.now()
+            doc["versions"] = (list(doc.get("versions") or []) + [{"from": now.astimezone(NEW_YORK).date().isoformat(), "changed_utc": _iso(now),
+                                                                   "what": [f"renamed from {old}"]}])[-VERSIONS_KEPT:]
+        self.store.put(doc)
+        self._cached = None
+        return self.mine(user_id)
+
+    def sync_player(self, user_id: str, name: str | None) -> None:
+        """Show the member's bot, and their key's next bots, under the first name of the session they
+        came with: a name changed on their account follows here."""
+        first = first_name(name)
+        doc = self.store.get(user_id)
+        if doc and (doc.get("handle") != first or not doc.get("public_id")):
+            self.store.put({**doc, "handle": first, "public_id": doc.get("public_id") or public_id()})
+            self._cached = None
+        for k in self.store.keys_of(user_id):
+            if k.get("name") != first:
+                self.store.put_key({**k, "name": first})
+
+    def ensure_ids(self) -> int:
+        """Give a public id to every bot sent in before bots had one."""
+        done = 0
+        for d in self.store.all():
+            if not d.get("public_id"):
+                there = self.store.get(d["user_id"])
+                if there and not there.get("public_id"):
+                    self.store.put({**there, "public_id": public_id()})
+                    done += 1
+        if done:
+            self._cached = None
+        return done
 
     def preview(self, raw) -> dict:
         """A bot's rules in words and what they would hold at the last close, before it is changed."""
@@ -1191,19 +1240,19 @@ class Bots:
             for d in docs:
                 values = [v for _, v in d.get("curve") or []]
                 held = sorted((d.get("weights") or {}).items(), key=lambda x: -x[1])
-                rows.append({"user_id": d["user_id"], "handle": d["handle"], "stand_in": bool(d.get("stand_in")), "name": d["spec"]["name"],
+                rows.append({"user_id": d["user_id"], "id": d.get("public_id"), "handle": d["handle"], "stand_in": bool(d.get("stand_in")), "name": d["spec"]["name"],
                              "about": d["spec"]["about"], "since": d["curve"][0][0] if d.get("curve") else None, "as_of": d.get("as_of"),
                              "sessions": len(values), "returns": returns(values) if values else {k: None for k in [*(p[0] for p in PERIODS), "all"]},
                              "holdings": [{"ticker": t, "weight": w} for t, w in held[:SHOWN_HOLDINGS]], "holding": len(held),
                              "cash": max(0.0, 1 - sum(w for _, w in held)) if values else None, "submitted_utc": d.get("submitted_utc"),
                              "paused": bool(d.get("paused")), "changed": ((d.get("versions") or [{}])[-1]).get("from")})
             for key in [p[0] for p in PERIODS] + ["all"]:
-                ranked = sorted((r for r in rows if r["returns"][key] is not None), key=lambda r: (-r["returns"][key], r["handle"].lower()))
+                ranked = sorted((r for r in rows if r["returns"][key] is not None), key=lambda r: (-r["returns"][key], r["handle"].lower(), r["id"] or ""))
                 for n, r in enumerate(ranked, 1):
                     r.setdefault("ranks", {})[key] = n
             for r in rows:
                 r.setdefault("ranks", {})
-            rows.sort(key=lambda r: (r["returns"]["all"] is None, -(r["returns"]["all"] or 0), r["handle"].lower()))
+            rows.sort(key=lambda r: (r["returns"]["all"] is None, -(r["returns"]["all"] or 0), r["handle"].lower(), r["id"] or ""))
             as_of = max((r["as_of"] for r in rows if r["as_of"]), default=meta.get("as_of"))
             # The index over the same periods. It has no "since the start": each bot has its own.
             marks = {**returns([c / bench[0] for c in bench]), "all": None} if bench else None
@@ -1224,7 +1273,7 @@ class Bots:
         values = [v for _, v in doc.get("curve") or []]
         row = next((r for r in self._state()["rows"] if r["user_id"] == user_id and r.get("submitted_utc") == doc["submitted_utc"]), None)
         held = sorted((doc.get("weights") or {}).items(), key=lambda x: -x[1])
-        return {"handle": doc["handle"], "name": doc["spec"]["name"], "about": doc["spec"]["about"], "submitted_utc": doc["submitted_utc"],
+        return {"handle": doc["handle"], "id": doc.get("public_id"), "name": doc["spec"]["name"], "about": doc["spec"]["about"], "submitted_utc": doc["submitted_utc"],
                 "since": doc["curve"][0][0] if doc.get("curve") else None, "as_of": doc.get("as_of"), "sessions": len(values),
                 "returns": returns(values) if values else None, "ranks": (row or {}).get("ranks", {}), "entrants": len(self._state()["rows"]),
                 "holdings": [{"ticker": t, "weight": w} for t, w in held], "cash": max(0.0, 1 - sum(w for _, w in held)) if values else None,
@@ -1248,7 +1297,7 @@ class Bots:
         state = self._state()
         return {"sample": self.sample, "as_of": state["as_of"], "stale": self.behind(), "periods": [{"key": k, "label": label} for k, label, _ in PERIODS],
                 "rows": [self._line(r, user_id) for r in state["rows"][:SHOWN]], "entrants": len(state["rows"]), "benchmark": state["benchmark"],
-                "you": self.mine(user_id), "key": self.key_status(user_id), "name": (self.store.get(user_id) or {}).get("handle") or self.member_name(user_id),
+                "you": self.mine(user_id), "key": self.key_status(user_id), "name": (self.store.get(user_id) or {}).get("handle") or "",
                 "rules": {"cost": BOT_COST, "universe": BOT_UNIVERSE_MAX, "hold": BOT_HOLD_MAX}}
 
     # --- What is kept of a member ---
@@ -1256,7 +1305,7 @@ class Bots:
     def kept(self, user_id: str) -> dict:
         doc = self.store.get(user_id)
         """Everything kept of a member's bot, for their account page and their download."""
-        keep = ("handle", "submitted_utc", "spec", "universe", "curve", "weights", "as_of", "log", "versions", "pending", "paused",
+        keep = ("handle", "public_id", "submitted_utc", "spec", "universe", "curve", "weights", "as_of", "log", "versions", "pending", "paused",
                 "rules_changed_utc", "preview")
         return {"bot": {"name": doc["spec"]["name"], **{k: doc.get(k) for k in keep}} if doc else None, "key": self.key_status(user_id)}
 

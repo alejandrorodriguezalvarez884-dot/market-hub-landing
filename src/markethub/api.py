@@ -312,9 +312,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             raise MarketUnavailable("The market data provider is not answering for now.")
         return got
 
-    bots = Bots(bot_store or default_bots(), closes_of, largest_companies,
-                taken=lambda key, user_id: any(m.get("handle_key") == key and m.get("user_id") != user_id for m in community_store.all(COMMUNITY_MEMBERS)),
-                member_name=competitions.name, sample=only_sample, now=clock)
+    # A bot is shown under the first name of its owner's account (kept with it by Bot League).
+    bots = Bots(bot_store or default_bots(), closes_of, largest_companies, sample=only_sample, now=clock)
     client_id = GOOGLE_CLIENT_ID if client_id is None else client_id
     secret = session_secret or SESSION_SECRET
     if not secret:

@@ -7,11 +7,11 @@ export type BotPeriod = "1d" | "1w" | "1m" | "1y" | "all";
 export type BotReturns = Record<BotPeriod, number | null>;
 export type BotHolding = { ticker: string; weight: number }; // weight as a fraction
 export type BotLine = {
-  handle: string; stand_in: boolean; you: boolean; name: string; about: string; since: string | null; as_of: string | null;
+  handle: string; id: string | null; stand_in: boolean; you: boolean; name: string; about: string; since: string | null; as_of: string | null;
   sessions: number; returns: BotReturns; ranks: Partial<Record<BotPeriod, number>>; holdings: BotHolding[]; holding: number; cash: number | null;
 };
 export type MyBot = {
-  handle: string; name: string; about: string; submitted_utc: string; since: string | null; as_of: string | null; sessions: number;
+  handle: string; id: string | null; name: string; about: string; submitted_utc: string; since: string | null; as_of: string | null; sessions: number;
   returns: BotReturns | null; ranks: Partial<Record<BotPeriod, number>>; entrants: number; holdings: BotHolding[]; cash: number | null;
   rules: string[]; universe: number; curve: { date: string; value: number }[];
 };
