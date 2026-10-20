@@ -1,5 +1,5 @@
 ---
-// My Hub, Community, its second section: the monthly competition. A portfolio of single stocks is
+// My Hub, Community, Monthly competition. A portfolio of single stocks is
 // sent in before a month starts and measured over that month; the best return wins. The page has
 // the month being played (podium, the month session by session, standings, discussion), the entry
 // for the next month, and the months that ended with everybody's record.
@@ -17,7 +17,7 @@ import Search from "../../components/Search.astro";
 	import { requireUser } from "../../lib/api";
 	import { add, card, h, linkTo } from "../../lib/dom";
 	import { pct, signedPct, timeAgo } from "../../lib/format";
-	import { cell, communityNav, failure, ordinal, pageHead, points, shareBar, tone } from "../../lib/hub";
+	import { cell, failure, ordinal, pageHead, points, shareBar, tone } from "../../lib/hub";
 	import { C, returnsChart } from "../../lib/lwc";
 	import { competition, evenly, monthComment, monthThread, sendEntry, who, withdrawEntry, type Benchmark, type Competition, type Line, type RecordLine } from "../../lib/competition";
 	import { removeComment } from "../../lib/opinion";
@@ -496,8 +496,8 @@ import Search from "../../components/Search.astro";
 			tabs.append(t);
 		}
 		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"),
-			pageHead("Community", "A portfolio of single stocks, one month, and the best return wins it.", { sample: c.sample }),
-			communityNav("competitions"), hero(c), tabs,
+			pageHead("Monthly competition", "A portfolio of single stocks, one month, and the best return wins it.", { sample: c.sample, over: "Community" }),
+			hero(c), tabs,
 			view === "entry" ? entryView(c) : view === "history" ? historyView(c) : monthView(c),
 			rules(c)));
 		tick();

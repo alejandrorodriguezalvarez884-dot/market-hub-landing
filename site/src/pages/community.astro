@@ -1,12 +1,12 @@
 ---
-// My Hub, Community, its first section: sharing your portfolio. It takes a portfolio first; then a
+// My Hub, Community, Share portfolio: sharing your portfolio. It takes a portfolio first; then a
 // name, and the say-so. Under it, the portfolios their owners chose to share, ranked by how today's
 // holdings did over a period, and where yours stands among them, shared or not. Sharing shows
-// weights and returns only: never amounts. The other section is the monthly competition.
+// weights and returns only: never amounts. The other page of Community is the monthly competition.
 import App from "../components/App.astro";
 ---
 
-<App title="Community" description="Portfolios their owners chose to share, and where yours stands among them.">
+<App title="Share portfolio" description="Portfolios their owners chose to share, and where yours stands among them.">
 	<div id="community" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-40"></div><div class="skeleton h-96"></div></div>
 </App>
 
@@ -14,7 +14,7 @@ import App from "../components/App.astro";
 	import { api, requireUser } from "../lib/api";
 	import { add, card, h, linkTo } from "../lib/dom";
 	import { pct, signedPct, timeAgo } from "../lib/format";
-	import { cell, communityNav, failure, ordinal, pageHead, points, shareBar, tone } from "../lib/hub";
+	import { cell, failure, ordinal, pageHead, points, shareBar, tone } from "../lib/hub";
 	import { link } from "../lib/site";
 	import type { Board, Member, PeriodKey, Sharing } from "../lib/types";
 
@@ -200,8 +200,8 @@ import App from "../components/App.astro";
 
 	function draw(b: Board) {
 		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"),
-			pageHead("Community", "Portfolios their owners chose to share, and where yours stands among them.", { sample: b.sample }),
-			communityNav("portfolios"), sharing(b), standing(b), board(b)));
+			pageHead("Share portfolio", "Portfolios their owners chose to share, and where yours stands among them.", { sample: b.sample, over: "Community" }),
+			sharing(b), standing(b), board(b)));
 	}
 
 	async function load() {

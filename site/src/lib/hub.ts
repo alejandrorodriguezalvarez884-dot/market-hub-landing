@@ -21,10 +21,10 @@ export function sampleNote(): HTMLElement {
 }
 
 // The head of a page of My Hub: where you are, the page's title, a line under it, and what you can do.
-export function pageHead(title: string, note: string, opts: { sample?: boolean; action?: HTMLElement | null } = {}): HTMLElement {
+export function pageHead(title: string, note: string, opts: { sample?: boolean; action?: HTMLElement | null; over?: string } = {}): HTMLElement {
   return add(h("div", "flex flex-wrap items-end justify-between gap-3"),
     add(h("div", "min-w-0"),
-      add(h("p", "label flex items-center gap-2"), "My Hub", opts.sample ? sampleNote() : null),
+      add(h("p", "label flex items-center gap-2"), opts.over ?? "My Hub", opts.sample ? sampleNote() : null),
       h("h1", "mt-1 text-2xl font-bold text-ink-strong", title),
       h("p", "mt-0.5 max-w-2xl text-[13px] text-muted", note)),
     opts.action ?? null);
@@ -121,21 +121,3 @@ export function failure(root: HTMLElement, e: unknown) {
 }
 
 // --- Community ---------------------------------------------------------------------------------
-
-// The sections of the community, as the two doors under the page's head. More will come.
-const SECTIONS = [
-  { key: "portfolios", href: "/community/", title: "Shared portfolios", note: "Share yours and see where it stands" },
-  { key: "competitions", href: "/community/competitions/", title: "Monthly competition", note: "Pick stocks, play the month, win it" },
-] as const;
-export function communityNav(active: (typeof SECTIONS)[number]["key"]): HTMLElement {
-  const nav = add(h("nav", "grid gap-px overflow-hidden rounded-[3px] border border-line bg-line sm:grid-cols-2"), ...SECTIONS.map((s) => {
-    const on = s.key === active;
-    const a = add(linkTo(link(s.href), `group block p-4 transition-colors ${on ? "bg-raised shadow-[inset_0_-2px_0_var(--color-ink-strong)]" : "bg-page hover:bg-panel"}`),
-      h("div", `text-[15px] font-semibold ${on ? "text-ink-strong" : "text-ink group-hover:text-ink-strong"}`, s.title),
-      h("div", "mt-0.5 text-[12.5px] text-muted", s.note));
-    if (on) a.setAttribute("aria-current", "page");
-    return a;
-  }));
-  nav.setAttribute("aria-label", "Community sections");
-  return nav;
-}

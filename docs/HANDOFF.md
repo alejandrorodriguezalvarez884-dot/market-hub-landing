@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-10-15.
+Última actualización: 2026-10-20.
 
 ## Qué se pidió
 
@@ -21,6 +21,16 @@ Decisiones del usuario:
 - Cada posición guarda **acciones y precio medio**; los favoritos son solo tickers.
 
 ## Dónde estamos
+
+> 2026-10-20: **Community, una sección propia de My Hub.** El usuario pidió que Community dejara
+> de ser una entrada de "Your space" con dos tarjetas dentro y fuera su propia sección. La barra
+> lateral (`App.astro`) lleva ahora un grupo "Community" entre "Your space" y "Tools", con "Share
+> portfolio" (`/community/`) y "Monthly competition" (`/community/competitions/`), cada una con su
+> icono y marcada cuando se está en ella; en móvil van en la barra de arriba. Se quita el selector
+> de dos tarjetas de las páginas (`communityNav` en `hub.ts`), y cada página lleva su nombre como
+> título con "Community" encima (`pageHead` acepta `over`). Mismo cambio en el `HubNav.astro` de
+> las cinco herramientas. La app de móvil ya tenía Community como pestaña propia: no cambia.
+> Probado en local; sin desplegar.
 
 > 2026-10-16: **Película nueva de la portada: My Hub y las cinco herramientas.** El usuario pidió
 > una versión que potenciara My Hub y las herramientas; la vio y la aprobó. Sigue siendo 60 s
