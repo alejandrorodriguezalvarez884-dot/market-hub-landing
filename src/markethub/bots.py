@@ -706,6 +706,27 @@ class FileBots:
         self._write(self.root / "meta.json", doc)
 
 
+def packed(value):
+    """A document as Firestore takes it: an array cannot hold another array, so each row of a list
+    of lists (a curve's [date, value], the index's [date, close]) is kept as {"row": [...]}."""
+    if isinstance(value, dict):
+        return {k: packed(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [{"row": packed(x)} if isinstance(x, list) else packed(x) for x in value]
+    return value
+
+
+def unpacked(value):
+    """A document read from Firestore, with its rows back as the lists they were."""
+    if isinstance(value, dict):
+        if set(value) == {"row"} and isinstance(value["row"], list):
+            return unpacked(value["row"])
+        return {k: unpacked(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [unpacked(x) for x in value]
+    return value
+
+
 class FirestoreBots:
     def __init__(self, database: str = FIRESTORE_DATABASE):
         from google.cloud import firestore
@@ -719,16 +740,16 @@ class FirestoreBots:
 
     def get(self, user_id):
         snap = self.bots.document(_id(user_id)).get()
-        return snap.to_dict() if snap.exists else None
+        return unpacked(snap.to_dict()) if snap.exists else None
 
     def put(self, doc):
-        self.bots.document(_id(doc["user_id"])).set(doc)
+        self.bots.document(_id(doc["user_id"])).set(packed(doc))
 
     def delete(self, user_id):
         self.bots.document(_id(user_id)).delete()
 
     def all(self):
-        return [s.to_dict() for s in self.bots.limit(BOTS_MAX).stream()]
+        return [unpacked(s.to_dict()) for s in self.bots.limit(BOTS_MAX).stream()]
 
     def key(self, hashed):
         snap = self.keys.document(hashed).get()
@@ -745,10 +766,10 @@ class FirestoreBots:
 
     def meta(self):
         snap = self.state.get()
-        return snap.to_dict() if snap.exists else {}
+        return unpacked(snap.to_dict()) if snap.exists else {}
 
     def put_meta(self, doc):
-        self.state.set(doc)
+        self.state.set(packed(doc))
 
 
 def default_bots() -> BotStore:

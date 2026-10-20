@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from conftest import CLIENT_ID, ORIGIN, fake_verifier, sign_in
 from markethub.api import create_app
 from markethub.bots import (FORMAT, NEW_YORK, Bots, MemoryBots, Prices, Refused, check, decide, describe, examples, first_session,
-                            last_settled, resolve, run)
+                            last_settled, packed, resolve, run, unpacked)
 from markethub.config import BOT_COST
 from markethub.instagram import Posts
 from markethub.market import Company, Directory
@@ -156,6 +156,22 @@ def test_a_record_starts_at_the_close_after_it_is_sent_in():
     assert first_session(DAYS, at(DAYS[-1], 17)) is None
     assert DAYS[last_settled(DAYS, at(DAYS[-1], 15))] == DAYS[-2]  # today's bar is not a close yet
     assert DAYS[last_settled(DAYS, at(DAYS[-1], 16, 45))] == DAYS[-1]
+
+
+def test_firestore_takes_no_array_inside_an_array_so_rows_are_packed():
+    doc = {"user_id": "u1", "curve": [["2026-10-19", 1.01], ["2026-10-20", 1.02]], "weights": {"AAA": 0.5}, "spec": {"filters": [{"factor": "trend"}]},
+           "benchmark": [["2026-10-20", 600.5]], "universe": ["AAA", "BBB"], "empty": []}
+
+    def nested(v):
+        if isinstance(v, dict):
+            return any(nested(x) for x in v.values())
+        if isinstance(v, list):
+            return any(isinstance(x, list) or nested(x) for x in v)
+        return False
+
+    assert nested(doc) and not nested(packed(doc))
+    assert packed(doc)["curve"][0] == {"row": ["2026-10-19", 1.01]}
+    assert unpacked(packed(doc)) == doc
 
 
 # --- The competition ---------------------------------------------------------------------------
