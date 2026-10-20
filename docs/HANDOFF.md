@@ -28,7 +28,7 @@ Decisiones del usuario:
 > y Cloud Run solo da CPU mientras corre una petición, así que el aviso podía no salir. Bot League
 > sigue con el refresco aunque el portal deje de esperar (su ruta es síncrona). Se borra
 > `src/markethub/botkit/` salvo los ejemplos, que pasan a `bot_examples/`, y con él `bots.kit()`.
-> Un test nuevo. Sin desplegar.
+> Un test nuevo. **Desplegado** como `market-hub-00067-hcf` desde un export limpio de a7d4b36 (configuración igual antes y después).
 
 > 2026-10-20: **Desplegado** `market-hub-00066-cnb` desde un export limpio de e2c9669 (la entrada
 > de abajo sobre Bot League más el arreglo de Firestore: `FirestoreBots` guarda cada fila de una curva
