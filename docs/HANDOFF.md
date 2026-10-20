@@ -22,6 +22,14 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-20: **Desplegado** `market-hub-00066-cnb` desde un export limpio de e2c9669 (la entrada
+> de abajo sobre Bot League más el arreglo de Firestore: `FirestoreBots` guarda cada fila de una curva
+> como `{"row": [...]}`, porque Firestore no admite un array dentro de otro y cada refresh fallaba en
+> su última escritura). La configuración del servicio es la misma antes y después (solo cambian
+> imagen, build y revisión). Comprobado en producción: `/api/bot/*` da 410 con la dirección de Bot
+> League, `POST /api/bots/kit` ya no existe y la privacidad dice que el tablero es público. Bot League
+> está en https://bots.themarkethub.app.
+
 > 2026-10-20: **La competición de bots pasa a Bot League** (repo `market-hub-bots`,
 > https://bots.themarkethub.app, sin desplegar aún). Decisión del usuario: la competición es un
 > producto con su web, sobre los mismos datos (`bots`, `bot_keys`, `bot_meta`), y **Bot League es el
