@@ -51,8 +51,11 @@ import { link } from "../lib/site";
 				includes your name, email or picture, and it has nothing to do with the positions you hold.</li>
 			<li>If you send in a bot to the bot competition (Bot League, at bots.themarkethub.app, and Community here), and only then:
 				the name you pick to be shown under, the bot's rules as you sent them, the companies it could choose from that day, and
-				its record close by close with what it holds. The board is public: anyone, signed in or not, sees that name, the bot's
-				name and description, its returns and what it holds; its rules are seen by you alone. It never includes your name, email or picture, and it has nothing to do with the positions you hold. If
+				its record close by close with what it holds, a log of its rebalances (what it held before and after each), and the
+				changes you make to it (each version of its rules from the close it applied, the companies you leave out and whether
+				you paused it). The board is public: anyone, signed in or not, sees that name, the bot's name and description, its
+				returns, what it holds and what it bought and sold at each rebalance, and the dates its rules changed; its rules, old
+				and new, are seen by you alone. It never includes your name, email or picture, and it has nothing to do with the positions you hold. If
 				you make a key for your AI agent: when it was made and when it was last used. The key itself is kept only scrambled
 				(a hash), so we cannot show it again; a new key, or taking it back, stops the old one.</li>
 			<li>The comments you write under opinion articles. They are public, and they are shown with your first name: not with your
@@ -109,6 +112,12 @@ import { link } from "../lib/site";
 			the board. It does not send your name, email or account, and nothing of your portfolio or your lists. We keep
 			neither what you write nor what the model answers, and neither goes to our logs. To draw a view, the server asks
 			the market data provider for the prices of its tickers.
+		</p>
+		<p>
+			In Bot League, the chat on your bot's page sends what you write, the last few messages of that conversation and your
+			bot's rules to the same language model, so that it can propose new rules; nothing changes until you apply them. It does
+			not send your name, email or account. We keep neither what you write nor what the model answers, and neither goes to
+			our logs.
 		</p>
 		<h2 class="pt-2 text-lg font-bold text-ink-strong">Where it lives</h2>
 		<p>In a Google Cloud Firestore database in the European Union (Belgium region), accessible only to the service. The

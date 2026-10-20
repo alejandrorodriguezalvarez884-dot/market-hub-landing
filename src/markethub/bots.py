@@ -17,7 +17,10 @@ moved on (refresh), as it does with the news.
 
 What is kept of a bot is the member's account id (which never leaves the server), the name they
 chose to be shown under, the rules, the companies it could choose from when it was sent in, its
-curve and what it holds. Members see the name, the bot's name and note, its returns and what it
+curve and what it holds, a log of its rebalances (what it held before and after each), and the
+changes its owner made to it (each version of its rules, from the close it applied, and whether it
+is paused). A change keeps the record: it applies from the next close, never backwards, and the
+rules can change once a day. A bot's page says when its rules changed, not what they became. Members see the name, the bot's name and note, its returns and what it
 holds; its rules are its owner's. Deleting the account deletes the bot and the key.
 
 The key lets an agent on the member's own computer (Claude Code, Codex...) check, backtest and send
@@ -58,6 +61,10 @@ YEAR = 252  # sessions
 PERIODS = [("1d", "Day", 1), ("1w", "Week", 5), ("1m", "Month", 21), ("1y", "Year", YEAR)]
 SHOWN = 200  # lines of the board sent to the page
 SHOWN_HOLDINGS = 12
+LOG_KEPT = 260  # rebalances kept in a bot's log, the latest
+VERSIONS_KEPT = 100
+LOGGED_TURNOVER = 0.0005  # a rebalance that trades less than this is not logged
+MOVED = 0.005  # in the log, a weight that moved less than this is drift, not a change
 KEY_PREFIX = "mhb_"
 # The example bots of Bot League's kit (market-hub-bots), copied here: the stand-ins of the board
 # while its figures are sample ones, and a check that the format still takes them.
@@ -509,11 +516,18 @@ def _due(rule: str, days: list[str], i: int) -> bool:
     return (a.year, a.month) != (b.year, b.month)
 
 
+def _rounded(w: dict[str, float]) -> dict[str, float]:
+    return {t: round(x, 4) for t, x in sorted(w.items()) if x >= 0.00005}
+
+
 def run(bot: dict, universe: list[str], prices: Prices, start: int, end: int, held: dict[str, float] | None = None,
-        value: float = 1.0) -> tuple[list[tuple[str, float]], dict[str, float], float]:
+        value: float = 1.0, log: list | None = None, force: bool = False,
+        paused: bool = False) -> tuple[list[tuple[str, float]], dict[str, float], float]:
     """A bot from the close of session ``start`` to that of ``end``. Without ``held`` it starts in
     cash and buys at the close of ``start``; with it, it goes on from what it held the session
-    before. Gives the value at each close, what it holds at the end and how much it traded."""
+    before. Gives the value at each close, what it holds at the end and how much it traded.
+    ``force`` rebalances at the close of ``start`` whatever the calendar says (rules that have just
+    changed); ``paused`` holds cash at every rebalance; ``log`` gets each rebalance that traded."""
     curve: list[tuple[str, float]] = []
     traded = 0.0
     w = dict(held) if held is not None else None
@@ -534,15 +548,59 @@ def run(bot: dict, universe: list[str], prices: Prices, start: int, end: int, he
             total = (1 - sum(w.values())) + sum(grown.values())
             value *= total
             w = {t: x / total for t, x in grown.items()} if total > 0 else {}
-            rebalance = _due(bot["rebalance"], prices.days, i)
+            rebalance = (force and i == start) or _due(bot["rebalance"], prices.days, i)
         if rebalance:
-            target = decide(bot, universe, prices, i)
+            target = {} if paused else decide(bot, universe, prices, i)
             turnover = sum(abs(target.get(t, 0.0) - w.get(t, 0.0)) for t in set(target) | set(w))
             value *= 1 - BOT_COST * turnover
             traded += turnover
+            if log is not None and turnover > LOGGED_TURNOVER:
+                log.append({"date": prices.days[i], "turnover": round(turnover, 6), "cost": round(BOT_COST * turnover, 6),
+                            "before": _rounded(w), "after": _rounded(target)})
             w = target
         curve.append((prices.days[i], value))
     return curve, w, traded
+
+
+def activity(log: list[dict], last: int | None = None) -> list[dict]:
+    """A bot's rebalances, latest first: what it bought and sold outright, and what it raised or
+    cut. Weights that only drifted back into place are left out."""
+    out = []
+    for e in reversed(log[-last:] if last else log):
+        before, after = e.get("before") or {}, e.get("after") or {}
+        moves = {t: (before.get(t, 0.0), after.get(t, 0.0)) for t in set(before) | set(after)}
+        order = sorted(moves, key=lambda t: (-abs(moves[t][1] - moves[t][0]), t))
+        out.append({"date": e["date"], "turnover": e["turnover"], "cost": e["cost"],
+                    "bought": [{"ticker": t, "weight": moves[t][1]} for t in order if not moves[t][0] and moves[t][1]],
+                    "sold": [{"ticker": t, "weight": moves[t][0]} for t in order if moves[t][0] and not moves[t][1]],
+                    "raised": [{"ticker": t, "before": moves[t][0], "after": moves[t][1]} for t in order
+                               if moves[t][0] and moves[t][1] - moves[t][0] >= MOVED],
+                    "cut": [{"ticker": t, "before": moves[t][0], "after": moves[t][1]} for t in order
+                            if moves[t][1] and moves[t][0] - moves[t][1] >= MOVED],
+                    "after": after})
+    return out
+
+
+def changes(doc: dict, pending: dict) -> list[str]:
+    """What a waiting change does to a bot, in words a page can show: "rules", "excluded NVDA",
+    "included NVDA", "paused", "resumed"."""
+    out: list[str] = []
+    old, new = doc["spec"], pending.get("spec", doc["spec"])
+    if new != old:
+        a, b = set(old["universe"]["exclude"]), set(new["universe"]["exclude"])
+        bare = lambda s: {**s, "universe": {**s["universe"], "exclude": []}}  # noqa: E731
+        if bare(old) != bare(new):
+            out.append("rules")
+        out += [f"excluded {t}" for t in sorted(b - a)] + [f"included {t}" for t in sorted(a - b)]
+    was, now = bool(doc.get("paused")), bool(pending.get("paused", doc.get("paused")))
+    if was != now:
+        out.append("paused" if now else "resumed")
+    return out
+
+
+def _edits(doc: dict) -> str:
+    """What an owner's edits have set on a bot: a refresh keeps its work only if this has not moved."""
+    return json.dumps([doc.get("pending"), doc.get("paused"), doc.get("rules_changed_utc"), doc.get("spec")], sort_keys=True)
 
 
 def last_settled(days: list[str], now: datetime) -> int | None:
@@ -890,7 +948,100 @@ class Bots:
         if not self.store.get(user_id) and len(self.store.all()) >= BOTS_MAX:
             raise Refused("The competition is full for now.")
         self.store.put({"user_id": user_id, "handle": handle, "handle_key": key, "spec": bot, "universe": universe,
-                        "submitted_utc": _iso(self.now()), "curve": [], "weights": {}, "as_of": None})
+                        "submitted_utc": _iso(self.now()), "curve": [], "weights": {}, "as_of": None, "log": [],
+                        "preview": self._holds(bot, universe)})
+        self._cached = None
+        return self.mine(user_id)
+
+    # --- Changing it, keeping its record ---
+
+    def _holds(self, bot: dict, universe: list[str]) -> dict | None:
+        """What the rules would hold after the last close there is: a preview, never a record."""
+        try:
+            prices = Prices(self.closes(set(universe) | {BENCHMARK}))
+        except MarketUnavailable:
+            return None
+        end = last_settled(prices.days, self.now())
+        if end is None:
+            return None
+        held = decide(bot, universe, prices, end)
+        return {"as_of": prices.days[end], "weights": {t: round(w, 6) for t, w in sorted(held.items(), key=lambda x: -x[1])}}
+
+    def preview(self, raw) -> dict:
+        """A bot's rules in words and what they would hold at the last close, before it is changed."""
+        bot = check(raw)
+        universe = resolve(bot, self.largest)
+        return {"ok": True, "bot": bot, "universe": len(universe), "rules": describe(bot, universe), "holds": self._holds(bot, universe)}
+
+    def _change(self, doc: dict, fields: dict) -> None:
+        """A bot that has not started yet just becomes the new one; one with a record gets the change
+        at its next close."""
+        if not doc.get("curve"):
+            doc.update(fields)
+            if "spec" in fields:
+                doc["preview"] = self._holds(doc["spec"], doc["universe"])
+            return
+        doc["pending"] = {**(doc.get("pending") or {}), **fields, "changed_utc": _iso(self.now())}
+
+    def edit(self, user_id: str, raw) -> dict:
+        """New rules for the member's bot, keeping its record: they apply from the next close and its
+        page says when they changed. Once a day."""
+        doc = self.store.get(user_id)
+        if not doc:
+            raise Refused("There is no bot to change: send one in first.")
+        bot = check(raw)
+        # The companies left out with the switch stay out: they come back with "include".
+        state = {**doc, **(doc.get("pending") or {})}
+        left_out = list(dict.fromkeys([*bot["universe"]["exclude"], *state["spec"]["universe"]["exclude"]]))
+        if len(left_out) > 100:
+            raise Refused("A bot leaves out at most 100 companies.")
+        bot["universe"]["exclude"] = left_out
+        universe = resolve(bot, self.largest)
+        last = doc.get("rules_changed_utc")
+        if last and _when(last).astimezone(NEW_YORK).date() == self.now().astimezone(NEW_YORK).date():
+            raise Refused("The rules can change once a day. Try again tomorrow.")
+        self._change(doc, {"spec": bot, "universe": universe})
+        doc["rules_changed_utc"] = _iso(self.now())
+        self.store.put(doc)
+        self._cached = None
+        return self.mine(user_id)
+
+    def switch(self, user_id: str, action: str, ticker: str | None = None) -> dict:
+        """Pause the bot (cash from the next close), resume it, or leave a company out of it or let it
+        back in. Not a change of rules: it does not count as the day's change."""
+        doc = self.store.get(user_id)
+        if not doc:
+            raise Refused("There is no bot to change: send one in first.")
+        state = {**doc, **(doc.get("pending") or {})}  # the bot as it will be at the next close
+        if action in ("pause", "resume"):
+            fields: dict = {"paused": action == "pause"}
+        elif action in ("exclude", "include"):
+            t = _ticker(ticker or "")
+            if not t:
+                raise Refused("Give the ticker of a company.")
+            spec = json.loads(json.dumps(state["spec"]))
+            left_out = spec["universe"]["exclude"]
+            if action == "exclude":
+                if t in left_out:
+                    raise Refused(f"{t} is already left out.")
+                if t not in state["universe"] and t not in (doc.get("weights") or {}):
+                    raise Refused(f"{t} is not among the companies the bot chooses from.")
+                if len(left_out) >= 100:
+                    raise Refused("A bot leaves out at most 100 companies.")
+                left_out.append(t)
+                universe = [x for x in state["universe"] if x != t]
+                if len(universe) < 2 or spec["hold"] > len(universe):
+                    raise Refused(f"Without {t} the bot would have too few companies to choose from.")
+            else:
+                if t not in left_out:
+                    raise Refused(f"{t} is not left out.")
+                left_out.remove(t)
+                universe = resolve(spec, self.largest)
+            fields = {"spec": spec, "universe": universe}
+        else:
+            raise Refused('The switches are "pause", "resume", "exclude" and "include".')
+        self._change(doc, fields)
+        self.store.put(doc)
         self._cached = None
         return self.mine(user_id)
 
@@ -901,20 +1052,47 @@ class Bots:
     # --- Moving the bots on ---
 
     def _advance(self, doc: dict, prices: Prices, end: int) -> bool:
+        """Run a bot on from where it was to the close ``end``. A change waiting for its close applies
+        there: the bot rebalances on its new rules at that close, and the version is logged."""
         days, curve = prices.days, doc.get("curve") or []
         if curve:
             start = bisect_right(days, curve[-1][0])
             if start > end or start == 0:
                 return False
-            new, held, _ = run(doc["spec"], doc["universe"], prices, start, end, held=doc.get("weights") or {}, value=curve[-1][1])
+            held, value = doc.get("weights") or {}, curve[-1][1]
         else:
             start = first_session(days, _when(doc["submitted_utc"]))
             if start is None or start > end:
                 return False
-            new, held, _ = run(doc["spec"], doc["universe"], prices, start, end)
+            held, value = None, 1.0
+        log, new, force = list(doc.get("log") or []), [], False
+        pending = doc.get("pending") if curve else None
+        switch = first_session(days, _when(pending["changed_utc"])) if pending else None
+        if pending and switch is not None and switch <= end:
+            switch = max(switch, start)
+            if switch > start:
+                part, held, _ = run(doc["spec"], doc["universe"], prices, start, switch - 1, held=held, value=value, log=log,
+                                    paused=bool(doc.get("paused")))
+                new, value = part, part[-1][1]
+            what = changes(doc, pending)
+            if what:
+                version = {"from": days[switch], "changed_utc": pending["changed_utc"], "what": what}
+                if "spec" in pending and pending["spec"] != doc["spec"]:
+                    version["spec"] = pending["spec"]
+                doc["versions"] = (list(doc.get("versions") or []) + [version])[-VERSIONS_KEPT:]
+                doc["spec"], doc["universe"] = pending.get("spec", doc["spec"]), pending.get("universe", doc["universe"])
+                doc["paused"] = bool(pending.get("paused", doc.get("paused")))
+                force = True
+            doc.pop("pending", None)
+            start = switch
+        part, held, _ = run(doc["spec"], doc["universe"], prices, start, end, held=held, value=value, log=log, force=force,
+                            paused=bool(doc.get("paused")))
+        new += part
         doc["curve"] = curve + [[d, round(v, 6)] for d, v in new]
         doc["weights"] = {t: round(w, 6) for t, w in held.items() if w >= 5e-7}
+        doc["log"] = log[-LOG_KEPT:]
         doc["as_of"] = days[end]
+        doc.pop("preview", None)
         return True
 
     def behind(self) -> bool:
@@ -957,10 +1135,11 @@ class Bots:
                     end = last_settled(prices.days, now)
                     if end is not None:
                         for doc in docs:
+                            seen = _edits(doc)
                             if self._advance(doc, prices, end):
-                                # Kept only if it is still the bot that was read: not withdrawn or replaced meanwhile.
+                                # Kept only if it is still the bot that was read: not withdrawn, replaced or changed meanwhile.
                                 there = self.store.get(doc["user_id"])
-                                if there and there["submitted_utc"] == doc["submitted_utc"]:
+                                if there and there["submitted_utc"] == doc["submitted_utc"] and _edits(there) == seen:
                                     self.store.put(doc)
                                     moved += 1
                         j = prices.col[BENCHMARK]
@@ -1016,7 +1195,8 @@ class Bots:
                              "about": d["spec"]["about"], "since": d["curve"][0][0] if d.get("curve") else None, "as_of": d.get("as_of"),
                              "sessions": len(values), "returns": returns(values) if values else {k: None for k in [*(p[0] for p in PERIODS), "all"]},
                              "holdings": [{"ticker": t, "weight": w} for t, w in held[:SHOWN_HOLDINGS]], "holding": len(held),
-                             "cash": max(0.0, 1 - sum(w for _, w in held)) if values else None, "submitted_utc": d.get("submitted_utc")})
+                             "cash": max(0.0, 1 - sum(w for _, w in held)) if values else None, "submitted_utc": d.get("submitted_utc"),
+                             "paused": bool(d.get("paused")), "changed": ((d.get("versions") or [{}])[-1]).get("from")})
             for key in [p[0] for p in PERIODS] + ["all"]:
                 ranked = sorted((r for r in rows if r["returns"][key] is not None), key=lambda r: (-r["returns"][key], r["handle"].lower()))
                 for n, r in enumerate(ranked, 1):
@@ -1049,7 +1229,20 @@ class Bots:
                 "returns": returns(values) if values else None, "ranks": (row or {}).get("ranks", {}), "entrants": len(self._state()["rows"]),
                 "holdings": [{"ticker": t, "weight": w} for t, w in held], "cash": max(0.0, 1 - sum(w for _, w in held)) if values else None,
                 "rules": describe(doc["spec"], doc["universe"]), "bot": doc["spec"], "universe": len(doc["universe"]),
-                "curve": [{"date": d, "value": v} for d, v in doc.get("curve") or []]}
+                "curve": [{"date": d, "value": v} for d, v in doc.get("curve") or []],
+                "paused": bool(doc.get("paused")), "exclude": doc["spec"]["universe"]["exclude"], "preview": doc.get("preview"),
+                "rules_changed_utc": doc.get("rules_changed_utc"), "log": activity(doc.get("log") or [], 60),
+                "versions": [{k: v.get(k) for k in ("from", "changed_utc", "what")} for v in doc.get("versions") or []],
+                "pending": self._pending(doc)}
+
+    def _pending(self, doc: dict) -> dict | None:
+        """A change waiting for the next close, for its owner."""
+        p = doc.get("pending")
+        if not p:
+            return None
+        state = {**doc, **p}
+        return {"changed_utc": p["changed_utc"], "what": changes(doc, p), "paused": bool(state.get("paused")),
+                "rules": describe(state["spec"], state["universe"]), "bot": state["spec"], "exclude": state["spec"]["universe"]["exclude"]}
 
     def overview(self, user_id: str) -> dict:
         state = self._state()
@@ -1063,7 +1256,8 @@ class Bots:
     def kept(self, user_id: str) -> dict:
         doc = self.store.get(user_id)
         """Everything kept of a member's bot, for their account page and their download."""
-        keep = ("handle", "submitted_utc", "spec", "universe", "curve", "weights", "as_of")
+        keep = ("handle", "submitted_utc", "spec", "universe", "curve", "weights", "as_of", "log", "versions", "pending", "paused",
+                "rules_changed_utc", "preview")
         return {"bot": {"name": doc["spec"]["name"], **{k: doc.get(k) for k in keep}} if doc else None, "key": self.key_status(user_id)}
 
     def forget(self, user_id: str) -> None:

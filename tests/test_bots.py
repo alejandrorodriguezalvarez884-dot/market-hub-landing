@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from conftest import CLIENT_ID, ORIGIN, fake_verifier, sign_in
 from markethub.api import create_app
-from markethub.bots import (FORMAT, NEW_YORK, Bots, MemoryBots, Prices, Refused, check, decide, describe, examples, first_session,
+from markethub.bots import (FORMAT, NEW_YORK, Bots, MemoryBots, Prices, Refused, activity, check, decide, describe, examples, first_session,
                             last_settled, packed, resolve, run, unpacked)
 from markethub.config import BOT_COST
 from markethub.instagram import Posts
@@ -310,6 +310,109 @@ def test_the_key_is_kept_hashed_and_a_new_one_replaces_it():
     bots.submit("u1", TREND, handle="ana bots")
     bots.forget("u1")
     assert bots.who(second) is None and store.get("u1") is None
+
+
+# --- What a bot does, and changing it live -----------------------------------------------------
+
+
+def test_each_rebalance_is_logged_with_what_it_bought_sold_raised_and_cut():
+    log = []
+    run(bot(hold=2, universe={"tickers": ["AAA", "BBB", "CCC"]}), ["AAA", "BBB", "CCC"], prices(), 10, 30, log=log)
+    first = activity(log)[-1]
+    assert first["date"] == DAYS[10] and {b["ticker"] for b in first["bought"]} == {"AAA", "BBB"} and first["sold"] == []
+    assert first["turnover"] == pytest.approx(1.0) and first["cost"] == pytest.approx(BOT_COST)
+    # Daily, two equal weights drift apart and are traded back: logged, but neither raised nor cut by MOVED.
+    assert len(log) > 1 and all(not e["bought"] and not e["sold"] for e in activity(log)[:-1])
+    sold = activity([{"date": "d", "turnover": 0.6, "cost": 0.0006, "before": {"AAA": 0.5, "BBB": 0.5}, "after": {"AAA": 0.8, "CCC": 0.2}}])[0]
+    assert sold["sold"] == [{"ticker": "BBB", "weight": 0.5}] and sold["bought"] == [{"ticker": "CCC", "weight": 0.2}]
+    assert sold["raised"] == [{"ticker": "AAA", "before": 0.5, "after": 0.8}] and sold["cut"] == []
+
+
+def test_new_rules_keep_the_record_and_apply_from_the_next_close():
+    bots, store, clock, market = competition(380)
+    bots.submit("u1", TREND, handle="ana bots")
+    market.upto, clock.when = LONG[383], at(LONG[383], 17)
+    bots.refresh()
+    before = store.get("u1")["curve"]
+    clock.when = at(LONG[384], 11)  # during the session: from its close
+    mine = bots.edit("u1", {**TREND, "name": "Trend, fewer", "hold": 3})
+    assert mine["name"] == "Trend" and mine["pending"]["what"] == ["rules"] and mine["pending"]["bot"]["hold"] == 3
+    with pytest.raises(Refused, match="once a day"):
+        bots.edit("u1", {**TREND, "hold": 4})
+    market.upto, clock.when = LONG[386], at(LONG[386], 17)
+    bots.refresh(force=True)
+    kept = store.get("u1")
+    assert kept["curve"][:3] == before and len(kept["curve"]) == 6  # the record goes on, never rewritten
+    assert kept["spec"]["hold"] == 3 and "pending" not in kept and len(kept["weights"]) == 3
+    assert kept["versions"] == [{"from": LONG[384], "changed_utc": mine["pending"]["changed_utc"], "what": ["rules"], "spec": kept["spec"]}]
+    assert kept["log"][-1]["date"] in (LONG[384], LONG[385], LONG[386]) and any(e["date"] == LONG[384] for e in kept["log"])  # rebalanced at its close
+    row = next(r for r in bots.overview("u2")["rows"] if r["handle"] == "ana bots")
+    assert row["changed"] == LONG[384] and "spec" not in row and "versions" not in row
+    clock.when = at(LONG[387], 11)
+    assert bots.edit("u1", {**TREND, "hold": 4})["pending"]["what"] == ["rules"]  # a new day, a new change
+
+
+def test_a_bot_that_has_not_started_just_becomes_the_new_one():
+    bots, store, clock, market = competition(380, hour=11)
+    bots.submit("u1", TREND, handle="ana bots")
+    assert store.get("u1")["preview"]["as_of"] == LONG[379] and len(store.get("u1")["preview"]["weights"]) == 5
+    mine = bots.edit("u1", {**TREND, "hold": 2})
+    assert mine["pending"] is None and mine["bot"]["hold"] == 2 and len(mine["preview"]["weights"]) == 2
+    assert "versions" not in store.get("u1") or store.get("u1")["versions"] == []
+
+
+def test_pause_exclude_and_resume_apply_at_the_next_close():
+    bots, store, clock, market = competition(380)
+    bots.submit("u1", {**TREND, "hold": 5}, handle="ana bots")
+    market.upto, clock.when = LONG[382], at(LONG[382], 17)
+    bots.refresh()
+    held = max(store.get("u1")["weights"], key=store.get("u1")["weights"].get)
+    clock.when = at(LONG[383], 10)
+    with pytest.raises(Refused, match="not among"):
+        bots.switch("u1", "exclude", "ZZZ")
+    mine = bots.switch("u1", "exclude", held)
+    assert mine["pending"]["what"] == [f"excluded {held}"] and held in mine["pending"]["exclude"]
+    assert bots.switch("u1", "pause")["pending"]["what"] == [f"excluded {held}", "paused"]
+    bots.edit("u1", {**TREND, "hold": 4})  # a switch is not the day's change of rules
+    market.upto, clock.when = LONG[384], at(LONG[384], 17)
+    bots.refresh(force=True)
+    kept = store.get("u1")
+    assert kept["paused"] and kept["weights"] == {} and held not in kept["universe"] and kept["spec"]["hold"] == 4
+    assert kept["versions"][-1]["what"] == ["rules", f"excluded {held}", "paused"]
+    assert kept["curve"][-1][1] == pytest.approx(kept["curve"][-2][1])  # in cash, nothing moves
+    clock.when = at(LONG[385], 10)
+    bots.switch("u1", "resume")
+    bots.switch("u1", "include", held)
+    market.upto, clock.when = LONG[386], at(LONG[386], 17)
+    bots.refresh(force=True)
+    kept = store.get("u1")
+    assert not kept["paused"] and len(kept["weights"]) == 4 and held in kept["universe"]
+    assert kept["versions"][-1]["what"] == [f"included {held}", "resumed"]
+
+
+def test_a_refresh_does_not_undo_a_change_made_meanwhile():
+    bots, store, clock, market = competition(380)
+    bots.submit("u1", TREND, handle="ana bots")
+    market.upto, clock.when = LONG[382], at(LONG[382], 17)
+    bots.refresh()
+    clock.when = at(LONG[383], 17)
+    market.upto = LONG[383]
+    real = store.get
+
+    def edited_meanwhile(user_id):
+        doc = real(user_id)
+        return {**doc, "paused": True} if doc else doc
+    store.get = edited_meanwhile
+    bots.refresh(force=True)
+    store.get = real
+    assert len(store.get("u1")["curve"]) == 2  # not kept: the next refresh does it again, on the edited bot
+
+
+def test_a_preview_of_what_new_rules_would_hold():
+    bots, *_ = competition(380)
+    got = bots.preview({**TREND, "hold": 3})
+    assert got["rules"][0] == "Looks at the 20 largest US companies." and got["holds"]["as_of"] == LONG[380]
+    assert len(got["holds"]["weights"]) == 3
 
 
 # --- Through the API -------------------------------------------------------------------------------

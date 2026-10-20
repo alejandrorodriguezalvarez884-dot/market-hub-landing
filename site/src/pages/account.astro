@@ -45,7 +45,7 @@ import App from "../components/App.astro";
 				? add(h("ul", "space-y-1"), ...played.entries.slice(0, 12).map((e) => h("li", "", `${month(e.month)}, as "${e.handle}": ${e.picks.map((p) => `${p.ticker} ${p.weight}%`).join(", ")}`)))
 				: "No entries. ", played.entries.length ? null : Object.assign(h("a", "link", "About the competition"), { href: link("/community/competitions/") })),
 			h("dt", "text-muted", "Bot"), add(h("dd", "text-ink-strong"), robot.bot
-				? `"${robot.bot.name}", shown as "${robot.bot.handle}": its rules, the companies it chooses among and its record. `
+				? `"${robot.bot.name}", shown as "${robot.bot.handle}": its rules and their versions, the companies it chooses among and leaves out, whether it is paused, its record and the log of its rebalances. `
 				: "No bot. ", robot.key ? "You have a key for your agent. " : null,
 				Object.assign(h("a", "link", robot.bot || robot.key ? "See it, withdraw it or take the key back" : "About the bot competition"), { href: link("/community/bots/") })),
 			h("dt", "text-muted", "Comments"), h("dd", "text-ink-strong", mine.comments.length

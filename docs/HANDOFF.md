@@ -22,6 +22,15 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-20: **Bots: registro de rebalanceos, cambios en vivo e interruptores** (mismo parche en
+> `bots.py` que en el `engine.py` de Bot League; ver su HANDOFF). Un cambio de reglas conserva el
+> historial y se aplica desde el próximo cierre, una vez al día; pausar, reanudar, excluir o readmitir
+> una empresa también, sin contar como cambio. Se guardan el registro de rebalanceos (`log`), las
+> versiones (`versions`), el cambio pendiente (`pending`), `paused` y una vista previa de lo que tendría
+> un bot aún sin empezar. La privacidad y la cuenta lo dicen, y también lo que manda al modelo el chat
+> de Bot League (nada se guarda del chat). `/api/bots` sigue igual para la app (con campos nuevos).
+> Tests en verde. Sin desplegar.
+
 > 2026-10-20: **El aviso a Bot League sale dentro de la petición, y fuera el kit antiguo.** Cuando
 > una visita encuentra los bots atrasados, `POST /api/bots/refresh` avisa a Bot League
 > (`/api/board/refresh`) dentro de la misma petición, con 3 s de espera: antes salía de un hilo,
