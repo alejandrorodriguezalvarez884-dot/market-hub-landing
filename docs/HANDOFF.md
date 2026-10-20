@@ -22,6 +22,10 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-10-20: **Desplegado** `market-hub-00068-7hs` desde un export limpio de 997c539 (registro de
+> rebalanceos, cambios en vivo, interruptores, privacidad y cuenta). La configuración del servicio es la
+> misma antes y después. La privacidad en producción ya lo dice.
+
 > 2026-10-20: **Bots: registro de rebalanceos, cambios en vivo e interruptores** (mismo parche en
 > `bots.py` que en el `engine.py` de Bot League; ver su HANDOFF). Un cambio de reglas conserva el
 > historial y se aplica desde el próximo cierre, una vez al día; pausar, reanudar, excluir o readmitir
