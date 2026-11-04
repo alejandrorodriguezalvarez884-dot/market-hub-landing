@@ -9,7 +9,7 @@ const th = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", 
 export const bots = words(
   {
     title: "Bot competition",
-    description: "Bots built with an AI agent, run on paper by Bot League and ranked from the close after each was sent in.",
+    description: "Bots built by talking to Claude, run on paper by Bot League and ranked from the close after each was sent in.",
     over: "Community",
     // The periods of the board, and what each one covers ("Returns over …").
     periods: {
@@ -27,7 +27,7 @@ export const bots = words(
     yourBot: "Your bot",
     noBot: "No bot yet",
     whatIsABot:
-      "A bot here is a few rules, not code: which of the largest US companies it looks at, what it scores them on, how many it holds and how often it looks again. Your AI agent writes them with you in Bot League, backtests them and sends them in. It runs on paper, with no money and no broker, and is ranked from the next close.",
+      "A bot here is a few rules, not code: which of the largest US companies it looks at, what it scores them on, how many it holds and how often it looks again. Claude writes them with you in Bot League, in your own words, backtests them and sends them in when you say so. It runs on paper, with no money and no broker, and is ranked from the next close.",
     buildYours: "Build yours in Bot League ↗",
     notYet: "not yet",
     running: (since: string, sessions: number, asOf: string) =>
@@ -39,23 +39,25 @@ export const bots = words(
     withdraw: "Withdraw it",
     withdrawAsk: "Withdraw your bot? Its record goes with it, and a new one starts from zero.",
     itsPage: "Its page in Bot League ↗",
-    toChange: "To change it, ask your agent: a new bot replaces this one and starts its record again.",
+    toChange: "To change it, talk to Claude on your page in Bot League: a new bot replaces this one and starts its record again.",
     // Bot League.
     changeOrAgain: "Change it, or start again",
-    buildOne: "Build one with your AI agent",
+    buildOne: "Build your bot with Claude",
     ownSite:
-      "The bot competition has its own site, with your same account: the kit for your agent with your key in it, the whole board, a page for every bot and the rules.",
+      "The bot competition has its own site, with your same account: a chat with Claude to build your bot, the whole board, a page for every bot and the rules.",
     steps: [
-      "Download the kit in Bot League.",
-      "Open the folder with Claude Code, Codex or the agent you use.",
-      "Say “Let's build my bot”: it writes the rules, backtests them and sends the bot in when you say so.",
+      "Open Bot League with your same account.",
+      "Tell Claude your idea in your own words: it writes the rules and backtests them.",
+      "See how it would have done and send it in: it races from the next close.",
     ],
-    open: "Open Bot League ↗",
+    withClaude: "Build your bot with Claude ↗",
+    changeWithClaude: "Change it with Claude ↗",
     wholeBoard: "The whole board ↗",
-    yourKey: "Your key",
-    keyNote: (made: string, used: string | null) => `Made ${made}, ${used ? `last used ${used}` : "not used yet"}. A new one is made in Bot League.`,
+    yourKey: "Your old key",
+    keyNote: (made: string, used: string | null) =>
+      `You still have a key from the kit, which Bot League no longer offers: made ${made}, ${used ? `last used ${used}` : "never used"}. You can take it back.`,
     takeBack: "Take it back",
-    takeBackAsk: "Take your key back? Your agent can no longer send in or follow your bot until you make a new one in Bot League.",
+    takeBackAsk: "Take your old key back? Nothing can use it again. Your bot is not touched.",
     // The board.
     board: "The board",
     returnsOver: (over: string, day: string) => `Returns over ${over}, to the close of ${day}`,
@@ -76,7 +78,7 @@ export const bots = words(
     // The rules.
     how: "How it works",
     rules: (universe: number, hold: number, cost: string) => [
-      "A bot is a set of rules in a file, not code: the format is in Bot League's kit. Your agent writes it with you.",
+      "A bot is a set of rules, not code. Claude writes them with you in Bot League, in your own words.",
       `It chooses among the ${universe} largest US companies, funds left out, and holds up to ${hold} of them. Long only: no short sales, no borrowing.`,
       "Bot League runs it on paper: no money, no broker, no orders. On the sessions it looks again it decides at the close and trades at that close.",
       `Each trade pays ${cost} of what is traded. Returns are on price, dividends left out, and cash earns nothing.`,
@@ -88,7 +90,7 @@ export const bots = words(
   },
   {
     title: "Competición de bots",
-    description: "Bots creados con un agente de IA, ejecutados en papel por Bot League y clasificados desde el cierre siguiente a su envío.",
+    description: "Bots creados hablando con Claude, ejecutados en papel por Bot League y clasificados desde el cierre siguiente a su envío.",
     over: "Comunidad",
     periods: {
       "1d": { label: "Día", over: "en la última sesión" },
@@ -104,7 +106,7 @@ export const bots = words(
     yourBot: "Tu bot",
     noBot: "Aún no tienes bot",
     whatIsABot:
-      "Aquí un bot son unas pocas reglas, no código: qué empresas mira de entre las mayores de EE. UU., por qué las puntúa, cuántas mantiene y cada cuánto revisa la cartera. Tu agente de IA las escribe contigo en Bot League, les hace un backtest y lo envía. Funciona en papel, sin dinero y sin bróker, y entra en la clasificación desde el próximo cierre.",
+      "Aquí un bot son unas pocas reglas, no código: qué empresas mira de entre las mayores de EE. UU., por qué las puntúa, cuántas mantiene y cada cuánto revisa la cartera. Claude las escribe contigo en Bot League, con tus propias palabras, les hace un backtest y lo envía cuando tú lo digas. Funciona en papel, sin dinero y sin bróker, y entra en la clasificación desde el próximo cierre.",
     buildYours: "Crea el tuyo en Bot League ↗",
     notYet: "aún no",
     running: (since, sessions, asOf) =>
@@ -116,22 +118,24 @@ export const bots = words(
     withdraw: "Retirarlo",
     withdrawAsk: "¿Retirar tu bot? Su historial se va con él, y uno nuevo empieza de cero.",
     itsPage: "Su página en Bot League ↗",
-    toChange: "Para cambiarlo, pídeselo a tu agente: un bot nuevo sustituye a este y su historial vuelve a empezar.",
+    toChange: "Para cambiarlo, habla con Claude en tu página de Bot League: un bot nuevo sustituye a este y su historial vuelve a empezar.",
     changeOrAgain: "Cámbialo o empieza de nuevo",
-    buildOne: "Crea uno con tu agente de IA",
+    buildOne: "Crea tu bot con Claude",
     ownSite:
-      "La competición de bots tiene su propia web, con tu misma cuenta: el kit para tu agente con tu clave dentro, la clasificación completa, una página para cada bot y las reglas.",
+      "La competición de bots tiene su propia web, con tu misma cuenta: un chat con Claude para crear tu bot, la clasificación completa, una página para cada bot y las reglas.",
     steps: [
-      "Descarga el kit en Bot League.",
-      "Abre la carpeta con Claude Code, Codex o el agente que uses.",
-      "Di «Vamos a crear mi bot»: escribe las reglas, les hace un backtest y envía el bot cuando tú lo digas.",
+      "Abre Bot League con tu misma cuenta.",
+      "Cuéntale a Claude tu idea con tus propias palabras: escribe las reglas y les hace un backtest.",
+      "Mira cómo le habría ido y envíalo: compite desde el próximo cierre.",
     ],
-    open: "Abrir Bot League ↗",
+    withClaude: "Crea tu bot con Claude ↗",
+    changeWithClaude: "Cámbialo con Claude ↗",
     wholeBoard: "La clasificación completa ↗",
-    yourKey: "Tu clave",
-    keyNote: (made, used) => `Creada ${made}, ${used ? `usada por última vez ${used}` : "sin usar todavía"}. Las claves nuevas se crean en Bot League.`,
+    yourKey: "Tu clave antigua",
+    keyNote: (made, used) =>
+      `Aún tienes una clave del kit, que Bot League ya no ofrece: creada ${made}, ${used ? `usada por última vez ${used}` : "nunca usada"}. Puedes retirarla.`,
     takeBack: "Retirarla",
-    takeBackAsk: "¿Retirar tu clave? Tu agente ya no podrá enviar ni seguir tu bot hasta que crees otra en Bot League.",
+    takeBackAsk: "¿Retirar tu clave antigua? Ya no se podrá usar. A tu bot no le pasa nada.",
     board: "La clasificación",
     returnsOver: (over, day) => `Rentabilidades ${over}, hasta el cierre del ${day}`,
     noClose: "Aún no hay ningún cierre",
@@ -150,7 +154,7 @@ export const bots = words(
     startsNext: "Su historial empieza en el próximo cierre.",
     how: "Cómo funciona",
     rules: (universe, hold, cost) => [
-      "Un bot es un conjunto de reglas en un archivo, no código: el formato está en el kit de Bot League. Tu agente lo escribe contigo.",
+      "Un bot es un conjunto de reglas, no código. Claude las escribe contigo en Bot League, con tus propias palabras.",
       `Elige entre las ${universe} mayores empresas de EE. UU., sin contar los fondos, y mantiene hasta ${hold}. Solo compra: sin ventas en corto ni préstamos.`,
       "Bot League lo ejecuta en papel: sin dinero, sin bróker, sin órdenes. En las sesiones en que revisa la cartera, decide al cierre y opera a ese mismo cierre.",
       `Cada operación paga un ${cost} de lo que se opera. Las rentabilidades son de precio, sin dividendos, y la liquidez no rinde nada.`,

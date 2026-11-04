@@ -22,6 +22,13 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-04: **Community ya no ofrece el kit de Bot League** (sin desplegar). El usuario quitó la vía de crear el bot
+> "en tu ordenador" (el kit con la clave para el agente propio); el bot se crea hablando con Claude en Bot League. En
+> Community > Bot competition (`i18n/bots.ts`, `views/Bots.astro`), en inglés y en español: el botón principal de la
+> tarjeta de Bot League lleva directo al chat (`/me/` o `/es/me/`), los pasos y las reglas hablan de Claude en vez del
+> kit y del agente, y la caja de la clave solo sale a quien aún tiene una del kit, para retirarla. El backend no cambia
+> (`bots.py`, `/api/bots/key`, la privacidad y la cuenta, que describen datos que siguen guardados).
+
 > 2026-11-04: **El portal en inglés y en español** (sin desplegar), a la vez que Bot League (el piloto). El usuario pidió
 > que se vea "entero en español para quien lo prefiera, que quede perfectamente". Decisiones suyas (2026-11-04): textos de
 > la web en inglés **y** en español (cambiado en los `CLAUDE.md`), portal y Bot League a la vez, y el idioma lo elige el

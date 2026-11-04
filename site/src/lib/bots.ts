@@ -1,6 +1,7 @@
 // The community's bot competition: what /api/bots returns (see src/markethub/bots.py) and the
-// calls of its page. The competition has its own site, Bot League: the kit, the keys and the agent's
-// routes are there. Here the board is read, and a bot can be withdrawn or its key taken back.
+// calls of its page. The competition has its own site, Bot League: a bot is built there by talking to
+// Claude, and the keys and agent routes of the kit it no longer offers stay there. Here the board is
+// read, and a bot can be withdrawn or a key left from the kit taken back.
 import { api } from "./api";
 
 export type BotPeriod = "1d" | "1w" | "1m" | "1y" | "all";

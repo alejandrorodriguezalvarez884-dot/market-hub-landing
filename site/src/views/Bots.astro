@@ -1,8 +1,10 @@
 ---
 // My Hub, Community, Bot competition. The competition has its own site, Bot League
-// (BOT_LEAGUE_URL): a member downloads the kit there, builds a bot of rules with their AI agent and
-// sends it in, and Bot League runs it on paper. Here, on the same data: the member's bot, the top of
-// the board over the day, week, month, year and since each bot started, and the way to Bot League.
+// (BOT_LEAGUE_URL): a member builds a bot of rules there by talking to Claude on their page (/me/)
+// and sends it in, and Bot League runs it on paper. The kit for a member's own agent is no longer
+// offered (2026-11-04); a key left from it can still be taken back here. Here, on the same data: the
+// member's bot, the top of the board over the day, week, month, year and since each bot started, and
+// the way to Bot League.
 // Its words are in i18n/bots.ts; its links to Bot League open its pages in the page's language.
 import App from "../components/App.astro";
 import type { Lang } from "../i18n";
@@ -107,9 +109,11 @@ const t = bots[Astro.props.lang];
 		const panel = add(h("section", "panel p-5 sm:p-6"), h("p", "label", "Bot League"),
 			h("h2", "mt-1 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong", b.you ? t.changeOrAgain : t.buildOne),
 			h("p", "mt-2 max-w-prose text-[13.5px] text-muted", t.ownSite),
-			add(h("ol", "mt-4 list-decimal space-y-1.5 pl-5 text-[13.5px] text-ink"), ...t.steps.map((s) => h("li", "", s))),
-			add(h("p", "mt-4 flex flex-wrap gap-2"), Object.assign(h("a", "btn btn-primary", t.open), { href: botLeague("/me/") }),
-				Object.assign(h("a", "btn btn-ghost", t.wholeBoard), { href: botLeague("/board/") })));
+			// The way in comes first: straight to the chat with Claude on the member's page in Bot League.
+			add(h("p", "mt-4 flex flex-wrap gap-2"), Object.assign(h("a", "btn btn-primary", b.you ? t.changeWithClaude : t.withClaude), { href: botLeague("/me/") }),
+				Object.assign(h("a", "btn btn-ghost", t.wholeBoard), { href: botLeague("/board/") })),
+			add(h("ol", "mt-4 list-decimal space-y-1.5 pl-5 text-[13.5px] text-ink"), ...t.steps.map((s) => h("li", "", s))));
+		// A key left from the kit, which Bot League no longer offers: shown only to take it back.
 		if (b.key) {
 			const k = b.key;
 			add(panel, add(h("div", "mt-5 border-t border-line pt-4"), h("p", "label pb-1", t.yourKey),
