@@ -39,8 +39,8 @@ Decisiones del usuario:
 >   llega con token (la app de móvil) siguen en inglés, aunque manden la cabecera. Sirve `/es/`, `/es/opinion/` y
 >   `/es/opinion/article/` rellenos como los ingleses, y el sitemap lista los dos idiomas con sus `hreflang`.
 > - **Sigue en inglés**: las frases que escribe un modelo (las de My Hub, las lecturas de Watchlist, las noticias del
->   newswriter) y el contenido (noticias, artículos de opinión, títulos de vídeo). Traducir lo del modelo son más
->   llamadas: decisión del usuario, pendiente.
+>   newswriter) y el contenido (noticias, artículos de opinión, títulos de vídeo). El usuario decidió (2026-11-04)
+>   dejar en inglés lo que escribe el modelo: traducirlo serían más llamadas.
 > - Mecanismo, estilo y glosario en [i18n.md](i18n.md) (copia del de `market-hub-bots`).
 > - Probado: tests en verde y `astro check` sin errores; en local con datos de muestra, las 23 páginas en español sin
 >   frases en inglés salvo el contenido y lo que escribe el modelo, las inglesas sin nada en español, sin scroll lateral a
