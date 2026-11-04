@@ -22,6 +22,10 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-04: **Privacidad, el chat de Bot League al crear un bot** (sin desplegar). Bot League deja crear el bot
+> desde su web hablando con Claude; el párrafo de Bot League de `/privacy/` dice ahora que entonces van al modelo
+> el borrador y las cifras de un backtest. Nada más cambia aquí (ni `bots.py` ni la API).
+
 > 2026-10-20: **Desplegado** `market-hub-00069-bfc` desde un export limpio de 305c78b, sin cambios de configuración. La
 > privacidad en producción ya dice que en el tablero de bots se ve el nombre de pila.
 
