@@ -1,6 +1,8 @@
 // TradingView's free widgets on the public pages: the price chart and the map of the market.
 // A widget is a frame TradingView fills with its own data, under its own terms: nothing of it
 // passes through this site's server, and it carries TradingView's name.
+import { lang } from "../i18n";
+import { charts } from "../i18n/charts";
 import { add, h, linkTo } from "./dom";
 import { priceChart } from "./lwc";
 import { link } from "./site";
@@ -61,10 +63,10 @@ export function tvChart(host: HTMLElement, opts: { symbol: string; range?: "1D" 
     host.style.height = `${opts.height ?? 460}px`;
     host.replaceChildren(widget("advanced-chart", {
       autosize: true, symbol: tv, interval: range === "1D" ? "5" : "D", range, timezone: "America/New_York",
-      theme: "dark", style: "1", locale: "en", backgroundColor: "#0b0c0d", gridColor: "rgba(242, 240, 234, 0.06)",
+      theme: "dark", style: "1", locale: charts[lang()].tvLocale, backgroundColor: "#0b0c0d", gridColor: "rgba(242, 240, 234, 0.06)",
       hide_side_toolbar: true, hide_top_toolbar: false, allow_symbol_change: false, save_image: false,
       withdateranges: true, calendar: false, details: false, hotlist: false, support_host: "https://www.tradingview.com",
-    }, "Chart by"));
+    }, charts[lang()].chartBy));
   }
   show(opts.symbol);
   return { setSymbol: show };
@@ -76,7 +78,7 @@ export function tvHeatmap(host: HTMLElement, height = 560) {
   host.style.height = `${height}px`;
   host.replaceChildren(widget("stock-heatmap", {
     dataSource: "SPX500", grouping: "sector", blockSize: "market_cap_basic", blockColor: "change", exchanges: [],
-    locale: "en", colorTheme: "dark", hasTopBar: false, isDataSetEnabled: false, isZoomEnabled: true, hasSymbolTooltip: true,
+    locale: charts[lang()].tvLocale, colorTheme: "dark", hasTopBar: false, isDataSetEnabled: false, isZoomEnabled: true, hasSymbolTooltip: true,
     isMonoSize: false, symbolUrl: new URL(link("/quote/"), location.href).href, width: "100%", height: "100%",
-  }, "Map by"));
+  }, charts[lang()].mapBy));
 }

@@ -1,0 +1,76 @@
+---
+// Opinion: the articles, newest first. The newest opens the page; the rest follow in two columns.
+import Site from "../components/Site.astro";
+import { link } from "../lib/site";
+import type { Lang } from "../i18n";
+import { opinion } from "../i18n/opinion";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = opinion[lang];
+---
+
+<Site title={t.title} description={t.description}>
+	<div class="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+		<div>
+			<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">{t.title}</h1>
+			<p class="mt-2 max-w-xl text-ink">{t.lede}</p>
+		</div>
+		<a id="write" href={link("/opinion/submit/", lang)} class="btn btn-ghost" hidden>{t.write}</a>
+	</div>
+	<div id="opinion" class="mt-10"><div class="skeleton h-56"></div><div class="skeleton mt-8 h-40"></div></div>
+</Site>
+
+<script>
+	import { config } from "../lib/api";
+	import { add, h, linkTo } from "../lib/dom";
+	import { articleHref, articles, cover, overline, type Card } from "../lib/opinion";
+	import { failed } from "../lib/widgets";
+	import { lang } from "../i18n";
+	import { opinion } from "../i18n/opinion";
+
+	const t = opinion[lang()];
+
+	const root = document.getElementById("opinion")!;
+	// The way in to writing one is shown only where articles are being taken.
+	config().then((c) => (document.getElementById("write")!.hidden = !c.submissions)).catch(() => {});
+	const tags = (a: Card) => (a.tags.length ? add(h("p", "mt-3 flex flex-wrap gap-1.5"), ...a.tags.slice(0, 4).map((t) => h("span", "chip !font-sans", t))) : null);
+
+	// The picture of an article leads to it, as its title does; it is not a second stop for the keyboard.
+	function pictured(a: Card, cls: string): HTMLElement | null {
+		const img = cover(a, "aspect-video w-full");
+		if (!img) return null;
+		const to = add(linkTo(articleHref(a.slug), `block ${cls}`), img);
+		to.tabIndex = -1;
+		return to;
+	}
+
+	function lead(a: Card): HTMLElement {
+		const words = add(h("div", "min-w-0"),
+			overline(a),
+			add(h("h2", "lede mt-3 !max-w-[22em] !text-ink-strong"), linkTo(articleHref(a.slug), "hover:underline", a.title)),
+			h("p", "mt-4 max-w-2xl text-lg leading-relaxed text-ink", a.dek),
+			tags(a));
+		const picture = pictured(a, "lg:order-last");
+		return add(h("article", `sec pb-10 ${picture ? "grid items-center gap-x-12 gap-y-6 lg:grid-cols-[1fr_1.15fr]" : ""}`), picture, words);
+	}
+
+	function card(a: Card): HTMLElement {
+		return add(h("article", "sec pb-2"),
+			pictured(a, "mb-5"),
+			overline(a),
+			add(h("h2", "mt-2 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong"), linkTo(articleHref(a.slug), "hover:underline", a.title)),
+			h("p", "mt-2.5 text-ink", a.dek),
+			tags(a));
+	}
+
+	articles()
+		.then(({ articles: all }) => {
+			if (!all.length) return failed(root, t.none);
+			const [first, ...rest] = all;
+			root.replaceChildren(lead(first), add(h("div", "grid gap-x-14 gap-y-10 md:grid-cols-2"), ...rest.map(card)));
+		})
+		.catch(() => failed(root, t.listDown));
+</script>

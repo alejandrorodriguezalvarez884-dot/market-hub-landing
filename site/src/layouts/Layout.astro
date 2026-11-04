@@ -1,6 +1,8 @@
 ---
 import "../styles/global.css";
-import { SITE_NAME, link } from "../lib/site";
+import { SITE_NAME, asset, bareAt, langAt, link } from "../lib/site";
+import type { Lang } from "../i18n";
+import { layout } from "../i18n/layout";
 
 interface Props {
 	title: string;
@@ -10,33 +12,51 @@ interface Props {
 	noindex?: boolean;
 	// schema.org structured data for search engines, one JSON-LD script per object.
 	schema?: object[];
+	only?: boolean; // a page in one language only (no other to offer or to move to)
 }
-const { title, description, noindex = false, schema = [] } = Astro.props;
+const { title, description, noindex = false, schema = [], only = false } = Astro.props;
+// The page's language comes from its address: /es/… is Spanish (docs/i18n.md).
+const lang = langAt(Astro.url.pathname);
+const t = layout[lang];
+const bare = bareAt(Astro.url.pathname);
+const other: Lang = lang === "es" ? "en" : "es";
+const alt = only ? null : link(bare, other);
+const abs = (l: Lang) => (Astro.site ? new URL(link(bare, l), Astro.site).href : null);
 // No "<" at all, so nothing in it can end the script element: JSON says the same with "\u003c".
 const jsonLd = (o: object) => JSON.stringify(o).replace(/</g, "\\u003c");
-const canonical = Astro.site && !noindex ? new URL(Astro.url.pathname, Astro.site) : null;
+const canonical = Astro.site && !noindex ? abs(lang) : null;
 // The picture a shared link shows: the site's card (film/share.mjs, `make share`). An opinion
 // article is handed out with its own cover instead (previews.py).
-const shareImage = Astro.site ? new URL(link("/share.png"), Astro.site).href : link("/share.png");
+const shareImage = Astro.site ? new URL(asset("/share.png"), Astro.site).href : asset("/share.png");
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang} data-alt={alt}>
 	<head>
 		<meta charset="utf-8" />
+		<script is:inline define:vars={{ here: lang, alt }}>
+			// The reader chose a language (the cookie mh_lang, shared with the tools): move to it before
+			// anything is drawn.
+			var chose = document.cookie.match(/(?:^|;\s*)mh_lang=(en|es)/);
+			if (alt && chose && chose[1] !== here) location.replace(alt + location.search + location.hash);
+		</script>
 		<!-- Drawn from favicon.svg by film/icons.mjs (`make icons`). Google Search shows the PNG. -->
-		<link rel="icon" href={link("/favicon.ico")} sizes="48x48" />
-		<link rel="icon" type="image/svg+xml" href={link("/favicon.svg")} />
-		<link rel="icon" type="image/png" sizes="192x192" href={link("/favicon-192.png")} />
-		<link rel="apple-touch-icon" href={link("/apple-touch-icon.png")} />
+		<link rel="icon" href={asset("/favicon.ico")} sizes="48x48" />
+		<link rel="icon" type="image/svg+xml" href={asset("/favicon.svg")} />
+		<link rel="icon" type="image/png" sizes="192x192" href={asset("/favicon-192.png")} />
+		<link rel="apple-touch-icon" href={asset("/apple-touch-icon.png")} />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="color-scheme" content="dark" />
 		<meta name="theme-color" content="#0b0c0d" />
 		<meta name="description" content={description} />
 		{noindex && <meta name="robots" content="noindex" />}
 		{canonical && <link rel="canonical" href={canonical} />}
+		{canonical && alt && <link rel="alternate" hreflang="en" href={abs("en")} />}
+		{canonical && alt && <link rel="alternate" hreflang="es" href={abs("es")} />}
+		{canonical && alt && <link rel="alternate" hreflang="x-default" href={abs("en")} />}
 		<meta property="og:type" content="website" />
 		<meta property="og:site_name" content={SITE_NAME} />
+		<meta property="og:locale" content={lang === "es" ? "es_ES" : "en_US"} />
 		<meta property="og:title" content={title} />
 		<meta property="og:description" content={description} />
 		{canonical && <meta property="og:url" content={canonical} />}
@@ -44,7 +64,7 @@ const shareImage = Astro.site ? new URL(link("/share.png"), Astro.site).href : l
 		<meta property="og:image:type" content="image/png" />
 		<meta property="og:image:width" content="1200" />
 		<meta property="og:image:height" content="630" />
-		<meta property="og:image:alt" content={`${SITE_NAME}: your portfolio, powered by AI.`} />
+		<meta property="og:image:alt" content={t.shareAlt} />
 		<meta name="twitter:card" content="summary_large_image" />
 		<title>{title}</title>
 		{schema.map((o) => <script type="application/ld+json" is:inline set:html={jsonLd(o)} />)}
@@ -68,5 +88,9 @@ const shareImage = Astro.site ? new URL(link("/share.png"), Astro.site).href : l
 	</head>
 	<body class="min-h-screen bg-page text-ink antialiased">
 		<slot />
+		<script>
+			import { languageChoice } from "../i18n/choice";
+			languageChoice();
+		</script>
 	</body>
 </html>

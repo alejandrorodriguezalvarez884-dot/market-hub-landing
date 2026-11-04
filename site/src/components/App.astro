@@ -3,7 +3,8 @@
 // they see it, and the way back to the public portal (the tools, and a button to the home page).
 // Pages check the session themselves.
 import Layout from "../layouts/Layout.astro";
-import { FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, SITE_NAME, link } from "../lib/site";
+import { FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL, SITE_NAME, bareAt, langAt, link } from "../lib/site";
+import { layout } from "../i18n/layout";
 import Logo from "./Logo.astro";
 
 interface Props {
@@ -13,6 +14,10 @@ interface Props {
 }
 const { title, description, wide = false } = Astro.props;
 const path = Astro.url.pathname;
+const lang = langAt(path);
+const t = layout[lang];
+const L = (p: string) => link(p, lang);
+const bare = bareAt(path);
 const icons: Record<string, string> = {
 	overview: "M3 13h6V3H3v10Zm0 8h6v-6H3v6Zm8 0h10V11H11v10Zm0-18v6h10V3H11Z",
 	portfolio: "M4 7h16v12H4zM9 7V5h6v2",
@@ -34,42 +39,42 @@ const icons: Record<string, string> = {
 	options: "M3 20h18M3 15h7l10-10",
 };
 const mine = [
-	{ href: link("/dashboard/"), label: "Overview", icon: "overview" },
-	{ href: link("/analysis/"), label: "Analysis", icon: "analysis" },
-	{ href: link("/watchlist/"), label: "Watchlist", icon: "watchlist" },
-	{ href: link("/portfolio/"), label: "Portfolio", icon: "portfolio" },
-	{ href: link("/account/"), label: "Account and data", icon: "account" },
+	{ href: L("/dashboard/"), label: t.overview, icon: "overview" },
+	{ href: L("/analysis/"), label: t.analysis, icon: "analysis" },
+	{ href: L("/watchlist/"), label: t.watchlist, icon: "watchlist" },
+	{ href: L("/portfolio/"), label: t.portfolio, icon: "portfolio" },
+	{ href: L("/account/"), label: t.accountData, icon: "account" },
 ].map((l) => ({ ...l, active: path.startsWith(l.href) }));
 // Community is a section of its own: sharing a portfolio, the monthly competition and the bot competition.
 const community = [
-	{ href: link("/community/"), label: "Share portfolio", icon: "share", active: path === link("/community/") },
-	{ href: link("/community/competitions/"), label: "Monthly competition", icon: "trophy", active: path.startsWith(link("/community/competitions/")) },
-	{ href: link("/community/bots/"), label: "Bot competition", icon: "bot", active: path.startsWith(link("/community/bots/")) },
+	{ href: L("/community/"), label: t.sharePortfolio, icon: "share", active: path === L("/community/") },
+	{ href: L("/community/competitions/"), label: t.monthly, icon: "trophy", active: path.startsWith(L("/community/competitions/")) },
+	{ href: L("/community/bots/"), label: t.bots, icon: "bot", active: path.startsWith(L("/community/bots/")) },
 ];
 // The tools are reached from here only: the public header does not name them.
 const tools = [
-	{ href: `${FUNDAMENTALS_URL}/`, label: "Fundamentals", icon: "tools" },
-	{ href: `${RADAR_URL}/`, label: "Earnings", icon: "earnings" },
-	{ href: `${PEERS_URL}/`, label: "Peers", icon: "peers" },
-	{ href: `${PLAYGROUND_URL}/`, label: "Playground", icon: "playground" },
-	{ href: `${OPTIONS_URL}/`, label: "Options", icon: "options" },
+	{ href: `${FUNDAMENTALS_URL}/`, label: t.fundamentals, icon: "tools" },
+	{ href: `${RADAR_URL}/`, label: t.earnings, icon: "earnings" },
+	{ href: `${PEERS_URL}/`, label: t.peers, icon: "peers" },
+	{ href: `${PLAYGROUND_URL}/`, label: t.playground, icon: "playground" },
+	{ href: `${OPTIONS_URL}/`, label: t.options, icon: "options" },
 ];
 const groups = [
-	{ label: "Tools", links: tools },
-	{ label: "Explore", links: [{ href: link("/markets/"), label: "Markets", icon: "markets" }, { href: link("/news/"), label: "News", icon: "news" }, { href: link("/opinion/"), label: "Opinion", icon: "opinion" }, { href: link("/media/"), label: "Media", icon: "media" }] },
+	{ label: t.tools, links: tools },
+	{ label: t.explore, links: [{ href: L("/markets/"), label: t.nav.markets, icon: "markets" }, { href: L("/news/"), label: t.nav.news, icon: "news" }, { href: L("/opinion/"), label: t.nav.opinion, icon: "opinion" }, { href: L("/media/"), label: t.nav.media, icon: "media" }] },
 ];
 ---
 
 <Layout noindex title={`${title} — ${SITE_NAME}`} description={description}>
 	<div class="lg:flex">
 		<aside class="sticky top-0 hidden h-screen w-60 flex-none flex-col border-r border-line bg-deep lg:flex">
-			<div class="flex h-14 items-center border-b border-line px-4"><Logo href="/dashboard/" tag="My Hub" /></div>
+			<div class="flex h-14 items-center border-b border-line px-4"><Logo href="/dashboard/" tag={t.myHub} /></div>
 			<div class="mx-3 mt-4 flex items-center gap-2 rounded-md border border-line bg-panel px-3 py-2 text-[11px] text-muted">
 				<svg class="h-3.5 w-3.5 flex-none text-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
-				<span>Private area. Only you see it.</span>
+				<span>{t.private}</span>
 			</div>
-			<nav class="mt-4 flex-1 overflow-y-auto px-3" aria-label="My Hub">
-				<p class="label px-2 pb-1.5">Your space</p>
+			<nav class="mt-4 flex-1 overflow-y-auto px-3" aria-label={t.myHub}>
+				<p class="label px-2 pb-1.5">{t.yourSpace}</p>
 				<ul class="space-y-0.5">
 					{mine.map((l) => (
 						<li>
@@ -81,7 +86,7 @@ const groups = [
 						</li>
 					))}
 				</ul>
-				<p class="label mt-6 px-2 pb-1.5">Community</p>
+				<p class="label mt-6 px-2 pb-1.5">{t.community}</p>
 				<ul class="space-y-0.5">
 					{community.map((l) => (
 						<li>
@@ -109,20 +114,20 @@ const groups = [
 					</>
 				))}
 			</nav>
-			<div class="px-3 pb-3"><a href={link("/")} class="btn btn-ghost w-full py-1.5 text-[13px]"><span aria-hidden="true">←</span> Back to the home page</a></div>
+			<div class="px-3 pb-3"><a href={L("/")} class="btn btn-ghost w-full py-1.5 text-[13px]"><span aria-hidden="true">←</span> {t.backHome}</a></div>
 			<div id="app-user" class="border-t border-line p-3"></div>
 		</aside>
 
 		<div class="min-w-0 flex-1">
 			<header class="sticky top-0 z-40 border-b border-line bg-deep/95 backdrop-blur lg:hidden">
 				<div class="flex h-14 items-center justify-between gap-3 px-4">
-					<Logo href="/dashboard/" tag="My Hub" />
+					<Logo href="/dashboard/" tag={t.myHub} />
 					<div id="app-user-mobile"></div>
 				</div>
-				<nav class="border-t border-line" aria-label="My Hub">
+				<nav class="border-t border-line" aria-label={t.myHub}>
 					<ul class="flex gap-1 overflow-x-auto px-2 text-[13px] font-semibold">
-						<li><a href={link("/")} class="block whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-muted"><span aria-hidden="true">←</span> Home</a></li>
-						{[...mine, ...community, ...tools.map((l) => ({ ...l, active: false })), { href: link("/markets/"), label: "Markets", active: false }].map((l) => (
+						<li><a href={L("/")} class="block whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-muted"><span aria-hidden="true">←</span> {t.home}</a></li>
+						{[...mine, ...community, ...tools.map((l) => ({ ...l, active: false })), { href: L("/markets/"), label: t.nav.markets, active: false }].map((l) => (
 							<li>
 								<a href={l.href} aria-current={l.active ? "page" : undefined}
 									class:list={["block whitespace-nowrap border-b-2 px-3 py-2", l.active ? "border-accent text-ink-strong" : "border-transparent text-muted"]}>{l.label}</a>
@@ -133,10 +138,14 @@ const groups = [
 			</header>
 			<main class:list={["mx-auto px-4 pb-16 pt-6 lg:pt-8", wide ? "max-w-[1920px] lg:px-6" : "max-w-[1280px] lg:px-8"]}>
 				<slot />
-				<p class="mt-14 border-t border-line pt-5 text-xs leading-relaxed text-muted">
-					Prices from the data provider, possibly delayed. Gains and losses are measured against the average cost you entered.
-					Nothing here is investment advice or a recommendation to buy or sell any security.
-				</p>
+				<div class="mt-14 flex flex-wrap items-start justify-between gap-x-8 gap-y-3 border-t border-line pt-5 text-xs leading-relaxed text-muted">
+					<p class="max-w-3xl">{t.hubFoot}</p>
+					<span class="lang-switch flex gap-2" aria-label={t.language} role="group">
+						<a href={link(bare, "en")} data-lang="en" hreflang="en" lang="en" aria-current={lang === "en" ? "true" : undefined} class="hover:text-ink-strong">English</a>
+						<span aria-hidden="true">·</span>
+						<a href={link(bare, "es")} data-lang="es" hreflang="es" lang="es" aria-current={lang === "es" ? "true" : undefined} class="hover:text-ink-strong">Español</a>
+					</span>
+				</div>
 			</main>
 		</div>
 	</div>
@@ -147,12 +156,15 @@ const groups = [
 	import { avatar, signOut } from "../lib/avatar";
 	import { add, h } from "../lib/dom";
 	import { link } from "../lib/site";
+	import { lang } from "../i18n";
+	import { layout } from "../i18n/layout";
 
+	const t = layout[lang()];
 	signedIn()
 		.then((who) => {
 			if (!who) return;
 			const out = (cls: string) => {
-				const b = h("button", cls, "Sign out");
+				const b = h("button", cls, t.signOut);
 				b.type = "button";
 				b.addEventListener("click", () => signOut(link("/")));
 				return b;

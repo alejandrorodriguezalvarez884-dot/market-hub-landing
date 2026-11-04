@@ -36,7 +36,10 @@ Reglas que no se negocian:
 - **Nada programado y nada en GitHub Actions.** Todo se lanza a mano desde el `Makefile`.
 
 Convenciones:
-- Hablar con el usuario en español. Código, comentarios y textos de la web en inglés.
+- Hablar con el usuario en español. Código y comentarios en inglés. **Textos de la web en inglés y
+  en español** (decisión del usuario, 2026-11-04): el inglés en la raíz, el español en `/es/`, cada texto
+  en `site/src/i18n/` con sus dos idiomas, y la API contesta en español solo con `X-MH-Lang: es` (la app
+  de móvil sigue en inglés). Mecanismo, estilo y glosario en [docs/i18n.md](docs/i18n.md).
 - Python 3.12 con `uv`. Tests con `make test`; web con `make check`.
 - Mismo stack y estilo visual que `fundamentals-lab` y `decision-signal-lab`, para unificarlos.
 - Al terminar una tarea relevante, actualizar "Dónde estamos" en `docs/HANDOFF.md`.

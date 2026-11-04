@@ -1,6 +1,8 @@
 // The quote page's charts below the price: the symbol against the S&P 500, its calendar years,
 // its falls from the high, a company's income statements and what a fund holds.
 import { BaselineSeries, LineStyle, type Time } from "lightweight-charts";
+import { lang, locale } from "../i18n";
+import { charts } from "../i18n/charts";
 import { add, h, linkTo } from "./dom";
 import { pct, shortDate, signedPct, type N } from "./format";
 import { baseChart, C, returnsChart } from "./lwc";
@@ -51,6 +53,12 @@ export type Span = keyof typeof SPANS;
 // The spans the closes cover: a span is offered when most of it is there.
 export const spansOf = (hist: History) => (Object.keys(SPANS) as Span[]).filter((s, i) => !i || hist.dates.length > SPANS[s] * 0.8);
 
+// A gap between two returns in percentage points, with one decimal and the page's decimal mark.
+const points = (gap: number) => {
+  const s = (gap * 100).toFixed(1);
+  return lang() === "es" ? s.replace(".", ",") : s;
+};
+
 // Both lines from zero at the start of the span; the legend says where each ended and by how much they differ.
 export function growth(host: HTMLElement, hist: History, symbol: string, span: Span) {
   const n = Math.min(hist.dates.length, SPANS[span] + 1);
@@ -68,7 +76,7 @@ export function growth(host: HTMLElement, hist: History, symbol: string, span: S
   top.replaceChildren(legend([
     ...lines.map((l, i) => ({ name: l.name, color: l.color, value: signedPct(ends[i]), tone: ends[i] > 0 ? "up" : ends[i] < 0 ? "down" : "text-ink" })),
   ]), ...(lines.length > 1 ? [h("p", "mt-1 text-[13px] text-muted",
-    `${symbol} ${ends[0] >= ends[1] ? "ahead of" : "behind"} the S&P 500 by ${(Math.abs(ends[0] - ends[1]) * 100).toFixed(1)} percentage points since ${shortDate(dates[0])}.`)] : []));
+    charts[lang()].versus(symbol, ends[0] >= ends[1], points(Math.abs(ends[0] - ends[1])), shortDate(dates[0])))] : []));
   returnsChart(box, dates, lines, 300);
 }
 
@@ -155,7 +163,7 @@ export function drawdowns(host: HTMLElement, dates: string[], closes: number[], 
   box.style.height = `${height}px`;
   host.replaceChildren(box);
   const chart = baseChart(box);
-  chart.applyOptions({ localization: { locale: "en-US", priceFormatter: (v: number) => `${v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%` } });
+  chart.applyOptions({ localization: { locale: locale(), priceFormatter: (v: number) => pct(v / 100, 1) } });
   let peak = -Infinity;
   // Filled between zero and the line: the deeper the fall, the more red.
   const series = chart.addSeries(BaselineSeries, { baseValue: { type: "price", price: 0 }, topLineColor: C.down, bottomLineColor: C.down,

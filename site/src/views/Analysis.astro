@@ -1,0 +1,203 @@
+---
+// My Hub, Analysis: the portfolio taken apart. What it is made of (by sector, country, volatility
+// and size), how today's holdings did against each index, how much it moves and how its weight
+// is spread, and every position's own figures. Descriptive: it says what is, not what to do.
+import App from "../components/App.astro";
+import type { Lang } from "../i18n";
+import { analysis } from "../i18n/hub";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = analysis[lang];
+---
+
+<App title={t.title} description={t.description}>
+	<div id="analysis" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-72"></div><div class="skeleton h-64"></div></div>
+</App>
+
+<script>
+	import { requireUser } from "../lib/api";
+	import { add, card, h, linkTo, stat } from "../lib/dom";
+	import { pct, plural, shortDate, signedPct } from "../lib/format";
+	import { cell, decimals, empty, failure, getDashboard, label, moveCell, pageHead, points, shareBar, stackedBar, tickerChips, tone } from "../lib/hub";
+	import { link, tidyName } from "../lib/site";
+	import type { Dashboard, Grouping, Row } from "../lib/types";
+	import { rulerAxis, track } from "../lib/widgets";
+	import { lang } from "../i18n";
+	import { analysis } from "../i18n/hub";
+
+	const t = analysis[lang()];
+
+	const root = document.getElementById("analysis")!;
+	const th = (text: string, cls = "") => h("th", cls, text);
+
+	// --- What it is made of ------------------------------------------------------------------------
+
+	function makeup(d: Dashboard): HTMLElement {
+		const c = card(t.makeup, t.makeupNote);
+		const tabs = h("div", "tabs");
+		tabs.setAttribute("role", "tablist");
+		const body = h("div", "mt-4");
+		const show = (g: Grouping) => {
+			tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.key === g.key)));
+			const table = h("table", "data-table");
+			add(table,
+				add(h("thead"), add(h("tr"), th(label(g.label)), th(t.share), th(t.positions), th(t.today), th(t.month), th(t.thisYear), th(t.year), th(t.volatility))),
+				add(h("tbody"), ...g.items.map((it) => add(h("tr"),
+					add(h("td"), h("span", "font-semibold text-ink-strong", label(it.label)), h("div", "text-[11px] text-muted", plural(it.count, t.position, t.positionsWord))),
+					add(h("td", "whitespace-nowrap"), shareBar(it.weight, "mr-2 w-20"), h("span", "num text-ink-strong", pct(it.weight))),
+					add(h("td", "!text-left"), tickerChips(it.tickers)),
+					moveCell(it.day_change_pct, 2), moveCell(it.return_1m), moveCell(it.return_ytd), moveCell(it.return_1y),
+					cell(pct(it.volatility, 0), "num text-muted")))));
+			body.replaceChildren(
+				g.note ? h("p", "mb-3 text-[13px] text-muted", label(g.note)) : h("span"),
+				stackedBar(g.items.map((it) => ({ ...it, label: label(it.label) }))),
+				add(h("div", "mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-muted"), ...g.items.slice(0, 6).map((it) => h("span", "", `${label(it.label)} ${pct(it.weight, 0)}`))),
+				add(h("div", "mt-4 overflow-x-auto"), table));
+		};
+		for (const g of d.groups) {
+			const b = h("button", "tab-btn", t.by(label(g.label)));
+			b.type = "button";
+			b.dataset.key = g.key;
+			b.setAttribute("role", "tab");
+			b.addEventListener("click", () => {
+				show(g);
+				history.replaceState(null, "", `#${g.key}`);
+			});
+			tabs.append(b);
+		}
+		add(c.body, tabs, body);
+		show(d.groups.find((g) => g.key === location.hash.slice(1)) ?? d.groups[0]);
+		return c.el;
+	}
+
+	// --- Against the indices -----------------------------------------------------------------------
+
+	function against(d: Dashboard): HTMLElement {
+		const c = card(t.against, t.againstNote);
+		const indices = d.performance.indices;
+		const gaps = d.performance.periods.map((p) => (p.portfolio != null && p.indices[indices[0].ticker] != null ? p.portfolio - p.indices[indices[0].ticker]! : null));
+		// One scale for the five gaps, so a period's lead or lag reads against the others.
+		const scale = Math.max(0.02, ...gaps.map((g) => Math.abs(g ?? 0)));
+		const table = h("table", "data-table");
+		add(table,
+			add(h("thead"), add(h("tr"), th(t.period), th(t.yourHoldings), ...indices.map((i) => th(i.name)),
+				add(th(""), add(h("div", "ml-auto flex w-[132px] flex-col items-end"), h("span", "", t.vs(indices[0].name)))), th(""))),
+			add(h("tbody"), ...d.performance.periods.map((p, n) => add(h("tr"),
+				add(h("td"), h("span", "font-semibold text-ink-strong", label(p.label))),
+				cell(signedPct(p.portfolio, p.key === "1d" ? 2 : 1), `num font-semibold ${tone(p.portfolio)}`),
+				...indices.map((i) => moveCell(p.indices[i.ticker], p.key === "1d" ? 2 : 1)),
+				add(h("td"), add(h("div", "ml-auto w-[132px]"), track(gaps[n], scale))),
+				cell(points(gaps[n], p.key === "1d" ? 2 : 1), `num ${tone(gaps[n])}`)))));
+		c.body.className = "";
+		c.body.append(add(h("div", "overflow-x-auto"), table));
+		return c.el;
+	}
+
+	// --- How it moves, how it is spread ------------------------------------------------------------
+
+	function movement(d: Dashboard): HTMLElement {
+		const r = d.risk, index = d.performance.indices[0].name;
+		const day = (x: Dashboard["risk"]["best_day"]) => (x ? shortDate(x.date) : undefined);
+		const moves = card(t.moves, t.movesNote);
+		add(moves.body, add(h("div", "grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3"),
+			stat(t.volatility, pct(r.volatility, 0), r.benchmark_volatility != null ? t.indexYear(index, pct(r.benchmark_volatility, 0)) : t.aYear),
+			stat(t.beta, r.beta == null ? "—" : decimals(r.beta, 2), t.betaNote(index)),
+			stat(t.deepest, pct(r.max_drawdown, 1), t.deepestNote, r.max_drawdown ? "down" : ""),
+			stat(t.daysUp, pct(r.up_days, 0), t.daysUpNote),
+			stat(t.best, signedPct(r.best_day?.return, 2), day(r.best_day), "up"),
+			stat(t.worst, signedPct(r.worst_day?.return, 2), day(r.worst_day), "down")));
+		const spread = card(t.spread, t.spreadNote);
+		add(spread.body, add(h("div", "grid grid-cols-2 gap-x-6 gap-y-5"),
+			stat(t.largest, pct(r.top1), r.top3_tickers[0]),
+			stat(t.three, pct(r.top3), r.top3_tickers.join(", ")),
+			stat(t.behaves, r.effective_positions == null ? "—" : t.behavesValue(decimals(r.effective_positions, 1)), t.behavesNote(d.totals.positions)),
+			stat(t.dividend, r.dividend_yield ? pct(r.dividend_yield) : "—", t.dividendNote)));
+		return add(h("div", "grid gap-4 lg:grid-cols-[3fr_2fr]"), moves.el, spread.el);
+	}
+
+	// --- Today, position by position ---------------------------------------------------------------
+
+	function today(d: Dashboard): HTMLElement {
+		const c = card(t.todayTitle, t.todayNote(signedPct(d.totals.day_change_pct, 2)));
+		const rows = d.positions.filter((r) => r.day_contribution != null).sort((a, b) => b.day_contribution! - a.day_contribution!);
+		const scale = Math.max(0.002, ...rows.map((r) => Math.abs(r.day_contribution!)));
+		add(c.body, add(h("div", "ruler"),
+			add(h("div", "ruler-row !py-0 pb-1"), h("span"), h("span", "hidden sm:block"), rulerAxis(scale), h("span")),
+			...rows.map((r) => add(linkTo(link(`/quote/?t=${encodeURIComponent(r.ticker)}`), "ruler-row"),
+				add(h("span", "min-w-0"), h("span", "font-semibold text-ink-strong", r.ticker), h("span", "ml-2 hidden truncate text-[12.5px] text-muted sm:inline", tidyName(r.name))),
+				h("span", `num hidden text-right text-[13px] sm:block ${tone(r.day_change_pct)}`, signedPct(r.day_change_pct, 2)),
+				track(r.day_contribution, scale),
+				h("span", `num text-right text-[13px] ${tone(r.day_contribution)}`, points(r.day_contribution, 2, false))))));
+		return c.el;
+	}
+
+	// --- Every position ----------------------------------------------------------------------------
+
+	type Column = { head: string; value: (r: Row) => number | string | null; draw: (r: Row) => HTMLElement };
+	const COLUMNS: Column[] = [
+		{ head: t.heads.stock, value: (r) => r.ticker, draw: (r) => add(h("td"), linkTo(link(`/quote/?t=${encodeURIComponent(r.ticker)}`), "font-semibold text-ink-strong hover:underline", r.ticker), h("div", "max-w-[11rem] truncate text-[11px] text-muted", tidyName(r.name))) },
+		{ head: t.heads.weight, value: (r) => r.weight, draw: (r) => add(h("td", "whitespace-nowrap"), shareBar(r.weight, "mr-2 w-12"), h("span", "num text-ink-strong", pct(r.weight))) },
+		{ head: t.heads.sector, value: (r) => label(r.sector), draw: (r) => cell(label(r.sector), "!font-sans text-muted") },
+		{ head: t.heads.country, value: (r) => label(r.country), draw: (r) => cell(label(r.country), "!font-sans text-muted") },
+		{ head: t.heads.size, value: (r) => r.market_cap, draw: (r) => cell(label(r.size), "!font-sans text-muted") },
+		{ head: t.heads.volatility, value: (r) => r.volatility, draw: (r) => add(h("td", "whitespace-nowrap"), h("span", "num text-ink", pct(r.volatility, 0)), h("span", "ml-1.5 font-sans text-[11px] text-muted", label(r.volatility_group).toLowerCase())) },
+		{ head: t.heads.beta, value: (r) => r.beta, draw: (r) => cell(r.beta == null ? "—" : decimals(r.beta, 2), "num") },
+		{ head: t.heads.fromHigh, value: (r) => r.from_high_52w, draw: (r) => cell(signedPct(r.from_high_52w), "num text-muted") },
+		{ head: t.heads.dividend, value: (r) => r.dividend_yield, draw: (r) => cell(r.dividend_yield ? pct(r.dividend_yield) : "—", "num text-muted") },
+		{ head: t.heads.month, value: (r) => r.return_1m, draw: (r) => moveCell(r.return_1m) },
+		{ head: t.heads.months3, value: (r) => r.return_3m, draw: (r) => moveCell(r.return_3m) },
+		{ head: t.heads.thisYear, value: (r) => r.return_ytd, draw: (r) => moveCell(r.return_ytd) },
+		{ head: t.heads.year, value: (r) => r.return_1y, draw: (r) => moveCell(r.return_1y) },
+	];
+
+	function positions(d: Dashboard): HTMLElement {
+		const c = card(t.every, t.everyNote);
+		const table = h("table", "data-table");
+		const body = h("tbody");
+		let by = 1, down = true;
+		const heads = COLUMNS.map((col, i) => {
+			const b = h("button", "hover:text-ink-strong", col.head);
+			b.type = "button";
+			b.addEventListener("click", () => {
+				down = by === i ? !down : i !== 0 && i !== 2 && i !== 3;
+				by = i;
+				fill();
+			});
+			return add(h("th"), b);
+		});
+		const fill = () => {
+			heads.forEach((x, i) => x.setAttribute("aria-sort", i === by ? (down ? "descending" : "ascending") : "none"));
+			heads.forEach((x, i) => ((x.firstChild as HTMLElement).className = i === by ? "text-ink-strong underline decoration-line-strong underline-offset-4" : "hover:text-ink-strong"));
+			const value = COLUMNS[by].value;
+			const sorted = [...d.positions].sort((a, b) => {
+				const [x, y] = [value(a), value(b)];
+				if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1; // what is not known goes last
+				const order = typeof x === "string" ? x.localeCompare(String(y)) : x - (y as number);
+				return down ? -order : order;
+			});
+			body.replaceChildren(...sorted.map((r) => add(h("tr"), ...COLUMNS.map((col) => col.draw(r)))));
+		};
+		add(table, add(h("thead"), add(h("tr"), ...heads)), body);
+		fill();
+		c.body.className = "";
+		c.body.append(add(h("div", "overflow-x-auto"), table));
+		return c.el;
+	}
+
+	async function start() {
+		await requireUser();
+		try {
+			const d = await getDashboard();
+			const head = pageHead(t.title, t.description,
+				{ sample: d.sample, action: linkTo(link("/portfolio/"), "btn btn-ghost", t.editPortfolio) });
+			if (!d.positions.length) return root.replaceChildren(head, empty(t.nothing));
+			root.replaceChildren(add(h("div", "grid min-w-0 gap-4"), head, makeup(d), against(d), movement(d), today(d), positions(d)));
+		} catch (e) {
+			failure(root, e);
+		}
+	}
+	start().catch(() => {});
+</script>

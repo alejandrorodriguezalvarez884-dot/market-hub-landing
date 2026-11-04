@@ -1,7 +1,9 @@
 // My Hub's chart: today's holdings against the indices, over the range the reader picks.
+import { lang } from "../i18n";
+import { hub } from "../i18n/hub";
 import { add, card, h } from "./dom";
 import { signedPct } from "./format";
-import { points, tone } from "./hub";
+import { label, points, tone } from "./hub";
 import { compareChart } from "./lwc";
 import type { Dashboard } from "./types";
 
@@ -20,10 +22,10 @@ function start(dates: string[], range: string): number {
 }
 
 export function indexChart(d: Dashboard): HTMLElement {
-  const c = card("Today's holdings against the indices",
-    "The positions you hold now, held through the period, next to the indices, all from 100. Trades are not recorded, so this is not your actual past return.");
+  const t = hub[lang()];
+  const c = card(t.chartTitle, t.chartNote);
   const hst = d.history;
-  if (!hst.dates.length) return (c.body.append(h("p", "text-sm text-muted", "No common price history yet.")), c.el);
+  if (!hst.dates.length) return (c.body.append(h("p", "text-sm text-muted", t.noHistory)), c.el);
   let range: string = "1Y";
   const shown = new Set(["SPY"]);
   const host = h("div");
@@ -34,7 +36,7 @@ export function indexChart(d: Dashboard): HTMLElement {
     const rebased = (values: number[]) => values.slice(from).map((v, _, part) => +((v / part[0]) * 100).toFixed(2));
     chart?.remove();
     chart = compareChart(host, hst.dates.slice(from), [
-      { name: "Your holdings", values: rebased(hst.portfolio_rebased), color: "#f2f0ea" },
+      { name: t.yourHoldings, values: rebased(hst.portfolio_rebased), color: "#f2f0ea" },
       ...d.performance.indices.filter((i) => shown.has(i.ticker) && hst.indices[i.ticker]).map((i) => ({ name: i.name, values: rebased(hst.indices[i.ticker]), color: INDEX_COLORS[i.ticker] ?? "#8c8b86" })),
     ], 320);
   };
@@ -42,7 +44,7 @@ export function indexChart(d: Dashboard): HTMLElement {
   const ranges = h("div", "tabs");
   ranges.setAttribute("role", "tablist");
   for (const r of RANGES) {
-    const b = h("button", "tab-btn", r);
+    const b = h("button", "tab-btn", t.ranges[r] ?? r);
     b.type = "button";
     b.setAttribute("role", "tab");
     b.setAttribute("aria-selected", String(r === range));
@@ -77,14 +79,15 @@ export function indexChart(d: Dashboard): HTMLElement {
 // Each period in a cell: the holdings' return, the index's, and the gap between them in points.
 export function periodStrip(d: Dashboard): HTMLElement {
   const index = d.performance.indices[0];
+  const t = hub[lang()];
   return add(h("div", "mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-line bg-line sm:grid-cols-5"),
     ...d.performance.periods.map((p) => {
       const theirs = p.indices[index.ticker];
       const gap = p.portfolio != null && theirs != null ? p.portfolio - theirs : null;
       return add(h("div", "bg-page p-3"),
-        h("div", "label", p.label),
+        h("div", "label", label(p.label)),
         h("div", `num mt-1 text-lg font-semibold ${tone(p.portfolio)}`, signedPct(p.portfolio, p.key === "1d" ? 2 : 1)),
         add(h("div", "mt-0.5 text-[12px] text-muted"), `${index.name} `, h("span", "num", signedPct(theirs, p.key === "1d" ? 2 : 1))),
-        h("div", `num mt-0.5 text-[12px] ${tone(gap)}`, gap == null ? "—" : `${points(gap, p.key === "1d" ? 2 : 1)} ${gap >= 0 ? "ahead" : "behind"}`));
+        h("div", `num mt-0.5 text-[12px] ${tone(gap)}`, gap == null ? "—" : `${points(gap, p.key === "1d" ? 2 : 1)} ${gap >= 0 ? t.ahead : t.behind}`));
     }));
 }

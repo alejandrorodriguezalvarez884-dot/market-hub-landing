@@ -88,6 +88,20 @@ def test_the_rules_in_words():
     assert words[-1] == "When, for the S&P 500, its close against its 200-session average is not at least 0%, holds 100% in cash."
 
 
+def test_the_rules_in_words_in_spanish():
+    trend = check(next(r for r in examples() if r["name"] == "Trend follower"))
+    words = describe(trend, lang="es")
+    assert words[0] == "Mira las 300 mayores empresas de EE. UU."
+    assert "Se queda con aquellas en las que su cierre frente a su media de 200 sesiones es al menos 0 %." in words
+    assert words[-1] == "Cuando, para el S&P 500, su cierre frente a su media de 200 sesiones no es al menos 0 %, mantiene el 100 % en liquidez."
+    assert describe(trend) == describe(trend, lang="en")
+    one = check({**trend, "hold": 1, "max_weight": 0.25, "universe": {"tickers": ["AAA", "BBB", "CCC"], "exclude": ["BBB"]},
+                 "score": [{"factor": "beta", "days": 63, "weight": -0.5}]})
+    assert describe(one, lang="es")[0] == "Mira 2 empresas: AAA, CCC."
+    assert "Las puntúa por su beta al S&P 500 en 63 sesiones (mejor cuanto más bajo, peso 0,5)." in describe(one, lang="es")
+    assert "Mantiene la mejor, a partes iguales, ninguna por encima del 25 %." in describe(one, lang="es")
+
+
 def test_the_universe_is_among_the_largest_companies():
     largest = lambda n: ["AAA", "BBB", "CCC", "DDD"][:n]  # noqa: E731
     assert resolve(bot(universe={"largest": 20, "exclude": ["BBB"]}), largest) == ["AAA", "CCC", "DDD"]

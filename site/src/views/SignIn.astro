@@ -1,0 +1,235 @@
+---
+// Sign-in, into the private area: with Google, or with an email and a password kept by us (an
+// account can be made here too). A signed-in visitor goes straight to it.
+import Layout from "../layouts/Layout.astro";
+import Logo from "../components/Logo.astro";
+import { SITE_NAME, link } from "../lib/site";
+import type { Lang } from "../i18n";
+import { signin } from "../i18n/signin";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = signin[lang];
+const L = (path: string) => link(path, lang);
+---
+
+<Layout noindex title={`${t.title} — ${SITE_NAME}`} description={t.description}>
+	<div class="mx-auto flex min-h-screen max-w-[1240px] flex-col px-5">
+		<header class="flex h-14 items-center justify-between">
+			<Logo />
+			<a href={L("/")} class="text-sm text-muted hover:text-ink-strong">← {SITE_NAME}</a>
+		</header>
+		<main class="grid flex-1 content-center gap-x-14 gap-y-12 py-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+			<section>
+				<h1 class="lede">{t.h1}</h1>
+				<p class="mt-5 max-w-md text-ink">{t.lede}</p>
+				<div id="signin" class="mt-8 flex min-h-[44px]"></div>
+				<p id="signin-note" class="mt-3 text-sm text-muted" hidden></p>
+				<div id="own" class="mt-6 max-w-[300px]" hidden>
+					<div id="own-or" class="flex items-center gap-3 text-[12.5px] text-muted" aria-hidden="true"><span class="h-px flex-1 bg-line-strong"></span>{t.or}<span class="h-px flex-1 bg-line-strong"></span></div>
+					<form id="own-form" class="mt-5 space-y-3" novalidate>
+						<div id="own-name-row" hidden>
+							<label class="label" for="own-name">{t.yourName}</label>
+							<input id="own-name" class="field mt-1 w-full" type="text" autocomplete="name" maxlength="60" />
+						</div>
+						<div>
+							<label class="label" for="own-email">{t.email}</label>
+							<input id="own-email" class="field mt-1 w-full" type="email" autocomplete="username" inputmode="email" maxlength="254" required />
+						</div>
+						<div>
+							<label class="label" for="own-password">{t.password}</label>
+							<input id="own-password" class="field mt-1 w-full" type="password" autocomplete="current-password" maxlength="200" required />
+							<p id="own-hint" class="mt-1.5 text-[12.5px] text-muted" hidden>{t.hint}</p>
+						</div>
+						<div id="own-captcha" class="min-h-[65px]" hidden></div>
+						<button id="own-send" class="btn btn-primary w-full" type="submit">{t.signIn}</button>
+						<p id="own-note" class="text-[13px] text-down" role="alert"></p>
+					</form>
+					<p id="own-other" class="mt-3 text-[13px] text-muted"><span id="own-ask">{t.newHere}</span> <button id="own-switch" class="link" type="button">{t.createAccount}</button></p>
+				</div>
+				<p class="mt-8 max-w-md text-[13px] text-muted">
+					{t.keep}{" "}
+					<a href={L("/privacy/")} class="link">{t.privacy}</a>
+				</p>
+			</section>
+			<section class="sec self-center">
+				<h2 class="sec-title">{t.inside}</h2>
+				<dl class="mt-2 divide-y divide-line">
+					{t.points.map(([name, d]) => (
+						<div class="grid gap-x-6 gap-y-0.5 py-3 sm:grid-cols-[7.5rem_minmax(0,1fr)]"><dt class="text-ink-strong">{name}</dt><dd class="text-sm text-muted">{d}</dd></div>
+					))}
+				</dl>
+			</section>
+		</main>
+	</div>
+</Layout>
+
+<script>
+	import { api, config, signedIn, type Config } from "../lib/api";
+	import { inLang, lang } from "../i18n";
+	import { signin } from "../i18n/signin";
+	import { link } from "../lib/site";
+
+	const t = signin[lang()];
+	const box = document.getElementById("signin")!;
+	const note = document.getElementById("signin-note")!;
+	const say = (text: string) => ((note.textContent = text), (note.hidden = !text));
+	// Where to go after signing in: a path of this site, or an analysis tool on a subdomain of
+	// the hub's domain (https only). Anything else falls back to the hub, so a crafted ?next=
+	// cannot send the visitor elsewhere. A path of this site is taken in the language of this page.
+	function nextFrom(domain: string | null): string {
+		const n = new URLSearchParams(location.search).get("next") ?? "";
+		if (n.startsWith("/") && !n.startsWith("//")) return inLang(n, lang());
+		if (domain) {
+			try {
+				const u = new URL(n);
+				if (u.protocol === "https:" && u.hostname.endsWith(`.${domain}`) && !u.username && !u.password) return u.href;
+			} catch {
+				/* not a URL */
+			}
+		}
+		return link("/dashboard/");
+	}
+	let next = nextFrom(null);
+
+	// The browsers that apps like LinkedIn or Instagram open links in are embedded web views, and
+	// Google refuses to sign anyone in from one ("disallowed_useragent"). There the Google button
+	// gives way to a way out to the real browser; the email and password form still works.
+	const inApp = /FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Twitter|TikTok|musical_ly|Bytedance|Snapchat|Pinterest|Line\/|MicroMessenger|; wv\)/i.test(navigator.userAgent);
+
+	function leaveApp(password: boolean) {
+		const android = /Android/i.test(navigator.userAgent);
+		const here = location.href;
+		const chrome = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(here)};end`;
+		box.className = "mt-8 max-w-[300px] space-y-3";
+		box.innerHTML = `
+			<p class="text-sm text-ink">${t.inApp(password)}</p>
+			${android ? `<a class="btn btn-primary w-full" href="${chrome}">${t.openChrome}</a>` : ""}
+			<button type="button" class="btn btn-ghost w-full" id="copy-link">${t.copyLink}</button>
+			<p class="text-[12.5px] text-muted">${t.menu(android)}</p>`;
+		const copy = document.getElementById("copy-link") as HTMLButtonElement;
+		copy.addEventListener("click", async () => {
+			try {
+				await navigator.clipboard.writeText(here);
+				copy.textContent = t.copied;
+			} catch {
+				copy.textContent = here;
+			}
+		});
+	}
+
+	function loadGoogle(): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const s = document.createElement("script");
+			s.src = "https://accounts.google.com/gsi/client";
+			s.async = true;
+			s.onload = () => resolve();
+			s.onerror = () => reject(new Error(t.googleFailed));
+			document.head.append(s);
+		});
+	}
+
+	// The other way in: an email and a password, to sign in or to make an account. One form, two
+	// uses; what it sends is checked by the server, which answers in words to show as they come.
+	function own(done: (r: { has_data: boolean }) => void, cfg: Config) {
+		const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+		const [name, email, password] = [$<HTMLInputElement>("own-name"), $<HTMLInputElement>("own-email"), $<HTMLInputElement>("own-password")];
+		const [send, flip, wrong] = [$<HTMLButtonElement>("own-send"), $<HTMLButtonElement>("own-switch"), $("own-note")];
+		const canMake = (cfg.registration ?? "open") !== "closed";
+		let making = canMake && new URLSearchParams(location.search).has("new");
+
+		// Making an account takes a check that a person is asking (Cloudflare Turnstile). Its widget
+		// is loaded the first time the form is turned to making one, and hands over a token that
+		// is good once: after a refusal it is asked for again.
+		const siteKey = cfg.registration === "captcha" ? cfg.turnstile_site_key : null;
+		const check = { token: "", widget: null as string | null, loading: false };
+		const captcha = () => (window as any).turnstile;
+		function askCheck() {
+			if (!siteKey || check.loading || check.widget !== null) return;
+			check.loading = true;
+			const s = document.createElement("script");
+			s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+			s.async = true;
+			// The script is added by hand and has loaded by now: the widget can be drawn straight away.
+			s.onload = () => {
+				check.widget = captcha().render("#own-captcha", {
+					sitekey: siteKey, theme: "dark", action: "register", ...(lang() === "es" ? { language: "es" } : {}),
+					callback: (token: string) => ((check.token = token), wrong.textContent === WAIT && (wrong.textContent = "")),
+					"expired-callback": () => (check.token = ""),
+					"error-callback": () => ((check.token = ""), (wrong.textContent = t.checkFailed)),
+				});
+			};
+			s.onerror = () => ((check.loading = false), (wrong.textContent = t.checkFailed));
+			document.head.append(s);
+		}
+		const WAIT = t.wait;
+
+		const show = () => {
+			$("own-captcha").hidden = !(making && siteKey);
+			if (making) askCheck();
+			$("own-name-row").hidden = $("own-hint").hidden = !making;
+			name.required = making;
+			password.autocomplete = making ? "new-password" : "current-password";
+			send.textContent = making ? t.createMine : t.signIn;
+			$("own-ask").textContent = making ? t.haveAccount : t.newHere;
+			flip.textContent = making ? t.signIn : t.createAccount;
+			wrong.textContent = "";
+		};
+		flip.addEventListener("click", () => ((making = !making), show(), (making ? name : email).focus()));
+		$<HTMLFormElement>("own-form").addEventListener("submit", async (e) => {
+			e.preventDefault();
+			if (!email.value.trim() || !password.value || (making && !name.value.trim())) return (wrong.textContent = making ? t.needAll : t.needBoth);
+			if (making && siteKey && !check.token) return (wrong.textContent = WAIT);
+			send.disabled = true;
+			wrong.textContent = "";
+			try {
+				const body = making ? { email: email.value, password: password.value, name: name.value, captcha: check.token } : { email: email.value, password: password.value };
+				done(await api<{ has_data: boolean }>(making ? "/api/auth/register" : "/api/auth/password", { method: "POST", body: JSON.stringify(body) }));
+			} catch (err) {
+				send.disabled = false;
+				wrong.textContent = err instanceof Error ? err.message : t.didNotWork;
+				// The token went with the attempt: a new one is needed for the next.
+				if (making && check.widget !== null) (check.token = ""), captcha().reset(check.widget);
+			}
+		});
+		$("own-or").hidden = !cfg.google_client_id;
+		$("own-other").hidden = !canMake;
+		show();
+		$("own").hidden = false;
+	}
+
+	async function start() {
+		try {
+			const cfg = await config();
+			next = nextFrom(cfg.domain);
+			const tool = !next.startsWith("/");
+			const who = await signedIn();
+			if (who) return location.replace(who.has_data || tool ? next : link("/portfolio/?welcome=1"));
+			const done = (r: { has_data: boolean }) => location.replace(r.has_data || tool ? next : link("/portfolio/?welcome=1"));
+			if (cfg.password_login) own(done, cfg);
+			if (!cfg.google_client_id) return cfg.password_login ? void (box.hidden = true) : say(t.notConfigured);
+			if (inApp) return leaveApp(!!cfg.password_login);
+			await loadGoogle();
+			const g = (window as any).google.accounts.id;
+			g.initialize({
+				client_id: cfg.google_client_id,
+				ux_mode: "popup",
+				callback: async (resp: { credential: string }) => {
+					say(t.signingIn);
+					try {
+						const r = await api<{ has_data: boolean }>("/api/auth/google", { method: "POST", body: JSON.stringify({ credential: resp.credential }) });
+						location.replace(r.has_data || tool ? next : link("/portfolio/?welcome=1"));
+					} catch (e) {
+						say(e instanceof Error ? e.message : t.failed);
+					}
+				},
+			});
+			g.renderButton(box, { theme: "filled_black", size: "large", shape: "rectangular", text: "continue_with", width: 300, ...(lang() === "es" ? { locale: "es" } : {}) });
+		} catch (e) {
+			say(e instanceof Error ? e.message : t.unavailable);
+		}
+	}
+	start();
+</script>

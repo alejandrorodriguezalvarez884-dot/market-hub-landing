@@ -1,0 +1,162 @@
+---
+// My Hub, Account and data: everything kept about the user, their data to download, their
+// password, the members they blocked, the comments waiting for the moderator, and deleting it all.
+import App from "../components/App.astro";
+import type { Lang } from "../i18n";
+import { account } from "../i18n/account";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = account[lang];
+---
+
+<App title={t.title} description={t.description}>
+	<p class="label">My Hub</p>
+	<h1 class="mt-1 text-2xl font-bold text-ink-strong">{t.heading}</h1>
+	<div id="account-page" class="mt-6 max-w-2xl space-y-4"></div>
+</App>
+
+<script>
+	import { api, requireUser, type Portfolio } from "../lib/api";
+	import type { Entry } from "../lib/competition";
+	import { articleHref, blocked, keepComment, removeComment, reported, submissions, unblock, type Reported, type Submission } from "../lib/opinion";
+	import type { Sharing } from "../lib/types";
+	import { add, card, h } from "../lib/dom";
+	import { num } from "../lib/format";
+	import { OPTIONS_URL, link } from "../lib/site";
+	import { lang, locale } from "../i18n";
+	import { account } from "../i18n/account";
+
+	const t = account[lang()];
+	const root = document.getElementById("account-page")!;
+
+	async function start() {
+		const who = await requireUser();
+		const p = await api<Portfolio>("/api/portfolio");
+		const mine = await api<{ comments: { slug: string; text: string; created_utc: string }[] }>("/api/opinion/mine").catch(() => ({ comments: [] }));
+		const shared = await api<Sharing>("/api/sharing").catch(() => ({ enabled: false, handle: "", since_utc: null }));
+		const played = await api<{ entries: Entry[] }>("/api/competitions/mine").catch(() => ({ entries: [] }));
+		const sent = await submissions().catch(() => ({ articles: [] as Submission[] }));
+		const hidden = await blocked().catch(() => ({ blocked: [] }));
+		const robot = await api<{ bot: { name: string; handle: string; submitted_utc: string } | null; key: { created_utc: string; used_utc: string | null } | null }>("/api/bots/mine").catch(() => ({ bot: null, key: null }));
+		const options = await api<{ strategies: { name: string; ticker: string; legs: unknown[]; updated_utc: string }[] }>("/api/me/option-strategies").catch(() => ({ strategies: [] }));
+		// Only the owner is asked, and only the owner is answered.
+		const waiting = who.moderator ? await reported().catch(() => null) : null;
+		const month = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString(locale(), { month: "long", year: "numeric", timeZone: "UTC" });
+		const own = who.user.provider === "password";
+		const info = card(t.keep, t.keepNote);
+		add(info.body, add(h("dl", "grid grid-cols-[8rem_1fr] gap-y-2 text-[13px]"),
+			h("dt", "text-muted", t.name), h("dd", "text-ink-strong", who.user.name),
+			h("dt", "text-muted", t.email), h("dd", "text-ink-strong", who.user.email),
+			h("dt", "text-muted", t.signIn), h("dd", "text-ink-strong", own ? t.withPassword : who.user.provider === "apple" ? t.withApple : t.withGoogle),
+			h("dt", "text-muted", t.positions), h("dd", "text-ink-strong", p.positions.map((x) => `${x.ticker} (${lang() === "es" ? num(x.shares, 6) : x.shares})`).join(", ") || t.none),
+			h("dt", "text-muted", t.watchlist), h("dd", "text-ink-strong", p.watchlist.join(", ") || t.none),
+			h("dt", "text-muted", t.shared), add(h("dd", "text-ink-strong"), shared.enabled ? t.sharedAs(shared.handle) : t.notShared,
+				Object.assign(h("a", "link", shared.enabled ? t.changeIt : t.aboutSharing), { href: link("/community/") })),
+			h("dt", "text-muted", t.competition), add(h("dd", "text-ink-strong"), played.entries.length
+				? add(h("ul", "space-y-1"), ...played.entries.slice(0, 12).map((e) => h("li", "", t.entry(month(e.month), e.handle, e.picks.map((p) => t.pick(p.ticker, p.weight)).join(", ")))))
+				: t.noEntries, played.entries.length ? null : Object.assign(h("a", "link", t.aboutCompetition), { href: link("/community/competitions/") })),
+			h("dt", "text-muted", t.bot), add(h("dd", "text-ink-strong"), robot.bot
+				? t.botIs(robot.bot.name, robot.bot.handle)
+				: t.noBot, robot.key ? t.hasKey : null,
+				Object.assign(h("a", "link", robot.bot || robot.key ? t.seeBot : t.aboutBots), { href: link("/community/bots/") })),
+			h("dt", "text-muted", t.comments), h("dd", "text-ink-strong", mine.comments.length
+				? t.commentsAre(mine.comments.length) : t.none),
+			h("dt", "text-muted", t.articles), add(h("dd", "text-ink-strong"), sent.articles.length
+				? t.articlesAre(sent.articles.length, sent.articles.map((a) => t.q(a.title)).join(", ")) : t.noneDot,
+				Object.assign(h("a", "link", sent.articles.length ? t.seeArticles : t.writeOpinion), { href: link("/opinion/submit/") })),
+			h("dt", "text-muted", t.options), add(h("dd", "text-ink-strong"), options.strategies.length
+				? t.optionsAre(options.strategies.length, options.strategies.map((s) => `${t.q(s.name)} (${s.ticker})`).join(", ")) : t.noneDot,
+				Object.assign(h("a", "link", options.strategies.length ? t.openOptions : t.aboutOptions), { href: `${OPTIONS_URL}/strategy/` })),
+		));
+		if (mine.comments.length) add(info.body, add(h("ul", "mt-3 space-y-1.5 text-[13px]"), ...mine.comments.slice(0, 20).map((c) => {
+			const a = h("a", "link", c.text.length > 80 ? `${c.text.slice(0, 80)}…` : c.text) as HTMLAnchorElement;
+			a.href = c.slug.startsWith("competition-") ? link("/community/competitions/") : articleHref(c.slug);
+			return add(h("li", "truncate"), a);
+		})));
+		const download = h("button", "btn btn-ghost mt-4", t.download);
+		download.type = "button";
+		download.addEventListener("click", () => {
+			const blob = new Blob([JSON.stringify({ user: who.user, ...p, sharing: shared, competition: played.entries, bot: robot, comments: mine.comments, articles_sent: sent.articles, option_strategies: options.strategies, blocked: hidden.blocked.map((b) => ({ name: b.name, since_utc: b.since_utc })) }, null, 2)], { type: "application/json" });
+			const a = h("a") as HTMLAnchorElement;
+			a.href = URL.createObjectURL(blob);
+			a.download = "market-hub-data.json";
+			a.click();
+			URL.revokeObjectURL(a.href);
+		});
+		info.body.append(download);
+
+		// An account of ours can change its password: it takes the one it has now.
+		const secret = card(t.password, t.passwordNote);
+		const field = (label: string, complete: string) => {
+			const input = h("input", "field mt-1 w-full");
+			Object.assign(input, { type: "password", autocomplete: complete, maxLength: 200, required: true });
+			input.setAttribute("aria-label", label);
+			return { row: add(h("label", "block"), h("span", "label", label), input), input };
+		};
+		const [now, next] = [field(t.current, "current-password"), field(t.next, "new-password")];
+		const change = h("button", "btn btn-ghost", t.change);
+		change.type = "submit";
+		const said = h("p", "text-[13px]");
+		said.setAttribute("role", "status");
+		const form = add(h("form", "max-w-xs space-y-3"), now.row, next.row, change, said);
+		form.addEventListener("submit", async (e) => {
+			e.preventDefault();
+			change.disabled = true;
+			try {
+				await api("/api/auth/password", { method: "PUT", body: JSON.stringify({ current: now.input.value, new: next.input.value }) });
+				form.reset();
+				said.className = "text-[13px] text-up";
+				said.textContent = t.changed;
+			} catch (err) {
+				said.className = "text-[13px] text-down";
+				said.textContent = err instanceof Error ? err.message : t.didNotWork;
+			}
+			change.disabled = false;
+		});
+		secret.body.append(form);
+
+		const danger = card(t.delete, t.deleteNote);
+		const del = h("button", "btn btn-danger", t.deleteMine);
+		del.type = "button";
+		const status = h("p", "mt-2 text-[13px] text-muted");
+		del.addEventListener("click", async () => {
+			if (!confirm(t.confirm)) return;
+			del.disabled = true;
+			try {
+				await api("/api/me", { method: "DELETE" });
+				(window as any).google?.accounts?.id?.disableAutoSelect?.();
+				location.href = link("/");
+			} catch (e) {
+				del.disabled = false;
+				status.textContent = e instanceof Error ? e.message : t.deleteFailed;
+			}
+		});
+		add(danger.body, del, status);
+		// Who the reader blocked: kept as the name their comment was shown under, to unblock them by.
+		const blocks = card(t.blocked, t.blockedNote);
+		const thread = (slug: string) => (slug.startsWith("competition-") ? link("/community/competitions/") : articleHref(slug));
+		const row = (words: string, ...buttons: HTMLElement[]) => add(h("li", "flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2"), h("span", "min-w-0 break-words text-ink-strong", words), add(h("span", "flex gap-3"), ...buttons));
+		const press = (label: string, run: () => Promise<unknown>, cls = "link") => {
+			const b = Object.assign(h("button", cls, label), { type: "button" });
+			b.addEventListener("click", async () => {
+				b.disabled = true;
+				await run().catch(() => {});
+				start().catch(() => {});
+			});
+			return b;
+		};
+		add(blocks.body, add(h("ul", "divide-y divide-line text-[13px]"), ...hidden.blocked.map((b) =>
+			row(t.blockedRow(b.name, new Date(b.since_utc).toLocaleDateString(locale(), { month: "short", day: "numeric", year: "numeric" })), press(t.unblock, () => unblock(b.key))))));
+		const review = card(t.reported, t.reportedNote);
+		if (waiting) add(review.body, waiting.comments.length ? add(h("ul", "divide-y divide-line text-[13px]"), ...waiting.comments.map((c: Reported) => {
+			const where = Object.assign(h("a", "link", t.thread), { href: thread(c.slug) });
+			return row(`${c.name}: ${c.text.length > 200 ? `${c.text.slice(0, 200)}…` : c.text} (${t.reports(c.reports, c.held)})`,
+				where, press(t.keepIt, () => keepComment(c.id)), press(t.deleteIt, () => removeComment(c.id), "link text-down"));
+		})) : h("p", "text-[13px] text-muted", t.nothingWaiting));
+		root.replaceChildren(...[info.el, hidden.blocked.length ? blocks.el : null, waiting ? review.el : null, own ? secret.el : null, danger.el].filter((el): el is HTMLElement => !!el));
+	}
+	start().catch(() => {});
+</script>

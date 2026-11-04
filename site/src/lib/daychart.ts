@@ -1,6 +1,9 @@
 // A session as one line, drawn as far as the page says: from the first trade to the last, over
 // the previous close. Above that close the line is the colour of a rise, below it the colour of a
-// fall. The page moves it with the scroll; a pointer over it reads any moment already drawn.
+// fall. The page moves it with the scroll; a pointer over it reads any moment already drawn. Its
+// words are in i18n/today.ts, its times in the page's language.
+import { lang, locale } from "../i18n";
+import { today as todayWords } from "../i18n/today";
 import { svg } from "./dom";
 import { level } from "./format";
 import type { ChartData } from "./market";
@@ -18,9 +21,10 @@ export type DayChart = {
 const HOUR = 3600;
 let made = 0;
 
-// The exchange's clock at a moment: "11:05 AM".
-export const clock = (time: number) => new Date(time * 1000).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
-const oclock = (time: number) => new Date(time * 1000).toLocaleTimeString("en-US", { hour: "numeric", timeZone: "UTC" });
+// The exchange's clock at a moment: "11:05 AM", "11:05". The hours of the scale: "11 AM", "11:00".
+export const clock = (time: number) => new Date(time * 1000).toLocaleTimeString(locale(), { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+const oclock = (time: number) =>
+  lang() === "es" ? clock(time) : new Date(time * 1000).toLocaleTimeString("en-US", { hour: "numeric", timeZone: "UTC" });
 
 // Round figures for the scale: a few of them between two values.
 function ticks(lo: number, hi: number, about = 4): number[] {
@@ -62,6 +66,7 @@ export function dayChart(host: HTMLElement, onRead: (r: Reading) => void): DayCh
     const [W, H] = [host.clientWidth, host.clientHeight];
     if (!data || !day || W < 80 || H < 80) return;
     parts = null;
+    const say = todayWords[lang()];
     const narrow = W < 520;
     const m = { top: 30, right: narrow ? 62 : 74, bottom: 26 };
     const [pw, ph] = [W - m.right, H - m.top - m.bottom];
@@ -75,7 +80,7 @@ export function dayChart(host: HTMLElement, onRead: (r: Reading) => void): DayCh
     x = (t) => ((t - first) / (end - first)) * pw;
     y = (v) => m.top + ((hi + pad - v) / (hi - lo + 2 * pad)) * ph;
 
-    const el = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, class: "absolute inset-0 touch-pan-y select-none", role: "img", "aria-label": `${data.name}, the session as a line` });
+    const el = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, class: "absolute inset-0 touch-pan-y select-none", role: "img", "aria-label": say.chartLabel(data.name) });
     const text = (s: string, at: [number, number], anchor: string, cls: string) => {
       const t = svg("text", { x: at[0], y: at[1], "text-anchor": anchor, class: `num text-[11px] ${cls}`, fill: "currentColor" });
       t.textContent = s;
@@ -91,7 +96,7 @@ export function dayChart(host: HTMLElement, onRead: (r: Reading) => void): DayCh
       el.append(rule(y(v), "text-line"), text(level(v, data.kind), [pw + 8, y(v) + 4], "start", "text-faint"));
     }
     el.append(rule(base, "text-muted", "2 4"), text(level(day.prev, data.kind), [pw + 8, base + 4], "start", "text-ink"),
-      text(narrow ? "prev." : "prev. close", [pw + 8, base + 17], "start", "!text-[10px] text-faint"));
+      text(narrow ? say.prevShort : say.prev, [pw + 8, base + 17], "start", "!text-[10px] text-faint"));
     const every = (end - first) / HOUR > 12 ? 6 : (end - first) / HOUR > 7 ? 4 : 2;
     for (let t = Math.ceil(first / HOUR) * HOUR; t <= end; t += HOUR) {
       if ((t / HOUR) % every || x(t) < 18 || x(t) > pw - 18) continue;
@@ -122,7 +127,7 @@ export function dayChart(host: HTMLElement, onRead: (r: Reading) => void): DayCh
     el.append(defs, drawn);
 
     // The day's high and its low, each named once the line has passed it.
-    const marks = ([["High", day.high, -1], ["Low", day.low, 1]] as const).map(([name, at, side]) => {
+    const marks = ([[say.markHigh, day.high, -1], [say.markLow, day.low, 1]] as const).map(([name, at, side]) => {
       const [mx, my] = [x(at.time), y(at.value)];
       const g = svg("g", { class: "day-mark" });
       g.append(svg("circle", { cx: mx, cy: my, r: 3.5, class: "text-ink-strong", fill: "var(--color-page)", stroke: "currentColor", "stroke-width": 1.5 }),

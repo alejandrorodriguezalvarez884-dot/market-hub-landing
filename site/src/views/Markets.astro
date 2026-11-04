@@ -1,0 +1,104 @@
+---
+// Markets: every instrument of the overview in tables, with the day's move on the ruler, the
+// sectors and the movers. Its words are in i18n/markets.ts.
+import Site from "../components/Site.astro";
+import type { Lang } from "../i18n";
+import { markets } from "../i18n/markets";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = markets[lang];
+---
+
+<Site title={t.title} description={t.description}>
+	<div class="mb-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
+		<div>
+			<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">{t.title}</h1>
+			<p id="as-of" class="mt-1 text-[13px] text-muted">&nbsp;</p>
+		</div>
+		<nav class="tabs" aria-label={t.sections}>
+			<a class="tab-btn" href="#indices">{t.tabs.indices}</a>
+			<a class="tab-btn" href="#map">{t.tabs.map}</a>
+			<a class="tab-btn" href="#sectors">{t.tabs.sectors}</a>
+			<a class="tab-btn" href="#rates">{t.tabs.rates}</a>
+			<a class="tab-btn" href="#commodities">{t.tabs.commodities}</a>
+			<a class="tab-btn" href="#currencies">{t.tabs.currencies}</a>
+			<a class="tab-btn" href="#movers">{t.tabs.movers}</a>
+		</nav>
+	</div>
+
+	<div class="grid gap-12">
+		<section id="indices" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">{t.indices}</h2></div>
+			<div id="t-indices"><div class="skeleton h-72"></div></div>
+		</section>
+
+		<section id="map" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">{t.map}</h2><span class="sec-note">{t.mapNote}</span></div>
+			<div id="t-map" class="min-h-[560px]"></div>
+		</section>
+
+		<section id="sectors" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">{t.sectors}</h2></div>
+			<div id="t-sectors" class="max-w-3xl" style="--track: 280px"><div class="skeleton h-72"></div></div>
+		</section>
+
+		<div class="grid gap-x-14 gap-y-12 xl:grid-cols-2">
+			<section id="rates" class="sec scroll-mt-20">
+				<div class="sec-head"><h2 class="sec-title">{t.rates}</h2><span class="sec-note">{t.ratesNote}</span></div>
+				<div id="t-rates"></div>
+			</section>
+			<section id="commodities" class="sec scroll-mt-20">
+				<div class="sec-head"><h2 class="sec-title">{t.commodities}</h2></div>
+				<div id="t-commodities"></div>
+			</section>
+		</div>
+
+		<section id="currencies" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">{t.currencies}</h2></div>
+			<div id="t-currencies"></div>
+		</section>
+
+		<section id="movers" class="sec scroll-mt-20">
+			<div class="sec-head"><h2 class="sec-title">{t.movers}</h2><span class="sec-note">{t.moversNote}</span></div>
+			<div class="grid gap-x-14 gap-y-8 lg:grid-cols-3">
+				<div><h3 class="mb-1 text-sm text-muted">{t.gainers}</h3><div id="t-gainers"></div></div>
+				<div><h3 class="mb-1 text-sm text-muted">{t.losers}</h3><div id="t-losers"></div></div>
+				<div><h3 class="mb-1 text-sm text-muted">{t.active}</h3><div id="t-active"></div></div>
+			</div>
+		</section>
+	</div>
+</Site>
+
+<script>
+	import { lang, locale } from "../i18n";
+	import { markets } from "../i18n/markets";
+	import { overview } from "../lib/market";
+	import { tvHeatmap } from "../lib/tv";
+	import { failed, flagSample, moversTable, quoteTable, sectorRuler } from "../lib/widgets";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	tvHeatmap($("t-map"));
+	overview(true)
+		.then((o) => {
+			const title = (id: string) => document.querySelector(`#${id} .sec-title`);
+			flagSample(o, ["indices"], title("indices"));
+			flagSample(o, ["sectors"], title("sectors"));
+			flagSample(o, ["movers"], title("movers"));
+			flagSample(o, ["rates"], title("rates"));
+			flagSample(o, ["currencies", "crypto"], title("currencies"));
+			flagSample(o, ["commodities"], title("commodities"));
+			$("as-of").textContent = markets[lang()].asOf(new Date(o.as_of).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" }));
+			$("t-indices").replaceChildren(quoteTable(o.indices));
+			$("t-sectors").replaceChildren(sectorRuler(o.sectors));
+			$("t-gainers").replaceChildren(moversTable(o.movers.gainers));
+			$("t-losers").replaceChildren(moversTable(o.movers.losers));
+			$("t-active").replaceChildren(moversTable(o.movers.active));
+			$("t-rates").replaceChildren(quoteTable(o.rates));
+			$("t-currencies").replaceChildren(quoteTable([...o.currencies, ...o.crypto]));
+			$("t-commodities").replaceChildren(quoteTable(o.commodities));
+		})
+		.catch(() => ["t-indices", "t-sectors", "t-gainers", "t-losers", "t-active", "t-rates", "t-currencies", "t-commodities"].forEach((id) => failed($(id))));
+</script>

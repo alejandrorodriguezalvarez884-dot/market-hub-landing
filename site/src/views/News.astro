@@ -1,0 +1,473 @@
+---
+// News: what companies filed, what the agencies published and what the market did, as one feed
+// that goes on as the reader scrolls, by day, with the press's headlines beside it. The page asks
+// for a refresh when what is stored is stale. Its words are in i18n/news.ts.
+import Site from "../components/Site.astro";
+import type { Lang } from "../i18n";
+import { news } from "../i18n/news";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = news[lang];
+---
+
+<Site title={t.title} description={t.description}>
+	<section class="grid gap-x-14 gap-y-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:items-end">
+		<div>
+			<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">{t.title}</h1>
+			<p class="mt-2 max-w-xl text-ink">{t.intro}</p>
+		</div>
+		<p id="news-status" class="text-[13px] text-muted lg:text-right" aria-live="polite">&nbsp;</p>
+	</section>
+
+	<div class="mt-10 grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:items-start">
+		<section id="news-section" class="min-w-0" aria-label={t.feed}>
+			<div id="news-bar" class="news-bar sticky z-30 -mx-5 border-t border-line-strong bg-page/95 px-5 pt-3.5 backdrop-blur">
+				<nav id="news-tabs" class="tabs" aria-label={t.kinds}></nav>
+				<div id="news-filters" class="mt-3 flex min-h-[30px] flex-wrap items-center gap-x-2 gap-y-2 pb-3" role="group" aria-label={t.filter}></div>
+			</div>
+			<div id="news-list" class="mt-2"><div class="skeleton aspect-[16/7]"></div><div class="mt-4 grid gap-4 sm:grid-cols-2"><div class="skeleton aspect-[4/3]"></div><div class="skeleton aspect-[4/3]"></div></div></div>
+			<div id="news-more" class="mt-4"></div>
+		</section>
+
+		<aside class="news-aside min-w-0 space-y-12 lg:sticky">
+			<section id="press" class="sec" aria-labelledby="press-title" hidden>
+				<div class="sec-head"><h2 id="press-title" class="sec-title">{t.press}</h2></div>
+				<div id="press-list"></div>
+			</section>
+		</aside>
+	</div>
+
+	<div class="news-progress pointer-events-none fixed inset-x-0 z-40 h-[2px]" aria-hidden="true"><div id="news-progress" class="h-full origin-left bg-ink-strong"></div></div>
+	<button id="news-fresh" type="button" class="news-fresh fixed left-1/2 z-40 rounded-full border border-line-strong bg-raised px-4 py-1.5 text-[13px] font-medium text-ink-strong shadow-2xl shadow-black/60 hover:border-muted" hidden></button>
+	<button id="news-top" type="button" class="news-top fixed bottom-6 right-6 z-40 grid h-11 w-11 place-items-center rounded-full border border-line-strong bg-raised text-ink-strong shadow-2xl shadow-black/60 hover:border-muted" aria-label={t.top}>
+		<svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"></path></svg>
+	</button>
+</Site>
+
+<style is:global>
+	/* The feed goes on as the reader scrolls. The filters stay at the top and step aside while the
+	   reader goes down; each day keeps its name above its cards. Every movement is a transform or
+	   an opacity, and none happens for a reader who asked for less motion. */
+	:root {
+		--head: 56px; /* the site's header and the filters' bar, measured by the page */
+		--bar: 0px;
+		--ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+	}
+	.news-bar {
+		top: var(--head);
+		transition: transform 0.35s var(--ease), opacity 0.25s;
+	}
+	.news-bar.away {
+		transform: translateY(-100%);
+		opacity: 0;
+		pointer-events: none;
+	}
+	.news-day {
+		top: calc(var(--head) + var(--bar));
+		transition: top 0.35s var(--ease);
+	}
+	.news-aside {
+		top: calc(var(--head) + 24px);
+	}
+	@media (min-width: 1024px) {
+		.news-aside {
+			max-height: calc(100vh - var(--head) - 48px);
+			overflow-y: auto;
+			scrollbar-width: thin;
+		}
+	}
+	.news-progress {
+		top: var(--head);
+	}
+	#news-progress {
+		transform: scaleX(0);
+		transition: transform 0.3s var(--ease);
+	}
+	.news-fresh {
+		top: calc(var(--head) + var(--bar) + 14px);
+		transform: translateX(-50%);
+		animation: fresh-in 0.4s var(--ease);
+	}
+	@keyframes fresh-in {
+		from {
+			opacity: 0;
+			transform: translate(-50%, -10px);
+		}
+	}
+	.news-top {
+		transition: transform 0.3s var(--ease), opacity 0.3s;
+	}
+	.news-top:not(.on) {
+		transform: translateY(12px);
+		opacity: 0;
+		pointer-events: none;
+	}
+	.feed-card[data-rv] {
+		opacity: 0;
+		transform: translateY(18px);
+		transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), border-color 0.15s;
+		transition-delay: calc(var(--i, 0) * 60ms), calc(var(--i, 0) * 60ms), 0s;
+	}
+	.feed-card[data-rv].in {
+		opacity: 1;
+		transform: none;
+	}
+	.feed-frame img {
+		transition: transform 0.8s var(--ease);
+	}
+	.feed-card:hover .feed-frame img {
+		transform: scale(1.04);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.news-bar,
+		.news-day,
+		.news-fresh,
+		.news-top,
+		#news-progress,
+		.feed-card[data-rv],
+		.feed-frame img {
+			transition: none;
+			animation: none;
+		}
+		.feed-card[data-rv] {
+			opacity: 1;
+			transform: none;
+		}
+		.feed-card:hover .feed-frame img {
+			transform: none;
+		}
+	}
+</style>
+
+<script>
+	import { lang } from "../i18n";
+	import { categoryName, sectorName } from "../i18n/markets";
+	import { news as words } from "../i18n/news";
+	import { add, h, svg } from "../lib/dom";
+	import { plural, timeAgo } from "../lib/format";
+	import { news, watchNews, type News, type NewsItem } from "../lib/market";
+	import { dayKey, dayLabel, feedCard, newsLine, SENTIMENTS, toneMark, type Sentiment } from "../lib/news";
+	import { failed } from "../lib/widgets";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const t = words[lang()];
+
+	// What the reader chose: the kind of news (the tabs), the sector it touches, how it reads and
+	// its day. Empty is "any". The choice lives in the address, so coming back from an article, or
+	// sharing the page, keeps it. An item nobody gave a sector or a reading is in no such filter.
+	const KEYS = ["kind", "sector", "sentiment", "day"] as const;
+	type Key = (typeof KEYS)[number];
+	const valid: Record<Key, (v: string) => boolean> = {
+		kind: (v) => v.length <= 30,
+		sector: (v) => v.length <= 40,
+		sentiment: (v) => SENTIMENTS.includes(v as Sentiment),
+		day: (v) => /^\d{4}-\d{2}-\d{2}$/.test(v),
+	};
+	const valueOf: Record<Key, (i: NewsItem) => string> = {
+		kind: (i) => i.category,
+		sector: (i) => i.scope ?? "",
+		sentiment: (i) => i.sentiment ?? "",
+		day: (i) => dayKey(i.published_utc),
+	};
+	const asked = new URLSearchParams(location.search);
+	const chosen = Object.fromEntries(KEYS.map((k) => [k, asked.get(k) ?? ""]).map(([k, v]) => [k, valid[k as Key](v) ? v : ""])) as Record<Key, string>;
+	const filtering = () => KEYS.some((k) => chosen[k]);
+
+	function remember() {
+		const q = new URLSearchParams(KEYS.filter((k) => chosen[k]).map((k) => [k, chosen[k]])).toString();
+		history.replaceState(null, "", location.pathname + (q ? `?${q}` : ""));
+	}
+
+	// A new choice starts the feed again from its newest item, with the filters at the top.
+	function choose(n: News, refreshing: boolean, changes: Partial<Record<Key, string>>) {
+		Object.assign(chosen, changes);
+		remember();
+		tabs(n, refreshing);
+		filters(n, refreshing);
+		list(n, refreshing, BATCH);
+		const top = $("news-section").getBoundingClientRect().top + scrollY - head();
+		if (scrollY > top) scrollTo({ top });
+	}
+
+	const shown = (n: News) => n.items.filter((i) => KEYS.every((k) => !chosen[k] || valueOf[k](i) === chosen[k]));
+
+	// The feed: the items the filters let through, drawn a batch at a time as the reader nears its
+	// end, under a heading per day. The first card of each day leads it. Each card comes in as it
+	// enters the window.
+	const BATCH = 12;
+	const feed = { items: [] as NewsItem[], drawn: 0, day: "", grid: null as HTMLElement | null, perDay: new Map<string, number>() };
+	const head = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--head")) || 56;
+
+	const entering = new IntersectionObserver((entries) => {
+		entries.filter((e) => e.isIntersecting).forEach((e, turn) => {
+			(e.target as HTMLElement).style.setProperty("--i", String(turn));
+			e.target.classList.add("in");
+			entering.unobserve(e.target);
+		});
+	}, { rootMargin: "0px 0px -6% 0px" });
+
+	function list(n: News, refreshing: boolean, count: number) {
+		feed.items = shown(n);
+		feed.drawn = 0;
+		feed.day = "";
+		feed.grid = null;
+		feed.perDay = new Map();
+		for (const i of feed.items) {
+			const day = dayLabel(i.published_utc);
+			feed.perDay.set(day, (feed.perDay.get(day) ?? 0) + 1);
+		}
+		entering.disconnect();
+		$("news-list").replaceChildren();
+		if (!feed.items.length) {
+			nearing.disconnect();
+			$("news-more").replaceChildren();
+			return failed($("news-list"), refreshing ? t.loading : filtering() ? t.noMatch : t.none);
+		}
+		more(count);
+	}
+
+	function more(count = BATCH) {
+		const end = Math.min(feed.items.length, feed.drawn + count);
+		for (const n of feed.items.slice(feed.drawn, end)) {
+			const day = dayLabel(n.published_utc);
+			let lead = false;
+			if (day !== feed.day || !feed.grid) {
+				feed.day = day;
+				feed.grid = h("div", "grid gap-4 sm:grid-cols-2");
+				const many = feed.perDay.get(day) ?? 0;
+				$("news-list").append(add(h("section", "mt-6 first:mt-0"),
+					add(h("h2", "news-day sticky z-20 -mx-5 mb-2 flex items-baseline gap-2 bg-page/95 px-5 py-2.5 backdrop-blur"),
+						h("span", "text-[13px] font-medium text-ink-strong", day), h("span", "num text-[12.5px] text-muted", plural(many, t.story, t.stories))),
+					feed.grid));
+				lead = true;
+			}
+			const card = feedCard(n, lead);
+			card.dataset.rv = "";
+			feed.grid.append(card);
+			entering.observe(card);
+		}
+		feed.drawn = end;
+		tail();
+	}
+
+	// Below the feed: cards being drawn while there are more, and the end once there are not.
+	const nearing = new IntersectionObserver(([e]) => e?.isIntersecting && more(), { rootMargin: "0px 0px 1200px 0px" });
+	function tail() {
+		const box = $("news-more");
+		nearing.disconnect();
+		if (feed.drawn < feed.items.length) {
+			box.replaceChildren(add(h("div", "grid gap-4 sm:grid-cols-2"), h("div", "skeleton aspect-[4/3]"), h("div", "skeleton hidden aspect-[4/3] sm:block")));
+			nearing.observe(box);
+			return;
+		}
+		const up = h("button", "tab-btn", t.top);
+		up.type = "button";
+		up.addEventListener("click", toTop);
+		const since = dayLabel(feed.items.at(-1)!.published_utc);
+		box.replaceChildren(add(h("div", "mt-6 flex flex-col items-center gap-2 border-t border-line py-10 text-center"),
+			h("p", "text-ink-strong", t.caughtUp),
+			h("p", "num text-[13px] text-muted", t.since(plural(feed.items.length, t.story, t.stories), since, since === t.today || since === t.yesterday)),
+			up));
+	}
+
+	function toTop() {
+		scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+	}
+	$("news-top").addEventListener("click", toTop);
+
+	// The header and the filters are measured, so what sticks under them knows where to stand. The
+	// filters step aside while the reader goes down the feed and come back when they go up. A line
+	// under the header says how far down the feed the reader is.
+	const bar = $("news-bar");
+	const measure = () => {
+		const style = document.documentElement.style;
+		style.setProperty("--head", `${document.querySelector("body header")?.getBoundingClientRect().height ?? 56}px`);
+		style.setProperty("--bar", bar.classList.contains("away") ? "0px" : `${bar.offsetHeight}px`);
+	};
+	new ResizeObserver(measure).observe(bar);
+	addEventListener("resize", measure);
+	measure();
+
+	let lastY = scrollY;
+	let ticking = false;
+	addEventListener("scroll", () => {
+		if (ticking) return;
+		ticking = true;
+		requestAnimationFrame(() => {
+			ticking = false;
+			const y = scrollY;
+			const into = $("news-list").getBoundingClientRect().top < head();
+			if (y > lastY + 6 && into && !bar.contains(document.activeElement)) {
+				shut();
+				bar.classList.add("away");
+			} else if (y < lastY - 6 || !into) bar.classList.remove("away");
+			if (Math.abs(y - lastY) > 6) lastY = y;
+			measure();
+			$("news-top").classList.toggle("on", y > innerHeight * 1.5);
+			const read = [...document.querySelectorAll("#news-list .feed-card")].filter((c) => c.getBoundingClientRect().top < innerHeight * 0.75).length;
+			$("news-progress").style.transform = `scaleX(${feed.items.length && into ? read / feed.items.length : 0})`;
+		});
+	}, { passive: true });
+
+	// Coming back from an item finds the feed as it was left: as many cards, at the same place.
+	const KEPT = "news-feed";
+	addEventListener("pagehide", () => {
+		try {
+			sessionStorage.setItem(KEPT, JSON.stringify({ at: location.search, drawn: feed.drawn, y: scrollY }));
+		} catch {}
+	});
+	function kept(): { drawn: number; y: number } | null {
+		try {
+			const k = JSON.parse(sessionStorage.getItem(KEPT) ?? "null");
+			sessionStorage.removeItem(KEPT);
+			return k && k.at === location.search && Number.isFinite(k.drawn) && Number.isFinite(k.y) ? k : null;
+		} catch {
+			return null;
+		}
+	}
+	if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
+	function tabs(n: News, refreshing: boolean) {
+		if (!n.categories.includes(chosen.kind)) chosen.kind = "";
+		$("news-tabs").replaceChildren(...["", ...n.categories].map((c) => {
+			const b = h("button", "tab-btn", c ? categoryName(c) : t.all);
+			b.type = "button";
+			b.setAttribute("aria-selected", String(c === chosen.kind));
+			b.addEventListener("click", () => choose(n, refreshing, { kind: c }));
+			return b;
+		}));
+	}
+
+	// The menus of the filters are the page's own, drawn like its other menus: a browser's select
+	// opens a list in the system's colours. One is open at a time; a click elsewhere closes it.
+	const menus = () => document.querySelectorAll<HTMLElement>("#news-filters [data-menu]");
+	function shut(but?: Node | null) {
+		for (const m of menus()) {
+			if (but && m.contains(but)) continue;
+			m.querySelector<HTMLElement>("[role=listbox]")!.hidden = true;
+			m.querySelector("button")!.setAttribute("aria-expanded", "false");
+		}
+	}
+	document.addEventListener("click", (e) => shut(e.target as Node));
+
+	// How it reads is chosen by its own mark, the one each item carries: pressing one filters by
+	// it, pressing it again lets go. A sector and a day are a menu each: one is offered when some
+	// item has it, and one asked for in the address and no longer there stays in its menu, so the
+	// reader sees what is filtering.
+	function filters(n: News, refreshing: boolean) {
+		const present = (k: Key) => [...new Set([...n.items.map(valueOf[k]), chosen[k]].filter(Boolean))];
+		const menu = (k: Key, label: string, any: string, options: string[][]) => {
+			const all = [["", any], ...options];
+			const on = Boolean(chosen[k]);
+			const box = h("div", "relative");
+			box.dataset.menu = k;
+			const arrow = svg("svg", { viewBox: "0 0 10 6", class: "h-1.5 w-2.5 flex-none", fill: "none", stroke: "currentColor", "stroke-width": 1.5, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" });
+			arrow.append(svg("path", { d: "M1 1l4 4 4-4" }));
+			const button = add(h("button", `inline-flex items-center gap-2 rounded-[3px] border px-2 py-1 text-[13px] ${on ? "border-ink-strong bg-raised text-ink-strong" : "border-line-strong text-muted hover:border-muted hover:text-ink-strong"}`),
+				all.find(([value]) => value === chosen[k])![1], arrow);
+			button.type = "button";
+			button.setAttribute("aria-haspopup", "listbox");
+			button.setAttribute("aria-expanded", "false");
+			const list = h("div", "absolute left-0 top-full z-40 mt-1 max-h-80 min-w-full overflow-y-auto whitespace-nowrap rounded-[3px] border border-line-strong bg-panel p-1.5 shadow-2xl shadow-black/60");
+			list.setAttribute("role", "listbox");
+			list.setAttribute("aria-label", label);
+			list.hidden = true;
+			for (const [value, text] of all) {
+				const o = h("button", `block w-full rounded px-3 py-1.5 text-left text-[13px] hover:bg-raised focus-visible:bg-raised ${value === chosen[k] ? "text-ink-strong" : "text-ink"}`, text);
+				o.type = "button";
+				o.setAttribute("role", "option");
+				o.setAttribute("aria-selected", String(value === chosen[k]));
+				o.addEventListener("click", () => {
+					choose(n, refreshing, { [k]: value });
+					document.querySelector<HTMLElement>(`#news-filters [data-menu="${k}"] button`)?.focus();
+				});
+				list.append(o);
+			}
+			const open = (yes: boolean) => {
+				shut();
+				list.hidden = !yes;
+				button.setAttribute("aria-expanded", String(yes));
+			};
+			button.addEventListener("click", () => open(Boolean(list.hidden)));
+			// Down and up walk the options, and Escape closes the menu and gives the focus back.
+			box.addEventListener("keydown", (e) => {
+				const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+				if (e.key === "Escape" && !list.hidden) {
+					open(false);
+					button.focus();
+				}
+				if (!step) return;
+				e.preventDefault();
+				if (list.hidden) open(true);
+				const items = [...list.children] as HTMLElement[];
+				const at = items.indexOf(document.activeElement as HTMLElement);
+				items[at < 0 ? Math.max(0, all.findIndex(([value]) => value === chosen[k])) : (at + step + items.length) % items.length].focus();
+			});
+			return add(box, button, list);
+		};
+		const mark = (v: Sentiment) => {
+			const on = chosen.sentiment === v;
+			const b = add(h("button", `rounded-[3px] border px-2 py-1 text-[13px] ${on ? "border-ink-strong bg-raised" : "border-line-strong hover:border-muted"}`), toneMark(v));
+			b.type = "button";
+			b.setAttribute("aria-pressed", String(on));
+			b.addEventListener("click", () => choose(n, refreshing, { sentiment: on ? "" : v }));
+			return b;
+		};
+		const marks = add(h("div", "flex gap-1.5"), ...SENTIMENTS.map(mark));
+		marks.setAttribute("role", "group");
+		marks.setAttribute("aria-label", t.sentiment);
+		const clear = h("button", "tab-btn ml-1", t.clear);
+		clear.type = "button";
+		clear.addEventListener("click", () => choose(n, refreshing, { kind: "", sector: "", sentiment: "", day: "" }));
+		$("news-filters").replaceChildren(
+			marks,
+			menu("sector", t.sector, t.anySector, present("sector").map((v) => [v, sectorName(v)]).sort(([a, x], [b, y]) => Number(a === "Macro") - Number(b === "Macro") || x.localeCompare(y))),
+			menu("day", t.day, t.anyDay, present("day").sort().reverse().map((v) => [v, dayLabel(`${v}T12:00:00`)])),
+			...(filtering() ? [clear, h("span", "num ml-auto text-[12.5px] text-muted", t.of(shown(n).length, n.items.length))] : []),
+		);
+	}
+
+	function status(n: News, refreshing: boolean) {
+		const el = $("news-status");
+		if (n.sample) {
+			el.replaceChildren(add(h("span", "text-warn"), t.sample));
+		} else {
+			el.textContent = refreshing ? t.updating : n.refreshed_utc ? t.updated(timeAgo(n.refreshed_utc)) : "";
+		}
+	}
+
+	// The first drawing puts the reader back where they were. A later one, after a refresh, adds
+	// what is new at the top when the reader is there; further down it waits for them to ask, so the
+	// cards they are reading do not move.
+	let seen: Set<string> | null = null;
+	function draw(n: News, refreshing: boolean) {
+		status(n, refreshing);
+		tabs(n, refreshing);
+		filters(n, refreshing);
+		$("press").hidden = !n.press.length;
+		$("press-list").replaceChildren(...n.press.slice(0, 14).map(newsLine));
+		const fresh = seen ? shown(n).filter((i) => !seen!.has(i.id)).length : 0;
+		const button = $("news-fresh");
+		if (!seen) {
+			const back = kept();
+			list(n, refreshing, Math.max(BATCH, back?.drawn ?? 0));
+			if (back) requestAnimationFrame(() => scrollTo({ top: back.y }));
+		} else if (fresh && $("news-list").getBoundingClientRect().top < head()) {
+			button.textContent = t.fresh(fresh);
+			button.hidden = false;
+			button.onclick = () => {
+				button.hidden = true;
+				list(n, false, BATCH);
+				toTop();
+			};
+		} else {
+			list(n, refreshing, Math.max(BATCH, feed.drawn + fresh));
+		}
+		if (n.items.length) seen = new Set(n.items.map((i) => i.id));
+	}
+
+	watchNews(() => news({ limit: 200 }), draw).catch(() => failed($("news-list"), t.unavailable));
+</script>

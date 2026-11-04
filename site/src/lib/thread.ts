@@ -4,6 +4,8 @@
 import { ApiError } from "./api";
 import { add, h } from "./dom";
 import { timeAgo } from "./format";
+import { lang } from "../i18n";
+import { opinion } from "../i18n/opinion";
 import { blockAuthor, keepComment, reportComment, type Comment, type Thread } from "./opinion";
 
 export type ThreadSource = {
@@ -17,23 +19,22 @@ export type ThreadSource = {
 };
 
 const DEPTH_MAX = 6; // as the server's: below this a thread is answered further up
-// What stands where a comment is not shown to this reader.
-const HIDDEN = { blocked: "From a member you blocked", reported: "You reported this comment", held: "Hidden while it is reviewed" };
 
 // Fills `els` with the thread and keeps it current. Returns the function that reads it again.
 export function mountThread(els: { composer: HTMLElement; list: HTMLElement; count?: HTMLElement }, src: ThreadSource): () => Promise<void> {
+  const w = opinion[lang()];
   // Where a comment or an answer is written. `parent` is the comment it answers, if any.
   function composer(parent: string | null, cancel?: () => void): HTMLElement {
     const box = h("textarea", "field min-h-[5.5rem] w-full resize-y");
     box.maxLength = 2000;
-    box.placeholder = parent ? "Write your answer" : src.ask ?? "What do you think?";
+    box.placeholder = parent ? w.answerHere : src.ask ?? w.ask;
     box.setAttribute("aria-label", box.placeholder);
-    const send = h("button", "btn btn-primary", parent ? "Answer" : "Comment");
+    const send = h("button", "btn btn-primary", parent ? w.answer : w.comment);
     send.type = "submit";
     const note = h("p", "text-[13px] text-down");
     note.setAttribute("role", "alert");
     const form = add(h("form", "space-y-2"), box, add(h("div", "flex flex-wrap items-center gap-3"), send,
-      cancel ? Object.assign(h("button", "btn btn-ghost", "Cancel"), { type: "button", onclick: cancel }) : null,
+      cancel ? Object.assign(h("button", "btn btn-ghost", w.cancel), { type: "button", onclick: cancel }) : null,
       h("span", "text-[12.5px] text-muted", src.note), note));
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -45,7 +46,7 @@ export function mountThread(els: { composer: HTMLElement; list: HTMLElement; cou
         load();
       } catch (err) {
         send.disabled = false;
-        note.textContent = err instanceof ApiError ? err.message : "The comment could not be sent.";
+        note.textContent = err instanceof ApiError ? err.message : w.commentFailed;
       }
     });
     return form;
@@ -56,14 +57,14 @@ export function mountThread(els: { composer: HTMLElement; list: HTMLElement; cou
     el.id = `c-${c.id}`;
     const blank = c.deleted || !!c.hidden;
     const head = add(h("p", "flex flex-wrap items-center gap-x-2.5 text-[12.5px] text-muted"),
-      blank ? h("span", "", c.hidden ? HIDDEN[c.hidden] : "Deleted") : add(h("span", "flex items-center gap-2 font-medium text-ink-strong"),
+      blank ? h("span", "", c.hidden ? w.hidden[c.hidden] : w.deleted) : add(h("span", "flex items-center gap-2 font-medium text-ink-strong"),
         h("span", "flex h-6 w-6 items-center justify-center rounded-full bg-raised text-[11px]", c.name.charAt(0).toUpperCase()), c.name),
       h("time", "num", timeAgo(c.created_utc)));
     const actions = h("p", "mt-1.5 flex gap-4 text-[12.5px] text-muted");
     const slot = h("div", "mt-3");
     if (!blank) {
       if (t.signed_in && c.depth < DEPTH_MAX) {
-        const reply = Object.assign(h("button", "hover:text-ink-strong", "Answer"), { type: "button" });
+        const reply = Object.assign(h("button", "hover:text-ink-strong", w.answer), { type: "button" });
         reply.addEventListener("click", () => {
           slot.replaceChildren(composer(c.id, () => slot.replaceChildren()));
           slot.querySelector("textarea")!.focus();
@@ -71,9 +72,9 @@ export function mountThread(els: { composer: HTMLElement; list: HTMLElement; cou
         actions.append(reply);
       }
       if (c.mine || t.moderator) {
-        const del = Object.assign(h("button", "hover:text-down", "Delete"), { type: "button" });
+        const del = Object.assign(h("button", "hover:text-down", w.delete), { type: "button" });
         del.addEventListener("click", async () => {
-          if (!confirm("Delete this comment?")) return;
+          if (!confirm(w.sureDelete)) return;
           await src.remove(c.id).catch(() => {});
           load();
         });
@@ -84,23 +85,23 @@ export function mountThread(els: { composer: HTMLElement; list: HTMLElement; cou
           const b = Object.assign(h("button", "hover:text-ink-strong", label), { type: "button" });
           b.addEventListener("click", async () => {
             if (!confirm(sure)) return;
-            await run().catch((err) => alert(err instanceof ApiError ? err.message : "That did not work. Try again."));
+            await run().catch((err) => alert(err instanceof ApiError ? err.message : w.didNotWork));
             load();
           });
           return b;
         };
         actions.append(
-          act("Report", "Report this comment? You will stop seeing it, and we will review it.", () => reportComment(c.id)),
-          act("Block", `Block ${c.name}? You will stop seeing their comments. You can unblock them on your account page.`, () => blockAuthor(c.id)));
+          act(w.report, w.sureReport, () => reportComment(c.id)),
+          act(w.block, w.sureBlock(c.name), () => blockAuthor(c.id)));
       }
       // The owner sees how many readers reported a comment, and says it stays (or deletes it).
       if (t.moderator && c.reports) {
-        const keep = Object.assign(h("button", "hover:text-ink-strong", "Keep"), { type: "button" });
+        const keep = Object.assign(h("button", "hover:text-ink-strong", w.keep), { type: "button" });
         keep.addEventListener("click", async () => {
           await keepComment(c.id).catch(() => {});
           load();
         });
-        actions.append(h("span", "text-warn", `Reported ×${c.reports}`), keep);
+        actions.append(h("span", "text-warn", w.reported(c.reports)), keep);
       }
     }
     add(el, head, blank ? null : h("p", "mt-1.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink", c.text), actions, slot);
@@ -121,7 +122,7 @@ export function mountThread(els: { composer: HTMLElement; list: HTMLElement; cou
     const kept = (c: Comment): boolean => (!c.deleted && (!c.hidden || c.mine)) || (children.get(c.id) ?? []).some(kept);
     for (const [k, list] of children) children.set(k, list.filter(kept));
     const top = [...(children.get(null) ?? [])].reverse(); // the newest conversation first; its answers in order
-    els.list.replaceChildren(...(top.length ? top.map((c) => one(c, t, children)) : [h("p", "text-sm text-muted", src.none ?? "No comments yet. Be the first.")]));
+    els.list.replaceChildren(...(top.length ? top.map((c) => one(c, t, children)) : [h("p", "text-sm text-muted", src.none ?? w.noComments)]));
   }
 
   const load = () => src.load().then(show).catch(() => {});

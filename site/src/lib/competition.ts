@@ -2,6 +2,8 @@
 // src/markethub/competitions.py) and the calls that send an entry and read a month's discussion.
 import { api } from "./api";
 import type { Comment, Thread } from "./opinion";
+import { lang } from "../i18n";
+import { competitions } from "../i18n/competitions";
 
 export type Pick = { ticker: string; name: string; weight: number; return: number | null }; // weight as a fraction
 export type Line = { rank: number; handle: string; you: boolean; stand_in: boolean; return: number; picks: Pick[]; series?: number[] };
@@ -29,7 +31,7 @@ export const monthComment = (month: string, text: string, parent_id: string | nu
   api<Comment>("/api/competitions/comments", { method: "POST", body: JSON.stringify({ month, text, parent_id }) });
 
 // A name for a line whose member is gone.
-export const who = (l: { handle: string }) => l.handle || "Former member";
+export const who = (l: { handle: string }) => l.handle || competitions[lang()].formerMember;
 
 // Whole percents that add up to 100, as even as they can be: what "equal weights" deals.
 export function evenly(n: number): number[] {

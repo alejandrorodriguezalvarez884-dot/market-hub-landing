@@ -1,0 +1,212 @@
+---
+// Write for Opinion: a signed-in reader sends an article in. Sending is not publishing: it is
+// kept for the editor to read. The page also lists what the reader has sent, says what became
+// of each, and lets them take it back.
+import Site from "../components/Site.astro";
+import { link } from "../lib/site";
+import type { Lang } from "../i18n";
+import { opinion } from "../i18n/opinion";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = opinion[lang];
+---
+
+<Site noindex title={t.submitTitle} description={t.submitDescription}>
+	<div class="mx-auto max-w-[44rem]">
+		<a href={link("/opinion/", lang)} class="text-[13px] text-muted hover:text-ink-strong"><span aria-hidden="true">←</span> {t.title}</a>
+		<h1 class="mt-8 text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">{t.submitTitle}</h1>
+		<p class="mt-3 text-lg leading-relaxed text-ink">{t.submitLede}</p>
+
+		<section class="sec mt-10" aria-labelledby="how-title">
+			<div class="sec-head"><h2 id="how-title" class="sec-title">{t.howTitle}</h2></div>
+			<ol class="grid gap-x-8 gap-y-4 text-sm text-ink sm:grid-cols-3">
+				{t.steps.map((s, n) => (
+					<li><span class="num text-muted">{n + 1}</span><p class="mt-1"><span class="text-ink-strong">{s.strong}</span> {s.rest}</p></li>
+				))}
+			</ol>
+		</section>
+
+		<section class="sec mt-10" aria-labelledby="ask-title">
+			<div class="sec-head"><h2 id="ask-title" class="sec-title">{t.askTitle}</h2></div>
+			<ul class="list-disc space-y-1.5 pl-5 text-sm text-ink">
+				{t.asks.map((a) => <li>{a}</li>)}
+			</ul>
+		</section>
+
+		<section class="sec mt-10" aria-labelledby="desk-title">
+			<div class="sec-head"><h2 id="desk-title" class="sec-title">{t.deskTitle}</h2></div>
+			<div id="desk"><div class="skeleton h-10"></div><div class="skeleton mt-4 h-64"></div></div>
+		</section>
+
+		<section id="sent" class="sec mt-12" aria-labelledby="sent-title" hidden>
+			<div class="sec-head"><h2 id="sent-title" class="sec-title">{t.sentTitle}</h2></div>
+			<ul id="sent-list" class="divide-y divide-line"></ul>
+		</section>
+	</div>
+</Site>
+
+<script>
+	import { ApiError, signedIn, type User } from "../lib/api";
+	import { add, h, linkTo } from "../lib/dom";
+	import { articleHref, day, prose, submissions, submit, withdraw, type Desk, type Submission } from "../lib/opinion";
+	import { link } from "../lib/site";
+	import { count } from "../lib/format";
+	import { lang } from "../i18n";
+	import { opinion } from "../i18n/opinion";
+
+	const t = opinion[lang()];
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const desk = $("desk");
+	const DRAFT = "mh.opinion.draft.v1"; // what is being written, in this browser only, so a closed tab loses nothing
+	type Draft = { title: string; dek: string; body: string; sources: string; tickers: string; byline: string };
+
+	const saved = (): Partial<Draft> => {
+		try {
+			return JSON.parse(localStorage.getItem(DRAFT) ?? "{}");
+		} catch {
+			return {};
+		}
+	};
+	// As the server counts them.
+	const words = (text: string) => (text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").match(/[\p{L}\p{N}_'’%$.,-]*[\p{L}\p{N}_][\p{L}\p{N}_'’%$.,-]*/gu) ?? []).length;
+
+	function visitor() {
+		desk.replaceChildren(add(h("p", "text-sm text-ink"),
+			linkTo(link(`/signin/?next=${encodeURIComponent(location.pathname)}`), "btn btn-primary", t.signInToWrite),
+			h("span", "ml-3 text-muted", t.writingNeedsAccount)));
+	}
+
+	function field<K extends "input" | "textarea">(tag: K, label: string, hint: string, attrs: Record<string, string | number | boolean>) {
+		const input = h(tag, "field mt-1.5 w-full");
+		Object.assign(input, attrs);
+		const count = h("span", "num text-[12px] text-muted");
+		const row = add(h("label", "block"), add(h("span", "flex items-baseline justify-between gap-3"), h("span", "text-sm font-medium text-ink-strong", label), count),
+			input, hint ? h("span", "mt-1 block text-[12.5px] leading-snug text-muted", hint) : null);
+		return { row, input, count };
+	}
+
+	function form(user: User, d: Desk) {
+		const was = saved();
+		const [words0, words1] = d.limits.words;
+		const title = field("input", t.fTitle, t.fTitleHint, { type: "text", maxLength: d.limits.title[1], required: true, value: was.title ?? "" });
+		const dek = field("textarea", t.fDek, t.fDekHint, { rows: 2, maxLength: d.limits.dek[1], required: true, value: was.dek ?? "" });
+		const body = field("textarea", t.fBody, t.fBodyHint,
+			{ rows: 18, required: true, value: was.body ?? "", spellcheck: true });
+		body.input.classList.add("min-h-[22rem]", "resize-y", "leading-relaxed", "!text-[15px]");
+		const sources = field("textarea", t.fSources, t.fSourcesHint(d.limits.sources[0]),
+			{ rows: 3, required: true, value: was.sources ?? "", placeholder: "https://…" });
+		const tickers = field("input", t.fTickers, t.fTickersHint, { type: "text", maxLength: 80, value: was.tickers ?? "", placeholder: "AAPL, MSFT" });
+		const byline = field("input", t.fByline, t.fBylineHint, { type: "text", maxLength: d.limits.byline[1], required: true, value: was.byline ?? user.name });
+
+		const box = Object.assign(h("input", "mt-1 h-4 w-4 shrink-0 accent-[var(--color-ink-strong)]"), { type: "checkbox", required: true });
+		const agree = add(h("label", "flex items-start gap-3 text-sm text-ink"), box,
+			add(h("span"), t.agree,
+				linkTo(link("/terms/"), "link", t.terms), t.agreeEnd));
+
+		// The text can be read as it would be published, before it is sent.
+		const preview = h("div", "mt-1.5 hidden space-y-5 rounded-[3px] border border-line px-5 py-5 text-[17px] leading-[1.7] text-ink");
+		const flip = Object.assign(h("button", "tab-btn", t.preview), { type: "button" });
+		flip.addEventListener("click", () => {
+			const showing = preview.classList.toggle("hidden") === false;
+			body.input.classList.toggle("hidden", showing);
+			flip.textContent = showing ? t.writeTab : t.preview;
+			if (showing) preview.replaceChildren(...(body.input.value.trim() ? prose(body.input.value) : [h("p", "text-muted", t.nothingYet)]));
+		});
+		body.input.after(preview);
+		body.count.before(flip);
+
+		const counted = () => {
+			title.count.textContent = `${title.input.value.trim().length} / ${d.limits.title[1]}`;
+			dek.count.textContent = `${dek.input.value.trim().length} / ${d.limits.dek[1]}`;
+			const n = words(body.input.value);
+			body.count.textContent = t.wordCount(count(n), count(words0), count(words1));
+			body.count.classList.toggle("text-down", n > words1);
+		};
+		const keep = () => {
+			counted();
+			try {
+				localStorage.setItem(DRAFT, JSON.stringify({ title: title.input.value, dek: dek.input.value, body: body.input.value, sources: sources.input.value,
+					tickers: tickers.input.value, byline: byline.input.value } satisfies Draft));
+			} catch {
+				// A browser that keeps nothing still sends.
+			}
+		};
+
+		const send = Object.assign(h("button", "btn btn-primary", t.send), { type: "submit" });
+		const note = h("p", "text-[13px] text-down");
+		note.setAttribute("role", "alert");
+		const el = add(h("form", "space-y-6"), title.row, dek.row, body.row, sources.row,
+			add(h("div", "grid gap-6 sm:grid-cols-2"), tickers.row, byline.row), agree,
+			add(h("div", "flex flex-wrap items-center gap-x-4 gap-y-2"), send,
+				h("span", "text-[12.5px] text-muted", t.sendNote(d.per_day))), note);
+		el.addEventListener("input", keep);
+		el.addEventListener("submit", async (e) => {
+			e.preventDefault();
+			send.disabled = true;
+			note.textContent = "";
+			try {
+				const made = await submit({ title: title.input.value, dek: dek.input.value, body: body.input.value,
+					sources: sources.input.value.split("\n").map((s) => s.trim()).filter(Boolean),
+					tickers: tickers.input.value.split(/[\s,]+/).filter(Boolean), byline: byline.input.value, agree: box.checked });
+				localStorage.removeItem(DRAFT);
+				done(made);
+				list();
+			} catch (err) {
+				send.disabled = false;
+				note.textContent = err instanceof ApiError ? err.message : t.sendFailed;
+			}
+		});
+		counted();
+		desk.replaceChildren(el);
+	}
+
+	function done(made: Submission) {
+		const again = Object.assign(h("button", "btn btn-ghost mt-5", t.writeAnother), { type: "button" });
+		again.addEventListener("click", start);
+		desk.replaceChildren(add(h("div", "rounded-[3px] border border-line-strong px-5 py-5"),
+			h("p", "text-lg font-medium text-ink-strong", t.sentDone),
+			h("p", "mt-2 text-sm leading-relaxed text-ink", t.sentBody(made.title)),
+			again));
+		$("desk-title").scrollIntoView({ block: "start", behavior: "smooth" });
+	}
+
+	function row(a: Submission): HTMLElement {
+		const published = a.status === "published" && a.slug;
+		const state = published ? linkTo(articleHref(a.slug!), "link", t.published) : h("span", "", t.statuses[a.status] ?? a.status.charAt(0).toUpperCase() + a.status.slice(1));
+		const back = Object.assign(h("button", "shrink-0 text-[12.5px] text-muted hover:text-down", published ? t.removeCopy : t.takeBack), { type: "button" });
+		back.addEventListener("click", async () => {
+			if (!confirm(published ? t.sureRemoveCopy : t.sureTakeBack(a.title))) return;
+			back.disabled = true;
+			await withdraw(a.id).catch(() => {});
+			list();
+		});
+		return add(h("li", "flex items-start justify-between gap-4 py-3.5"),
+			add(h("div", "min-w-0"), h("p", "truncate text-ink-strong", a.title),
+				add(h("p", "mt-0.5 flex flex-wrap gap-x-2.5 text-[12.5px] text-muted"), h("time", "", t.sentOn(day(a.received_utc))), h("span", "", t.words(count(a.words))), state)),
+			back);
+	}
+
+	async function list(d?: Desk) {
+		const { articles } = d ?? (await submissions().catch(() => ({ articles: [] as Submission[] })));
+		$("sent").hidden = !articles.length;
+		$("sent-list").replaceChildren(...articles.map(row));
+	}
+
+	async function start() {
+		const who = await signedIn().catch(() => null);
+		if (!who) return visitor();
+		try {
+			const d = await submissions();
+			list(d);
+			if (!d.open) return desk.replaceChildren(h("p", "text-sm text-ink", t.closed));
+			form(who.user, d);
+		} catch {
+			desk.replaceChildren(h("p", "text-sm text-ink", t.deskDown));
+		}
+	}
+	start();
+</script>

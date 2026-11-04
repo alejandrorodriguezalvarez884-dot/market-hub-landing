@@ -1,6 +1,9 @@
 // The chart of one stock on the watchlist's wall: its daily bars with their 20, 50 and 200-day
 // averages, small enough to sit next to several others and to take whatever size its tile has.
 import { AreaSeries, CandlestickSeries, HistogramSeries, LineSeries, type ISeriesApi, type SeriesType, type Time } from "lightweight-charts";
+import { lang } from "../i18n";
+import { layout } from "../i18n/layout";
+import { watch } from "../i18n/watch";
 import { add, h, linkTo } from "./dom";
 import { baseChart, C } from "./lwc";
 import type { Bars } from "./watch";
@@ -87,7 +90,9 @@ export function chartCredit(cls = ""): HTMLElement {
   const by = linkTo("https://www.tradingview.com/", "hover:text-ink-strong", "TradingView");
   by.target = "_blank";
   by.rel = "noopener nofollow";
-  return add(h("p", `text-[12px] text-faint ${cls}`), "Charts by ", by, " Lightweight Charts™.");
+  // The words around the library's name come from the shell's foot (i18n/layout.ts).
+  const [before, after] = layout[lang()].footCharts.split("{tv}");
+  return add(h("p", `text-[12px] text-faint ${cls}`), before, by, after);
 }
 
 // The legend of the averages' colours, for the bar above the wall.
@@ -95,6 +100,6 @@ export function averagesKey(): HTMLElement {
   return add(h("span", "inline-flex items-center gap-2.5 text-[12px] text-muted"), ...AVERAGES.map((a) => {
     const swatch = h("span", "inline-block h-[2px] w-3.5 align-middle");
     swatch.style.background = a.color;
-    return add(h("span", "inline-flex items-center gap-1"), swatch, a.name);
+    return add(h("span", "inline-flex items-center gap-1"), swatch, watch[lang()].averageName(a.sessions));
   }));
 }

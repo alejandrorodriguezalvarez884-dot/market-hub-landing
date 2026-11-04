@@ -2,7 +2,8 @@
 // Shell of the public portal: one header line with the search at its centre, and the footer.
 // Signed-in users get a "My Hub" button to their private area.
 import Layout from "../layouts/Layout.astro";
-import { AUTHOR_URL, SITE_NAME, link } from "../lib/site";
+import { AUTHOR_URL, SITE_NAME, bareAt, langAt, link } from "../lib/site";
+import { layout } from "../i18n/layout";
 import AccountMenu from "./AccountMenu.astro";
 import Logo from "./Logo.astro";
 import Search from "./Search.astro";
@@ -12,24 +13,30 @@ interface Props {
 	description: string;
 	noindex?: boolean;
 	schema?: object[];
+	only?: boolean; // a page in one language only
 }
-const { title, description, noindex = false, schema } = Astro.props;
+const { title, description, noindex = false, schema, only = false } = Astro.props;
 const path = Astro.url.pathname;
+const lang = langAt(path);
+const t = layout[lang];
+const L = (p: string) => link(p, lang);
+const bare = bareAt(path);
 // Only the public sections. The analysis tools need a session, so their links live in My Hub.
 const nav = [
-	{ href: link("/today/"), label: "Today", active: path.startsWith(link("/today/")) },
-	{ href: link("/markets/"), label: "Markets", active: path.startsWith(link("/markets/")) },
-	{ href: link("/news/"), label: "News", active: path.startsWith(link("/news/")) },
-	{ href: link("/opinion/"), label: "Opinion", active: path.startsWith(link("/opinion/")) },
-	{ href: link("/media/"), label: "Media", active: path.startsWith(link("/media/")) },
+	{ href: L("/today/"), label: t.nav.today, active: path.startsWith(L("/today/")) },
+	{ href: L("/markets/"), label: t.nav.markets, active: path.startsWith(L("/markets/")) },
+	{ href: L("/news/"), label: t.nav.news, active: path.startsWith(L("/news/")) },
+	{ href: L("/opinion/"), label: t.nav.opinion, active: path.startsWith(L("/opinion/")) },
+	{ href: L("/media/"), label: t.nav.media, active: path.startsWith(L("/media/")) },
 ];
+const [chartsBefore, chartsAfter] = t.footCharts.split("{tv}");
 ---
 
-<Layout title={title.startsWith(SITE_NAME) ? title : `${title} — ${SITE_NAME}`} description={description} noindex={noindex} schema={schema}>
+<Layout title={title.startsWith(SITE_NAME) ? title : `${title} — ${SITE_NAME}`} description={description} noindex={noindex} schema={schema} only={only}>
 	<header class="sticky top-0 z-50 border-b border-line bg-page/95 backdrop-blur">
 		<div class="mx-auto flex h-14 max-w-[1240px] items-center gap-4 px-5 lg:gap-8">
 			<Logo />
-			<nav class="hidden sm:block" aria-label="Main">
+			<nav class="hidden sm:block" aria-label={t.main}>
 				<ul class="flex items-center gap-5 text-sm">
 					{nav.map((l) => (
 						<li>
@@ -40,13 +47,13 @@ const nav = [
 				</ul>
 			</nav>
 			<div class="ml-auto hidden w-full max-w-sm md:block"><Search compact id="header-search" /></div>
-			<button id="search-toggle" type="button" class="ml-auto rounded-sm p-2 text-muted hover:text-ink-strong md:hidden" aria-label="Search" aria-expanded="false" aria-controls="mobile-search">
+			<button id="search-toggle" type="button" class="ml-auto rounded-sm p-2 text-muted hover:text-ink-strong md:hidden" aria-label={t.search} aria-expanded="false" aria-controls="mobile-search">
 				<svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="9" r="6"></circle><path d="m14 14 4 4" stroke-linecap="round"></path></svg>
 			</button>
 			<AccountMenu />
 		</div>
 		<div id="mobile-search" class="border-t border-line px-5 py-2 md:hidden" hidden><Search compact id="mobile-search-box" /></div>
-		<nav class="border-t border-line sm:hidden" aria-label="Main">
+		<nav class="border-t border-line sm:hidden" aria-label={t.main}>
 			<ul class="flex gap-5 overflow-x-auto px-5 text-sm [scrollbar-width:none]">
 				{nav.map((l) => (
 					<li>
@@ -63,20 +70,24 @@ const nav = [
 	<footer class="border-t border-line">
 		<div class="mx-auto grid max-w-[1240px] gap-6 px-5 py-8 text-[13px] text-muted md:grid-cols-[1fr_auto]">
 			<div class="max-w-2xl space-y-2">
-				<p>
-					Prices can be delayed. Nothing here is investment advice or a recommendation to buy or sell anything. Past
-					returns say nothing about future ones.
-				</p>
-				<p>
-					Charts by <a href="https://www.tradingview.com/" class="link" rel="noopener">TradingView</a> Lightweight Charts™.
-				</p>
+				<p>{t.footNotAdvice}</p>
+				<p>{chartsBefore}<a href="https://www.tradingview.com/" class="link" rel="noopener">TradingView</a>{chartsAfter}</p>
 			</div>
 			<div class="flex flex-wrap items-start gap-x-5 gap-y-1">
-				<a href={link("/tools/")} class="hover:text-ink-strong">About the tools</a>
-				<a href={link("/privacy/")} class="hover:text-ink-strong">Privacy</a>
-				<a href={link("/terms/")} class="hover:text-ink-strong">Terms</a>
-				<a href={link("/contact/")} class="hover:text-ink-strong">Contact</a>
-				<a href={AUTHOR_URL} class="hover:text-ink-strong">Built by Alejandro Rodríguez Álvarez</a>
+				<a href={L("/tools/")} class="hover:text-ink-strong">{t.aboutTools}</a>
+				<a href={L("/privacy/")} class="hover:text-ink-strong">{t.privacy}</a>
+				<a href={L("/terms/")} class="hover:text-ink-strong">{t.terms}</a>
+				<a href={L("/contact/")} class="hover:text-ink-strong">{t.contact}</a>
+				<a href={AUTHOR_URL} class="hover:text-ink-strong">{t.builtBy}</a>
+				{
+					!only && (
+						<span class="lang-switch flex gap-2" aria-label={t.language} role="group">
+							<a href={link(bare, "en")} data-lang="en" hreflang="en" lang="en" aria-current={lang === "en" ? "true" : undefined} class="hover:text-ink-strong">English</a>
+							<span aria-hidden="true">·</span>
+							<a href={link(bare, "es")} data-lang="es" hreflang="es" lang="es" aria-current={lang === "es" ? "true" : undefined} class="hover:text-ink-strong">Español</a>
+						</span>
+					)
+				}
 			</div>
 		</div>
 	</footer>

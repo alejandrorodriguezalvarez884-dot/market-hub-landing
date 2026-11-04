@@ -4,6 +4,8 @@ import {
   AreaSeries, CandlestickSeries, ColorType, CrosshairMode, HistogramSeries, LineSeries, LineStyle, createChart,
   type IChartApi, type ISeriesApi, type MouseEventParams, type SeriesType, type Time, type UTCTimestamp,
 } from "lightweight-charts";
+import { lang, locale } from "../i18n";
+import { charts } from "../i18n/charts";
 import { add, h } from "./dom";
 import { change, level, signedPct } from "./format";
 import { chartData, RANGES, type Bar, type ChartData } from "./market";
@@ -18,8 +20,8 @@ export const C = {
 export function baseChart(el: HTMLElement): IChartApi {
   return createChart(el, {
     autoSize: true,
-    // Fixed, so numbers and dates read the same as the rest of the site whatever the browser's locale.
-    localization: { locale: "en-US" },
+    // The page's, so numbers and dates read the same as the rest of the site whatever the browser's locale.
+    localization: { locale: locale() },
     layout: { background: { type: ColorType.Solid, color: C.bg }, textColor: C.text, fontSize: 11,
               fontFamily: "'IBM Plex Mono', ui-monospace, monospace", attributionLogo: true },
     grid: { vertLines: { visible: false }, horzLines: { color: C.grid } },
@@ -34,12 +36,18 @@ export function baseChart(el: HTMLElement): IChartApi {
 
 const t = (time: Bar["time"]) => time as Time;
 
-const SPAN: Record<string, string> = { "1D": "Today", "5D": "Five days", "1M": "One month", "6M": "Six months", YTD: "This year", "1Y": "One year", "5Y": "Five years" };
+// A price with a fixed count of decimals, as the axis and the last value show it: the library's own
+// format in English, the decimal comma in Spanish.
+export function fixedFormat(digits: number) {
+  const minMove = 1 / 10 ** digits;
+  if (lang() !== "es") return { type: "price" as const, precision: digits, minMove };
+  return { type: "custom" as const, minMove, formatter: (v: number) => v.toFixed(digits).replace("-", "−").replace(".", ",") };
+}
 
 // A bar's moment, as the axis shows it: a date, or a date and the exchange's time.
 function when(time: Bar["time"]): string {
-  if (typeof time === "string") return new Date(`${time}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-  return new Date(time * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+  if (typeof time === "string") return new Date(`${time}T00:00:00Z`).toLocaleDateString(locale(), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  return new Date(time * 1000).toLocaleString(locale(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" });
 }
 
 export type PriceChart = { setSymbol(symbol: string): void };
@@ -84,8 +92,9 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
     }));
   }
   const drawTabs = () => {
-    tabs(rangeTabs, RANGES.filter((r) => intraday || (r !== "1D" && r !== "5D")), () => range, (v) => ((range = v), load()));
-    tabs(styleTabs, ["candles", "area"], () => style, (v) => ((style = v as typeof style), draw()), { area: "Line", candles: "Candles" });
+    const w = charts[lang()];
+    tabs(rangeTabs, RANGES.filter((r) => intraday || (r !== "1D" && r !== "5D")), () => range, (v) => ((range = v), load()), w.ranges);
+    tabs(styleTabs, ["candles", "area"], () => style, (v) => ((style = v as typeof style), draw()), { area: w.line, candles: w.candles });
   };
 
   function legendFor(b: Bar | null) {
@@ -98,13 +107,14 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
     const tone = diff > 0 ? "up" : diff < 0 ? "down" : "text-muted";
     // What the figures are: the bar under the crosshair, or the whole range; the change is
     // always counted from the start of the range, and says so.
-    const parts: (HTMLElement | string)[] = [h("span", "text-muted", b ? when(b.time) : SPAN[data.range] ?? data.range)];
+    const w = charts[lang()];
+    const parts: (HTMLElement | string)[] = [h("span", "text-muted", b ? when(b.time) : w.spans[data.range] ?? data.range)];
     if (style === "candles" && b) {
-      for (const [k, v] of [["O", last.open], ["H", last.high], ["L", last.low], ["C", last.close]] as const)
+      for (const [k, v] of [[w.ohlc.O, last.open], [w.ohlc.H, last.high], [w.ohlc.L, last.low], [w.ohlc.C, last.close]] as const)
         parts.push(h("span", "ml-2 text-muted", k), h("span", "ml-1 num text-ink-strong", level(v, data.kind)));
     } else if (b) parts.push(h("span", "ml-2 num text-ink-strong", level(last.close, data.kind)));
     parts.push(h("span", `ml-2 num ${tone}`, `${change(diff, data.kind)} (${signedPct(pct, 2)})`));
-    if (b) parts.push(h("span", "ml-1 text-muted", data.range === "1D" ? "vs. previous close" : "vs. start"));
+    if (b) parts.push(h("span", "ml-1 text-muted", data.range === "1D" ? w.vsPrev : w.vsStart));
     legend.replaceChildren(add(h("div", "bg-page/85 pr-2"), ...parts));
   }
 
@@ -118,7 +128,7 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
     const first = data.range === "1D" ? data.prev_close : bars[0].open;
     const rising = bars[bars.length - 1].close >= first;
     const digits = data.kind === "fx" ? 4 : data.kind === "rate" ? 3 : 2;
-    const priceFormat = { type: "price" as const, precision: digits, minMove: 1 / 10 ** digits };
+    const priceFormat = fixedFormat(digits);
     if (style === "candles") {
       const s = chart.addSeries(CandlestickSeries, { upColor: C.up, downColor: C.down, borderVisible: false,
         wickUpColor: C.up, wickDownColor: C.down, priceFormat });
@@ -133,7 +143,7 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
     }
     if (data.range === "1D")
       main.createPriceLine({ price: data.prev_close, color: C.cross, lineStyle: LineStyle.Dashed, lineWidth: 1,
-                             axisLabelVisible: true, title: "Prev close" });
+                             axisLabelVisible: true, title: charts[lang()].prevClose });
     if (bars.some((b) => b.volume > 0)) {
       volume = chart.addSeries(HistogramSeries, { priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false });
       volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
@@ -157,7 +167,7 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
   async function load() {
     const mine = ++seq;
     drawTabs();
-    status.textContent = "Loading…";
+    status.textContent = charts[lang()].loading;
     status.hidden = false;
     try {
       const d = await chartData(symbol, range);
@@ -174,7 +184,7 @@ export function priceChart(host: HTMLElement, opts: { symbol: string; range?: st
         range = "1M";
         return load();
       }
-      status.textContent = "The chart is not available right now.";
+      status.textContent = charts[lang()].unavailable;
     }
   }
   load();
@@ -201,7 +211,7 @@ export function compareChart(host: HTMLElement, dates: string[], series: { name:
   const chart = baseChart(box);
   for (const s of series) {
     const line = chart.addSeries(LineSeries, { color: s.color, lineWidth: 2, priceLineVisible: false, lastValueVisible: true,
-      priceFormat: { type: "price", precision: 1, minMove: 0.1 } });
+      priceFormat: fixedFormat(1) });
     line.setData(dates.map((d, i) => ({ time: d as Time, value: s.values[i] })));
   }
   chart.timeScale().fitContent();
@@ -212,7 +222,7 @@ export function compareChart(host: HTMLElement, dates: string[], series: { name:
 export function miniChart(host: HTMLElement, bars: { time: string | number; value: number }[], rising: boolean, height = 64) {
   host.style.height = `${height}px`;
   const chart = createChart(host, {
-    autoSize: true, localization: { locale: "en-US" }, layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: C.text, attributionLogo: false },
+    autoSize: true, localization: { locale: locale() }, layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: C.text, attributionLogo: false },
     grid: { vertLines: { visible: false }, horzLines: { visible: false } },
     rightPriceScale: { visible: false }, timeScale: { visible: false }, crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
     handleScale: false, handleScroll: false,
@@ -232,7 +242,7 @@ export function returnsChart(host: HTMLElement, dates: string[], lines: ReturnLi
   box.style.height = `${height}px`;
   host.replaceChildren(box);
   const chart = baseChart(box);
-  chart.applyOptions({ localization: { locale: "en-US", priceFormatter: (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%` } });
+  chart.applyOptions({ localization: { locale: locale(), priceFormatter: (v: number) => signedPct(v / 100, 1) } });
   lines.forEach((s, i) => {
     const line = chart.addSeries(LineSeries, { color: s.color, lineWidth: s.width ?? 2, lineStyle: s.dashed ? LineStyle.Dashed : LineStyle.Solid,
       priceLineVisible: false, lastValueVisible: true });

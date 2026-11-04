@@ -1,0 +1,199 @@
+---
+// My Hub, Overview: the portfolio today, read back in sentences, against the indices, its
+// positions, what it is made of, the watchlist and the news on the user's stocks.
+import App from "../components/App.astro";
+import type { Lang } from "../i18n";
+import { dash } from "../i18n/hub";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = dash[lang];
+---
+
+<App title={t.title} description={t.description}>
+	<div id="dash" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-28"></div><div class="skeleton h-80"></div></div>
+</App>
+
+<script>
+	import { config, requireUser, toolLinks, type Config } from "../lib/api";
+	import { add, card, h, linkTo, stat, toneOf } from "../lib/dom";
+	import { decimals, failure, getDashboard, insightPanel, label, pageHead, shareBar, stackedBar } from "../lib/hub";
+	import { indexChart } from "../lib/hubcharts";
+	import { money, pct, plural, price, signedPct } from "../lib/format";
+	import { myNews, watchNews } from "../lib/market";
+	import { newsLine } from "../lib/news";
+	import { link, tidyName } from "../lib/site";
+	import { sparkline } from "../lib/spark";
+	import type { Dashboard, Group, Row, Watch } from "../lib/types";
+	import { lang, locale } from "../i18n";
+	import { dash } from "../i18n/hub";
+
+	const t = dash[lang()];
+
+	const root = document.getElementById("dash")!;
+	const tone = (v: number | null | undefined) => (v == null ? "text-ink" : v > 0 ? "up" : v < 0 ? "down" : "text-ink");
+	const cell = (text: string, cls = "text-ink") => h("td", cls, text);
+
+	function greeting(name: string) {
+		const hour = new Date().getHours();
+		const part = hour < 12 ? t.morning : hour < 19 ? t.afternoon : t.evening;
+		return `${part}, ${name.split(" ")[0]}`;
+	}
+
+	function tools(cfg: Config, ticker: string, fund = false): HTMLElement {
+		const links = toolLinks(cfg.tools, ticker);
+		// Funds publish no results releases.
+		if (fund) links.earnings = null;
+		const el = h("div", "flex justify-end gap-1");
+		const a = (href: string | null, label: string, title: string) => {
+			if (!href) return null;
+			const x = h("a", "rounded border border-line-strong px-2 py-0.5 text-[11px] font-semibold text-muted hover:border-muted hover:text-ink-strong", label) as HTMLAnchorElement;
+			x.href = href;
+			x.title = title;
+			x.target = "_blank";
+			x.rel = "noopener";
+			return x;
+		};
+		return add(el, a(links.fundamentals, t.numbers, t.inFundamentals(ticker)), a(links.earnings, t.earnings, t.inRadar(ticker)));
+	}
+
+	function nameCell(t: string, name: string): HTMLElement {
+		return add(h("td"), linkTo(link(`/quote/?t=${encodeURIComponent(t)}`), "font-semibold text-ink-strong hover:underline", t), h("div", "max-w-[11rem] truncate text-[11px] text-muted", tidyName(name)));
+	}
+
+	function holdings(d: Dashboard, cfg: Config): HTMLElement {
+		const c = card(t.positions, d.totals.cost_covers < d.totals.positions ? t.costNote : undefined);
+		const table = h("table", "data-table");
+		add(table, add(h("thead"), add(h("tr"), ...t.positionHeads.map((x) => h("th", "", x)))),
+			add(h("tbody"), ...d.positions.map((r: Row) => add(h("tr"),
+				nameCell(r.ticker, r.name),
+				cell(r.shares.toLocaleString(locale(), { maximumFractionDigits: 4 })),
+				cell(price(r.avg_cost), "text-muted"),
+				cell(price(r.price)),
+				cell(signedPct(r.day_change_pct), tone(r.day_change_pct)),
+				cell(money(r.value)),
+				cell(pct(r.weight)),
+				cell(r.pnl == null ? "—" : `${r.pnl >= 0 ? "+" : ""}${money(r.pnl)}`, tone(r.pnl)),
+				cell(signedPct(r.pnl_pct), tone(r.pnl_pct)),
+				cell(signedPct(r.return_1y), tone(r.return_1y)),
+				add(h("td"), sparkline(r.spark)),
+				add(h("td"), tools(cfg, r.ticker, (r.sector === "ETF / fund" || r.sector === "ETF / fondo"))),
+			))));
+		c.body.className = "";
+		c.body.append(add(h("div", "overflow-x-auto"), table));
+		return c.el;
+	}
+
+	function watchTable(d: Dashboard, cfg: Config): HTMLElement {
+		const c = card(t.watchlist, t.watchNote);
+		const table = h("table", "data-table");
+		add(table, add(h("thead"), add(h("tr"), ...t.watchHeads.map((x) => h("th", "", x)))),
+			add(h("tbody"), ...d.watchlist.map((w: Watch) => add(h("tr"),
+				nameCell(w.ticker, w.name),
+				cell(price(w.price)),
+				cell(signedPct(w.day_change_pct), tone(w.day_change_pct)),
+				cell(signedPct(w.return_1m), tone(w.return_1m)),
+				cell(signedPct(w.return_ytd), tone(w.return_ytd)),
+				cell(signedPct(w.return_1y), tone(w.return_1y)),
+				cell(signedPct(w.from_high_52w), "text-muted"),
+				add(h("td"), sparkline(w.spark)),
+				add(h("td"), tools(cfg, w.ticker)),
+			))));
+		c.body.className = "";
+		c.body.append(add(h("div", "overflow-x-auto"), table));
+		return c.el;
+	}
+
+	// What it is made of, at a glance: one line per way of looking at it. The Analysis page takes each apart.
+	function makeup(d: Dashboard): HTMLElement {
+		const c = card(t.makeup, t.makeupNote);
+		const more = linkTo(link("/analysis/"), "text-[13px] text-muted hover:text-ink-strong", t.takeApart);
+		c.head.append(more);
+		const line = (title: string, items: Group[]) => add(h("div", "min-w-0"),
+			add(h("div", "mb-2 flex items-baseline justify-between gap-3"), h("h3", "label flex-none", title),
+				h("span", "min-w-0 truncate text-[12.5px] text-muted", items.slice(0, 3).map((g) => `${label(g.label)} ${pct(g.weight, 0)}`).join(" · "))),
+			stackedBar(items.map((g) => ({ ...g, label: label(g.label) }))));
+		const top = add(h("div", "space-y-2"), ...d.positions.filter((x) => x.weight != null).slice(0, 6).map((x) =>
+			add(h("div", "grid grid-cols-[4.5rem_1fr_3.5rem] items-center gap-3 text-[13px]"),
+				linkTo(link(`/quote/?t=${encodeURIComponent(x.ticker)}`), "font-semibold text-ink-strong hover:underline", x.ticker),
+				shareBar(x.weight, "w-full"), h("span", "num text-right text-ink-strong", pct(x.weight)))));
+		add(c.body, add(h("div", "grid gap-x-10 gap-y-6 lg:grid-cols-2"),
+			add(h("div", "min-w-0 space-y-5"), ...d.groups.map((g) => line(t.by(label(g.label)), g.items))),
+			add(h("div", "min-w-0"), h("h3", "label mb-3", t.largest), top)));
+		return c.el;
+	}
+
+	// What the user's companies filed lately. The panel stays out of the page until there is something.
+	function ownNews(): HTMLElement {
+		const c = card(t.news, t.newsNote);
+		c.el.hidden = true;
+		c.body.className = "px-4 py-1";
+		watchNews(myNews, (n) => {
+			c.el.hidden = n.sample || !n.items.length;
+			c.body.replaceChildren(...n.items.slice(0, 8).map(newsLine));
+		}).catch(() => {});
+		return c.el;
+	}
+
+	function toolCards(cfg: Config): HTMLElement {
+		const items = [
+			["Fundamentals Lab", t.fundamentalsText, cfg.tools.fundamentals_lab],
+			["Earnings Radar", t.radarText, cfg.tools.earnings_radar],
+		] as const;
+		return add(h("div", "grid gap-4 sm:grid-cols-2"), ...items.map(([name, text, url]) => {
+			const el = h(url ? "a" : "div", `panel block p-4 ${url ? "transition-colors hover:border-line-strong hover:bg-raised" : "opacity-70"}`);
+			if (url) (el as HTMLAnchorElement).href = url;
+			return add(el, add(h("div", "flex items-center justify-between"), h("h3", "text-[15px] font-bold text-ink-strong", name),
+				h("span", url ? "text-xs text-ink-strong" : "text-xs text-muted", url ? t.open : t.soon)), h("p", "mt-1.5 text-[13px] text-muted", text));
+		}));
+	}
+
+	function draw(name: string, d: Dashboard, cfg: Config) {
+		const tot = d.totals;
+		const today = new Date().toLocaleDateString(locale(), { weekday: "long", month: "long", day: "numeric" });
+		const header = pageHead(greeting(name), today, { sample: d.sample, action: linkTo(link("/portfolio/"), "btn btn-ghost", t.editPortfolio) });
+		const year = d.performance.periods.find((x) => x.key === "1y");
+		const index = d.performance.indices[0];
+		const gap = year?.portfolio != null && year.indices[index.ticker] != null ? year.portfolio - year.indices[index.ticker]! : null;
+
+		const tiles = add(h("div", "panel grid grid-cols-2 gap-x-6 gap-y-5 p-4 sm:grid-cols-4 sm:p-5"),
+			stat(t.value, money(tot.value), tot.positions ? plural(tot.positions, t.position, t.positionsWord) : t.noPositions),
+			stat(t.today, tot.day_change == null ? "—" : `${tot.day_change >= 0 ? "+" : ""}${money(tot.day_change)}`,
+				`${signedPct(tot.day_change_pct, 2)} · ${index.name} ${signedPct(d.benchmark.day_change_pct, 2)}`, toneOf(tot.day_change)),
+			stat(t.gainLoss, tot.pnl == null ? "—" : `${tot.pnl >= 0 ? "+" : ""}${money(tot.pnl)}`, tot.pnl_pct != null ? t.onCost(signedPct(tot.pnl_pct)) : t.addCosts, toneOf(tot.pnl)),
+			stat(t.year, signedPct(year?.portfolio), gap == null ? undefined : t.gap(decimals(Math.abs(gap) * 100, 1), gap >= 0, index.name), toneOf(year?.portfolio)),
+		);
+
+		const moves = [...d.movers.up.map((x) => [x, "up"]), ...d.movers.down.map((x) => [x, "down"])];
+		const movers = moves.length
+			? add(h("div", "flex flex-wrap items-center gap-2 text-[13px]"), h("span", "text-muted", t.moving),
+				...moves.map(([x, dir]) => {
+					const all = [...d.positions, ...d.watchlist].find((r) => r.ticker === x)!;
+					return h("span", dir === "up" ? "pill-up" : "pill-down", `${x} ${signedPct(all.day_change_pct)}`);
+				}))
+			: null;
+
+		const parts: (HTMLElement | null)[] = [header, d.positions.length ? tiles : null];
+		if (d.positions.length) parts.push(insightPanel(d.insights), movers, indexChart(d), holdings(d, cfg), makeup(d));
+		else parts.push(movers);
+		if (d.watchlist.length) parts.push(watchTable(d, cfg));
+		parts.push(ownNews());
+		parts.push(add(h("section"), h("h2", "label mb-2", t.tools), toolCards(cfg)));
+		for (const n of d.notes) parts.push(h("p", "text-xs text-warn", label(n)));
+		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"), ...parts));
+	}
+
+	async function start() {
+		const who = await requireUser();
+		if (!who.has_data) return location.replace(link("/portfolio/?welcome=1"));
+		try {
+			const [d, cfg] = await Promise.all([getDashboard(), config()]);
+			draw(who.user.name, d, cfg);
+		} catch (e) {
+			failure(root, e);
+		}
+	}
+	start().catch(() => {});
+</script>

@@ -1,13 +1,16 @@
 // The parts of the Today page: the day's figures, the sectors' places today against the year's,
 // every instrument on one scale over several spans, and the day's widest moves. Each is built
-// still and comes in when the page reaches it (lib/motion.ts).
+// still and comes in when the page reaches it (lib/motion.ts). Its words are in i18n/today.ts.
 import { add, h, linkTo, svg } from "./dom";
-import { change, compact, level, signedPct, toneClass } from "./format";
+import { lang } from "../i18n";
+import { today as todayWords } from "../i18n/today";
+import { change, compact, level, pct, signedPct, toneClass } from "./format";
 import type { Mover, Overview, Sector, Snapshot } from "./market";
 import { count, reached, rv, still } from "./motion";
 import { quoteHref, rateItem, rulerScale } from "./widgets";
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const words = () => todayWords[lang()];
 const fill = (v: number) => (v > 0 ? "bg-up up" : v < 0 ? "bg-down down" : "bg-muted");
 
 // --- A mark that moves ---------------------------------------------------------------------------
@@ -50,7 +53,7 @@ export function figure(s: Snapshot, scale: number, turn: number, onPick: () => v
   m.el.style.setProperty("--track", "100%");
   add(el,
     add(h("span", "flex items-baseline justify-between gap-3 text-[13px] text-muted"), h("span", "truncate group-hover:text-ink-strong", shortName(s)),
-      h("span", "flex-none whitespace-nowrap opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100", "Its session ↓")),
+      h("span", "flex-none whitespace-nowrap opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100", words().itsSession)),
     value,
     h("span", `num mt-0.5 block text-[13px] ${toneClass(s.change_pct)}`, `${change(s.change, s.kind)} (${signedPct(s.change_pct, 2)})`),
     add(h("span", "mt-2 block"), m.el));
@@ -124,7 +127,7 @@ export function sectorSlope(sectors: Sector[]): HTMLElement {
     light(held);
   };
   add(el,
-    h("div", "slope-head pr-[0.1rem] text-right", "Today"), h("div"), h("div", "slope-head", "This year"),
+    h("div", "slope-head pr-[0.1rem] text-right", words().slopeToday), h("div"), h("div", "slope-head", words().slopeYear),
     left, lines, right);
   new ResizeObserver(draw).observe(lines);
   reached(lines, () => lines.classList.add("in"));
@@ -140,18 +143,20 @@ export function breadth(sectors: Sector[]): HTMLElement {
     reached(cell, () => count(fig, 0, n, (v) => String(Math.round(v)), 700));
     return cell;
   };
-  return add(h("div", "flex gap-10"), one(up, up === 1 ? "sector up" : "sectors up", "up", 0), one(down, down === 1 ? "sector down" : "sectors down", "down", 1));
+  return add(h("div", "flex gap-10"), one(up, up === 1 ? words().sectorUp : words().sectorsUp, "up", 0), one(down, down === 1 ? words().sectorDown : words().sectorsDown, "down", 1));
 }
 
 // --- Everything on one scale ----------------------------------------------------------------------
 
 export const SPANS = [
-  { key: "day", label: "Today", of: (s: Snapshot) => s.change_pct },
-  { key: "1m", label: "1 month", of: (s: Snapshot) => s.return_1m },
-  { key: "ytd", label: "This year", of: (s: Snapshot) => s.return_ytd },
-  { key: "1y", label: "1 year", of: (s: Snapshot) => s.return_1y },
+  { key: "day", of: (s: Snapshot) => s.change_pct },
+  { key: "1m", of: (s: Snapshot) => s.return_1m },
+  { key: "ytd", of: (s: Snapshot) => s.return_ytd },
+  { key: "1y", of: (s: Snapshot) => s.return_1y },
 ] as const;
 export type Span = (typeof SPANS)[number];
+// A span's name, in the page's language.
+export const spanLabel = (span: Span) => words().spans[span.key];
 
 // The half-width of the ruler over a span longer than the day: a round figure that holds all the
 // moves but the two largest, so that an outlier or two do not flatten every other mark.
@@ -160,7 +165,7 @@ function spanScale(moves: number[]): number {
   const hold = sizes[Math.min(2, sizes.length - 1)] ?? 0;
   return [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.75, 1].find((s) => s >= hold) ?? Math.ceil(hold);
 }
-const scaleEnd = (scale: number) => `${(scale * 100).toFixed((scale * 100) % 1 ? 1 : 0)}%`;
+const scaleEnd = (scale: number) => pct(scale, (scale * 100) % 1 ? 1 : 0);
 
 export type Ends = { top: Snapshot | null; bottom: Snapshot | null; of: Span["of"] };
 
@@ -207,11 +212,11 @@ export function liveRuler(o: Overview): { el: HTMLElement; show(span: Span): End
     // The marks of a group leave zero one after another, once the group is on screen.
     reached(head, () => mine.forEach((r, i) => setTimeout(() => ((r.live = true), set(r)), still() ? 0 : 150 + i * 55)));
   };
-  group("Stock indices", o.indices);
-  group("Treasury yields", o.rates);
-  group("Commodities", o.commodities);
-  group("Currencies", o.currencies);
-  group("Crypto", o.crypto);
+  group(words().groups.indices, o.indices);
+  group(words().groups.rates, o.rates);
+  group(words().groups.commodities, o.commodities);
+  group(words().groups.currencies, o.currencies);
+  group(words().groups.crypto, o.crypto);
 
   function show(next: Span): Ends {
     span = next;
@@ -244,7 +249,7 @@ export function tug(losers: Mover[], gainers: Mover[]): HTMLElement {
         add(h("span", "mover-name"), h("span", "num block text-ink-strong", m.symbol), h("span", "block truncate text-[12.5px] text-muted", m.name)),
         add(h("span", "mover-zone"), bar, fig));
     }));
-  return add(h("div", "tug"), side("Largest rises", gainers, "rises"), side("Largest falls", losers, "falls"));
+  return add(h("div", "tug"), side(words().rises, gainers, "rises"), side(words().falls, losers, "falls"));
 }
 
 // The most traded stocks of the day, each with its volume as a bar on the same scale.
@@ -258,6 +263,6 @@ export function traded(items: Mover[]): HTMLElement {
         h("span", `num text-[13px] ${toneClass(m.change_pct)}`, signedPct(m.change_pct, 2))),
       h("span", "block truncate text-[12.5px] text-muted", m.name),
       add(h("span", "mt-2 block h-[3px] bg-line"), bar),
-      h("span", "num mt-1.5 block text-[12.5px] text-ink", isNum(m.volume) ? `${compact(m.volume)} shares` : "—"));
+      h("span", "num mt-1.5 block text-[12.5px] text-ink", isNum(m.volume) ? words().shares(compact(m.volume)) : "—"));
   }));
 }

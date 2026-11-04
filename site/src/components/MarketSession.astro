@@ -6,14 +6,18 @@
 // stem reaching a dot on the rim at the hour it is in New York, like the hand of a clock. Noon is
 // at the top, so the session runs over the top of the dial like the sun: the thick arc is the
 // open market, the thin ones on each side are the pre-market and the after hours, and the rest
-// of the ring is the night.
+// of the ring is the night. Its words follow the page's language (i18n/session.ts).
+import { session } from "../i18n/session";
+import { langAt } from "../lib/site";
+
+const t = session[langAt(Astro.url.pathname)];
 ---
 
 <div class="flex flex-col gap-x-10 gap-y-6 sm:flex-row sm:items-center">
 	<div id="session-dial" class="h-32 w-32 flex-none sm:h-40 sm:w-40" aria-hidden="true"></div>
 	<div class="min-w-0">
 		<p class="flex items-center gap-2 text-[13px] text-muted">
-			<span>US stock market</span><span aria-hidden="true">·</span><span id="session-label" class="text-ink-strong">&nbsp;</span>
+			<span>{t.market}</span><span aria-hidden="true">·</span><span id="session-label" class="text-ink-strong">&nbsp;</span>
 		</p>
 		<p id="session-line" class="lede mt-2 min-h-[1.2em] !text-ink-strong"><span class="skeleton block h-[1em] w-3/4"></span></p>
 		<p id="session-next" class="mt-3 text-[13px] text-muted">&nbsp;</p>

@@ -91,10 +91,15 @@ that asks who is signed in answers it the same.
 For search engines (seo.py): GET /robots.txt and GET /sitemap.xml, the portal's own pages and the
 opinion articles. The news items, the quotes and My Hub say noindex in their own HTML.
 
-Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build. Its two pages
+Everything else is the static site, when MARKETHUB_STATIC_DIR points at its build. Its pages
 that are not handed out as built are /opinion/article/?slug=, which carries the article itself
 (its title, dek and cover in the head, its text in the body) for the sites a link is shared on
-and for search engines, and /opinion/, which carries the list of articles (previews.py).
+and for search engines, /opinion/, which carries the list of articles, and the home page, which
+carries the newest (previews.py); and the same three in Spanish under /es/.
+
+The site's Spanish pages send "X-MH-Lang: es", and the service then says in Spanish what it says
+in words of its own: why it refuses something, and the names it gives figures (i18n.py). Never
+from Accept-Language, and never to the phone app, which keeps getting English.
 """
 
 from __future__ import annotations
@@ -112,12 +117,15 @@ from pathlib import Path
 
 import httpx
 from fastapi import Body, FastAPI, HTTPException, Query, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import accounts as accounts_
+from . import i18n
 from . import dashboard
 from .accounts import Accounts, LoginStore, default_logins
 from .captcha import app_page, default_captcha, open_without
@@ -366,7 +374,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
             allowed = {own, f"https://{forwarded_host}", *origins}
             if origin not in allowed:
-                return JSONResponse({"detail": "Cross-site request refused."}, status_code=403)
+                return JSONResponse({"detail": i18n.message("Cross-site request refused.", i18n.lang_of(request))}, status_code=403)
         response = await call_next(request)
         # Nothing of the API is kept by a browser, but what says itself that it can be (a picture).
         if request.url.path.startswith("/api/") and "cache-control" not in response.headers:
@@ -380,7 +388,16 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         app.add_middleware(HostScopedCookieDomain, domain=cookie_domain)
     if origins:
         app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True,
-                           allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["content-type", "authorization"])
+                           allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["content-type", "authorization", i18n.HEADER])
+
+    @app.exception_handler(StarletteHTTPException)
+    async def refused_in_language(request: Request, exc: StarletteHTTPException) -> Response:
+        """Why something is refused, in the language of the page that asked (i18n.py). Only the
+        words change: the status, the headers and the shape of the answer are the same."""
+        said = i18n.message(exc.detail, i18n.lang_of(request))
+        if said is not exc.detail:
+            exc = StarletteHTTPException(exc.status_code, said, headers=exc.headers)
+        return await http_exception_handler(request, exc)
 
     def signed_in(request: Request) -> dict | None:
         """Who is asking, or None. A request that carries a token is the token's user or nobody:
@@ -763,7 +780,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             raise HTTPException(503, str(exc)) from None
         if doc.get("shared"):
             community.refresh(user["id"], d)
-        return d
+        return i18n.dashboard(d, i18n.lang_of(request))
 
     @app.get("/api/insights")
     def insights(request: Request) -> dict:
@@ -796,7 +813,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     @app.get("/api/watchlist")
     def watchlist(request: Request) -> dict:
         user, _ = watched(request)
-        return watch.board(load(user))
+        return i18n.watchlist(watch.board(load(user)), i18n.lang_of(request))
 
     @app.get("/api/watchlist/stock")
     def watch_stock(request: Request, t: str = Query(max_length=12)) -> dict:
@@ -804,7 +821,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         found = watch.stock(ticker)
         if not found:
             raise HTTPException(404, "No prices for that stock right now.")
-        return found
+        return {**found, "item": i18n.watch_item(found["item"], i18n.lang_of(request))}
 
     @app.get("/api/watchlist/bars")
     def watch_bars(request: Request, t: str = Query(max_length=12)) -> dict:
@@ -854,16 +871,16 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         except MarketUnavailable as exc:
             raise HTTPException(503, str(exc)) from None
         periods = d["performance"]["periods"]
-        return {**community.board(user["id"], d),
-                "periods": [{"key": p["key"], "label": p["label"]} for p in periods if p["key"] in BOARD_PERIODS],
-                "indices": [{"ticker": i["ticker"], "name": i["name"], "performance": {p["key"]: p["indices"].get(i["ticker"]) for p in periods}}
-                            for i in d["performance"]["indices"]]}
+        return i18n.community({**community.board(user["id"], d),
+                               "periods": [{"key": p["key"], "label": p["label"]} for p in periods if p["key"] in BOARD_PERIODS],
+                               "indices": [{"ticker": i["ticker"], "name": i["name"], "performance": {p["key"]: p["indices"].get(i["ticker"]) for p in periods}}
+                                           for i in d["performance"]["indices"]]}, i18n.lang_of(request))
 
     @app.get("/api/competitions")
     def competition(request: Request) -> dict:
         user = current_user(request)
         allow(request)
-        return competitions.overview(user["id"])
+        return i18n.competitions(competitions.overview(user["id"]), i18n.lang_of(request))
 
     @app.put("/api/competitions/entry")
     def enter_competition(request: Request, handle: str = Body(embed=True, max_length=40), picks: list = Body(embed=True)) -> dict:
@@ -911,7 +928,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
     def bot_board(request: Request) -> dict:
         user = current_user(request)
         allow(request)
-        return {**bots.overview(user["id"]), "league": BOT_LEAGUE_URL}
+        lang = i18n.lang_of(request)
+        return i18n.bots({**bots.overview(user["id"], lang), "league": BOT_LEAGUE_URL}, lang)
 
     @app.post("/api/bots/refresh")
     def refresh_bots(request: Request) -> dict:
@@ -1030,8 +1048,8 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         return q
 
     @app.get("/api/public/quote/more")
-    def public_quote_more(t: str = Query(max_length=12)) -> dict:
-        return markets.more(symbol(t))
+    def public_quote_more(request: Request, t: str = Query(max_length=12)) -> dict:
+        return i18n.quote_more(markets.more(symbol(t)), i18n.lang_of(request))
 
     @app.get("/api/public/news")
     def public_news(category: str | None = Query(None, max_length=30), ticker: str | None = Query(None, max_length=12),
@@ -1210,27 +1228,44 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
 
     # --- Search engines ------------------------------------------------------------------------
 
+    static_dir = static_dir or os.environ.get("MARKETHUB_STATIC_DIR", "")
+    site_dir = Path(static_dir) if static_dir and Path(static_dir).is_dir() else None
+
+    def built(path: str) -> str | None:
+        """A page of the build, as it was built; None when the build has no such page."""
+        found = site_dir / path.strip("/") / "index.html" if site_dir else None
+        return found.read_text(encoding="utf-8") if found and found.is_file() else None
+
+    def in_build(path: str) -> bool:
+        return bool(site_dir and (site_dir / path.strip("/") / "index.html").is_file())
+
+    # The pages built in Spanish too. Without a build (the API alone) every page is taken to be.
+    spanish_pages = [p for p in seo.PAGES if in_build(seo.spanish(p))] if site_dir else list(seo.PAGES)
+    spanish_articles = in_build(previews.at(previews.PATH, "es")) if site_dir else True
+
     @app.get("/robots.txt", include_in_schema=False)
     def robots_txt() -> Response:
         return Response(seo.robots(SITE_URL), media_type="text/plain")
 
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap_xml() -> Response:
-        return Response(seo.sitemap(SITE_URL, opinion.articles(limit=10**6)), media_type="application/xml",
-                        headers={"Cache-Control": "public, max-age=3600"})
+        return Response(seo.sitemap(SITE_URL, opinion.articles(limit=10**6), spanish_pages, spanish_articles),
+                        media_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
 
-    static_dir = static_dir or os.environ.get("MARKETHUB_STATIC_DIR", "")
-    if static_dir and Path(static_dir).is_dir():
-        built = Path(static_dir) / previews.PATH.strip("/") / "index.html"
-        if built.is_file():
-            article_page = built.read_text(encoding="utf-8")
+    def opinion_pages(lang: str) -> None:
+        """The pages that leave the server with the opinion articles in them, in one language:
+        an article's page, the list and the home page (previews.py)."""
+        article_page = built(previews.at(previews.PATH, lang))
+        if article_page is not None:
+            # Whether the article's page is there in the other language too, to name it.
+            both = all(in_build(previews.at(previews.PATH, other)) for other in previews.LOCALES)
 
             # An article's page leaves the server with the article in it: its title, dek and cover
             # in the head, for a shared link and for search engines, and its text in the body
             # (see previews.py). The rest of the site is the build as it is.
             # An article that is not there is a 404, so search engines do not keep an empty page;
             # one older than the list holds is read from the store (Opinion.older).
-            @app.api_route(previews.PATH, methods=["GET", "HEAD"], include_in_schema=False)
+            @app.api_route(previews.at(previews.PATH, lang), methods=["GET", "HEAD"], include_in_schema=False)
             def opinion_article_page(request: Request, slug: str = "") -> HTMLResponse:
                 card = opinion.card(slug) if len(slug) <= 100 else None
                 whole = None
@@ -1246,26 +1281,27 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                 if not card:
                     return HTMLResponse(article_page, status_code=404)
                 # Known but without its text, the page goes with its tags, and the script fetches the text.
-                page = previews.article_page(article_page, card, previews.origin(article_page, str(request.base_url)), whole)
+                page = previews.article_page(article_page, card, previews.origin(article_page, str(request.base_url)), whole,
+                                             lang=lang, both=both)
                 return HTMLResponse(page, headers={"Cache-Control": "public, max-age=300"})
 
-        built_list = Path(static_dir) / previews.LIST_PATH.strip("/") / "index.html"
-        if built_list.is_file():
-            list_page = built_list.read_text(encoding="utf-8")
-
+        list_page = built(previews.at(previews.LIST_PATH, lang))
+        if list_page is not None:
             # The list of articles leaves the server with the articles in it, each title a link.
-            @app.api_route(previews.LIST_PATH, methods=["GET", "HEAD"], include_in_schema=False)
+            @app.api_route(previews.at(previews.LIST_PATH, lang), methods=["GET", "HEAD"], include_in_schema=False)
             def opinion_list_page() -> HTMLResponse:
-                return HTMLResponse(previews.list_page(list_page, opinion.articles(50)), headers={"Cache-Control": "public, max-age=300"})
+                return HTMLResponse(previews.list_page(list_page, opinion.articles(50), lang), headers={"Cache-Control": "public, max-age=300"})
 
-        built_home = Path(static_dir) / "index.html"
-        if built_home.is_file():
-            home_page = built_home.read_text(encoding="utf-8")
-
+        home_page = built(previews.at(previews.HOME_PATH, lang))
+        if home_page is not None:
             # The home page leaves the server with the newest opinion articles in it.
-            @app.api_route(previews.HOME_PATH, methods=["GET", "HEAD"], include_in_schema=False)
+            @app.api_route(previews.at(previews.HOME_PATH, lang), methods=["GET", "HEAD"], include_in_schema=False)
             def home() -> HTMLResponse:
-                return HTMLResponse(previews.home_page(home_page, opinion.articles(previews.HOME_ARTICLES)), headers={"Cache-Control": "public, max-age=300"})
+                return HTMLResponse(previews.home_page(home_page, opinion.articles(previews.HOME_ARTICLES), lang),
+                                    headers={"Cache-Control": "public, max-age=300"})
 
+    if site_dir:
+        for lang in previews.LOCALES:
+            opinion_pages(lang)
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="site")
     return app

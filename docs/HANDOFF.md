@@ -22,6 +22,30 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-04: **El portal en inglés y en español** (sin desplegar), a la vez que Bot League (el piloto). El usuario pidió
+> que se vea "entero en español para quien lo prefiera, que quede perfectamente". Decisiones suyas (2026-11-04): textos de
+> la web en inglés **y** en español (cambiado en los `CLAUDE.md`), portal y Bot League a la vez, y el idioma lo elige el
+> lector: aviso discreto si el navegador pide el otro idioma, cookie `mh_lang` en `.themarkethub.app` (compartida con las
+> herramientas) y selector `English · Español` en el pie y en My Hub; nunca por IP.
+> - **Rutas**: inglés en la raíz, español en `/es/` (las 23 páginas). Cada página es una vista (`site/src/views/*.astro`,
+>   con `lang`) que pintan dos páginas de dos líneas; los armazones (`Site`, `App`, logo, buscador, menú) sacan el idioma
+>   de la dirección (`langAt`). `hreflang`, canónicas y `og:locale` por idioma.
+> - **Textos**: `site/src/i18n/<zona>.ts`, inglés y español uno junto al otro; el chequeo de tipos falla si falta una
+>   clave. Cifras con el idioma (`+30,5 %`, `1,2 mil M$`, `185,40 $`, `4 nov 2026`); la privacidad legal traducida entera,
+>   y con una línea nueva en los dos idiomas sobre la cookie del idioma.
+> - **El servidor** (`src/markethub/i18n.py`): con `X-MH-Lang: es` contesta en español los errores de las rutas web y las
+>   etiquetas que pinta una página (periodos, sectores, países, meses…, sobre copias: lo guardado sigue en inglés), y las
+>   reglas en palabras de un bot (`bots.describe(..., lang)`, el mismo cambio que en Bot League). `/api/app/*` y lo que
+>   llega con token (la app de móvil) siguen en inglés, aunque manden la cabecera. Sirve `/es/`, `/es/opinion/` y
+>   `/es/opinion/article/` rellenos como los ingleses, y el sitemap lista los dos idiomas con sus `hreflang`.
+> - **Sigue en inglés**: las frases que escribe un modelo (las de My Hub, las lecturas de Watchlist, las noticias del
+>   newswriter) y el contenido (noticias, artículos de opinión, títulos de vídeo). Traducir lo del modelo son más
+>   llamadas: decisión del usuario, pendiente.
+> - Mecanismo, estilo y glosario en [i18n.md](i18n.md) (copia del de `market-hub-bots`).
+> - Probado: tests en verde y `astro check` sin errores; en local con datos de muestra, las 23 páginas en español sin
+>   frases en inglés salvo el contenido y lo que escribe el modelo, las inglesas sin nada en español, sin scroll lateral a
+>   375 px, la cookie llevando a cada idioma y un error del servidor en español.
+
 > 2026-11-04: **Desplegado** `market-hub-00070-6ml` desde un export limpio de d3f173f (solo el párrafo de Bot League en
 > `/privacy/`), sin cambios de configuración. Comprobado: `/`, `/privacy/` y salud en 200, y la privacidad nueva en producción.
 

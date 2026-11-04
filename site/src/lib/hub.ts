@@ -1,22 +1,36 @@
 // Pieces the pages of My Hub share: the page's head, the note that figures are sample ones, the
 // sentences that read the portfolio back, and the small marks (a share of the whole, a place on
 // a scale) that the tables are built from.
+import { lang, locale } from "../i18n";
+import { hub, LABELS_ES } from "../i18n/hub";
 import { api } from "./api";
 import { add, h, linkTo } from "./dom";
 import { pct, signedPct } from "./format";
 import { link } from "./site";
 import type { Dashboard, Insights, N } from "./types";
 
+const t = () => hub[lang()];
+
 export const tone = (v: N | undefined) => (v == null ? "text-ink" : v > 0 ? "up" : v < 0 ? "down" : "text-ink");
 export const cell = (text: string, cls = "text-ink") => h("td", cls, text);
-// A difference between two percentages is in points, not in percent.
-export const points = (v: N | undefined, digits = 1) => (v == null ? "—" : `${v >= 0 ? "+" : "−"}${(Math.abs(v) * 100).toFixed(digits)} pts`);
-export const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+// A number with a fixed count of decimals and the page's decimal mark ("1.25", "1,25").
+export const decimals = (v: number, digits: number) =>
+  v.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+// A difference between two percentages is in points, not in percent: "+1.2 pts", "+1,2 ptos",
+// or the figure alone when `unit` is false.
+export const points = (v: N | undefined, digits = 1, unit = true) =>
+  v == null ? "—" : `${v >= 0 ? "+" : "−"}${decimals(Math.abs(v) * 100, digits)}${unit ? ` ${t().pts}` : ""}`;
+export const ordinal = (n: number) =>
+  lang() === "es" ? `${n}.º` : `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+// A label the server writes in English (a sector, a country, a period, a group, a note), in the
+// page's language. One it does not know is shown as it comes.
+export const label = (s: string) =>
+  lang() === "es" ? LABELS_ES[s] ?? s.replace(/^No price for (\S+) right now\.$/, "Ahora mismo no hay precio de $1.") : s;
 
 // The provider did not answer: what is shown is sample data, and the page says so next to its title.
 export function sampleNote(): HTMLElement {
-  const el = h("span", "rounded-sm border border-warn/40 bg-warn-soft px-1.5 py-0.5 text-[12px] text-warn", "sample figures");
-  el.title = "The market data provider is not answering: prices, returns and everything worked out from them are placeholders, not the market.";
+  const el = h("span", "rounded-sm border border-warn/40 bg-warn-soft px-1.5 py-0.5 text-[12px] text-warn", t().sample);
+  el.title = t().sampleTitle;
   return el;
 }
 
@@ -34,19 +48,21 @@ export const getDashboard = () => api<Dashboard>("/api/dashboard");
 
 // --- The portfolio read back -------------------------------------------------------------------
 
-const KINDS: Record<string, [string, string]> = {
-  // what the sentence is about, and its mark: a few strokes in the manner of the site's own
-  performance: ["Against the index", "M3 17l5-5 4 3 9-9M15 6h6v6"],
-  concentration: ["Concentration", "M12 3v18M3 12h18M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0-8 0"],
-  sector: ["Sectors", "M4 20V10m6 10V4m6 16v-8m4 8H2"],
-  risk: ["How it moves", "M2 12h4l3-8 4 16 3-8h6"],
-  geography: ["Where", "M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18ZM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"],
-  today: ["Today", "M12 7v5l3 2M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18Z"],
-  income: ["Dividends", "M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18ZM14.5 9.5H11a1.25 1.25 0 0 0 0 2.5h2a1.25 1.25 0 0 1 0 2.5H9.5M12 8v8"],
+// What each sentence is about has its mark: a few strokes in the manner of the site's own. Its
+// name is in i18n/hub.ts.
+const KINDS: Record<string, string> = {
+  performance: "M3 17l5-5 4 3 9-9M15 6h6v6",
+  concentration: "M12 3v18M3 12h18M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0-8 0",
+  sector: "M4 20V10m6 10V4m6 16v-8m4 8H2",
+  risk: "M2 12h4l3-8 4 16 3-8h6",
+  geography: "M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18ZM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18",
+  today: "M12 7v5l3 2M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18Z",
+  income: "M12 21a9 9 0 1 0 0-18a9 9 0 0 0 0 18ZM14.5 9.5H11a1.25 1.25 0 0 0 0 2.5h2a1.25 1.25 0 0 1 0 2.5H9.5M12 8v8",
 };
 
 function insightItem(kind: string, text: string): HTMLElement {
-  const [label, mark] = KINDS[kind] ?? ["", ""];
+  const label = KINDS[kind] ? t().kinds[kind] ?? "" : "";
+  const mark = KINDS[kind] ?? "";
   const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   for (const [k, v] of Object.entries({ viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.6", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" }))
     icon.setAttribute(k, v);
@@ -74,7 +90,7 @@ export function insightPanel(first: Insights): HTMLElement {
       setTimeout(() => (draw(said), (body.style.opacity = "1")), 320);
     })
     .catch(() => {});
-  return add(h("section", "panel p-5 sm:p-7"), h("h2", "label mb-3", "Your portfolio, read back"), body);
+  return add(h("section", "panel p-5 sm:p-7"), h("h2", "label mb-3", t().readBack), body);
 }
 
 // --- Marks -------------------------------------------------------------------------------------
@@ -113,11 +129,11 @@ export const tickerChips = (tickers: string[], max = 8) => add(h("span", "flex f
 // Shown where a page needs positions and there are none.
 export function empty(text: string): HTMLElement {
   return add(h("div", "panel p-8 text-center"), h("p", "text-ink", text),
-    add(h("p", "mt-4"), linkTo(link("/portfolio/"), "btn btn-primary", "Add your positions")));
+    add(h("p", "mt-4"), linkTo(link("/portfolio/"), "btn btn-primary", t().addPositions)));
 }
 
 export function failure(root: HTMLElement, e: unknown) {
-  root.replaceChildren(h("p", "rounded-md border border-down/40 bg-down-soft p-4 text-[13px] text-down", e instanceof Error ? e.message : "This page failed to load."));
+  root.replaceChildren(h("p", "rounded-md border border-down/40 bg-down-soft p-4 text-[13px] text-down", e instanceof Error ? e.message : t().failed));
 }
 
 // --- Community ---------------------------------------------------------------------------------

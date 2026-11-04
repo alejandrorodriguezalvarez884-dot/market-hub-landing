@@ -4,18 +4,20 @@
 // of YouTube until a visitor presses play.
 
 import { API, api } from "./api";
+import type { Lang } from "../i18n";
 
 export interface Video {
   id: string; // YouTube's id of the video: youtu.be/<id>
   title: string;
   length: string; // as a clock: "4:16"
   cover: string; // a file in site/public/media/
-  note?: string; // what it is, when it is not an episode: "Trailer"
+  episode?: number; // its number in the playlist
+  trailer?: boolean; // the playlist's trailer, which has no number
 }
 
 export interface Playlist {
   name: string;
-  about: string;
+  about: Record<Lang, string>; // in each language of the site; the videos themselves are in English
   url: string; // the playlist on YouTube; empty until it is known, and the channel is linked instead
   videos: Video[];
   shorts: Video[];
@@ -26,16 +28,19 @@ export const YOUTUBE = {
   playlists: [
     {
       name: "Money 101",
-      about: "How money really works, one idea at a time: first something you can picture, then the numbers.",
+      about: {
+        en: "How money really works, one idea at a time: first something you can picture, then the numbers.",
+        es: "Cómo funciona de verdad el dinero, una idea cada vez: primero algo que puedas imaginar, luego los números.",
+      },
       url: "",
       videos: [
-        { id: "mY6VaYSQmC0", title: "Money 101: how money really works, one idea at a time", length: "0:49", cover: "money-101-trailer.jpg", note: "Trailer" },
-        { id: "VXJU88A1oJw", title: "Compound interest: why time matters more than the amount", length: "4:16", cover: "compound-interest.jpg", note: "Episode 1" },
-        { id: "gSV_7yoBPF0", title: "Inflation: why the same money buys less every year", length: "4:33", cover: "inflation.jpg", note: "Episode 2" },
-        { id: "nApfz535ZbM", title: "Debt: what borrowing really costs", length: "4:20", cover: "debt.jpg", note: "Episode 3" },
-        { id: "cEmKr7Sr9IA", title: "Your payslip: gross, net, and the tax bracket myth", length: "4:45", cover: "payslip.jpg", note: "Episode 4" },
-        { id: "CflEf8cR8RI", title: "A budget is not a diet: how to share out what arrives", length: "4:30", cover: "budget.jpg", note: "Episode 5" },
-        { id: "C_Ji4ChWFfw", title: "The emergency fund: what it's for, and how it works", length: "4:40", cover: "emergency-fund.jpg", note: "Episode 6" },
+        { id: "mY6VaYSQmC0", title: "Money 101: how money really works, one idea at a time", length: "0:49", cover: "money-101-trailer.jpg", trailer: true },
+        { id: "VXJU88A1oJw", title: "Compound interest: why time matters more than the amount", length: "4:16", cover: "compound-interest.jpg", episode: 1 },
+        { id: "gSV_7yoBPF0", title: "Inflation: why the same money buys less every year", length: "4:33", cover: "inflation.jpg", episode: 2 },
+        { id: "nApfz535ZbM", title: "Debt: what borrowing really costs", length: "4:20", cover: "debt.jpg", episode: 3 },
+        { id: "cEmKr7Sr9IA", title: "Your payslip: gross, net, and the tax bracket myth", length: "4:45", cover: "payslip.jpg", episode: 4 },
+        { id: "CflEf8cR8RI", title: "A budget is not a diet: how to share out what arrives", length: "4:30", cover: "budget.jpg", episode: 5 },
+        { id: "C_Ji4ChWFfw", title: "The emergency fund: what it's for, and how it works", length: "4:40", cover: "emergency-fund.jpg", episode: 6 },
       ],
       shorts: [
         { id: "dtHW8bEsoYc", title: "A surprise 400-dollar bill. Who could pay it?", length: "0:40", cover: "emergency-fund-short.jpg" },

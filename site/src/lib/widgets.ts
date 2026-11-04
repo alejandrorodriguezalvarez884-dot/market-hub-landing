@@ -1,6 +1,9 @@
 // Pieces shared by the public pages: the ruler (every move on one scale) and the tables.
 import { add, h, linkTo } from "./dom";
-import { change, level, signedPct, toneClass } from "./format";
+import { lang } from "../i18n";
+import { instrumentName, sectorName } from "../i18n/markets";
+import { widgets } from "../i18n/widgets";
+import { change, level, pct, signedPct, toneClass } from "./format";
 import type { Mover, Overview, Sector, Snapshot } from "./market";
 import { link } from "./site";
 import { sparkline } from "./spark";
@@ -42,7 +45,7 @@ export function track(move: number | null | undefined, scale: number): HTMLEleme
 
 // The scale's ends and its zero, to sit above a column of tracks.
 export function rulerAxis(scale: number): HTMLElement {
-  const end = `${(scale * 100).toFixed(scale * 100 % 1 ? 1 : 0)}%`;
+  const end = pct(scale, scale * 100 % 1 ? 1 : 0);
   return add(h("div", "ruler-axis"), h("span", "", `−${end}`), h("span", "", "0"), h("span", "", `+${end}`));
 }
 
@@ -77,12 +80,12 @@ export function rulerRow(item: RulerItem, scale: number): HTMLElement {
 export const rulerGroup = (title: string, rows: HTMLElement[]) => (rows.length ? [h("div", "ruler-group", title), ...rows] : []);
 
 export const snapshotItem = (s: Snapshot, onPick?: (s: Snapshot) => void): RulerItem =>
-  ({ key: s.symbol, name: s.name, value: level(s.price, s.kind), move: s.change_pct, onPick: onPick ? () => onPick(s) : undefined, href: onPick ? undefined : quoteHref(s.symbol) });
+  ({ key: s.symbol, name: instrumentName(s.symbol, s.name), value: level(s.price, s.kind), move: s.change_pct, onPick: onPick ? () => onPick(s) : undefined, href: onPick ? undefined : quoteHref(s.symbol) });
 
 // A yield moves in basis points, not in percent of itself: it gets its figure and no mark.
 export function rateItem(s: Snapshot): RulerItem {
   const bp = Math.round(s.change * 100);
-  return { key: s.symbol, name: s.name, value: level(s.price, s.kind), move: s.change, text: `${bp > 0 ? "+" : bp < 0 ? "−" : ""}${Math.abs(bp)} bp` };
+  return { key: s.symbol, name: instrumentName(s.symbol, s.name), value: level(s.price, s.kind), move: s.change, text: `${bp > 0 ? "+" : bp < 0 ? "−" : ""}${Math.abs(bp)} ${widgets[lang()].bp}` };
 }
 
 // Sectors on the ruler, from the strongest to the weakest.
@@ -91,7 +94,7 @@ export function sectorRuler(sectors: Sector[]): HTMLElement {
   const scale = rulerScale(sorted.map((s) => s.change_pct));
   return add(h("div", "ruler"),
     add(h("div", "ruler-row !py-0 pb-1"), h("span"), h("span", "hidden sm:block"), rulerAxis(scale), h("span")),
-    ...sorted.map((s) => rulerRow({ name: s.name, move: s.change_pct }, scale)));
+    ...sorted.map((s) => rulerRow({ name: sectorName(s.name), move: s.change_pct }, scale)));
 }
 
 // --- Tables ------------------------------------------------------------------------------------
@@ -101,11 +104,13 @@ export function quoteTable(items: Snapshot[]): HTMLElement {
   const t = h("table", "data-table");
   const rates = items.every((s) => s.kind === "rate");
   const scale = rulerScale(items.map((s) => s.change_pct));
-  const head = ["Name", "Last", "Change", rates ? "" : "Today", "", "1 month", "YTD", "1 year", "30 days"];
+  const w = widgets[lang()].quoteHead;
+  const head = [w.name, w.last, w.change, rates ? "" : w.today, "", w.m1, w.ytd, w.y1, w.d30];
   add(t, add(h("thead"), add(h("tr"), ...head.map((x) => h("th", "", x)))),
     add(h("tbody"), ...items.map((s) => {
       const linked = s.kind !== "rate";
-      const name = linked ? linkTo(quoteHref(s.symbol), "text-ink-strong hover:underline", s.name) : h("span", "text-ink-strong", s.name);
+      const label = instrumentName(s.symbol, s.name);
+      const name = linked ? linkTo(quoteHref(s.symbol), "text-ink-strong hover:underline", label) : h("span", "text-ink-strong", label);
       const tr = add(h("tr", linked ? "row-link" : ""),
         add(h("td"), name),
         h("td", "text-ink-strong", level(s.price, s.kind)),
@@ -124,7 +129,8 @@ export function quoteTable(items: Snapshot[]): HTMLElement {
 
 export function moversTable(items: Mover[]): HTMLElement {
   const t = h("table", "data-table");
-  add(t, add(h("thead"), add(h("tr"), ...["Stock", "Price", "Today"].map((x) => h("th", "", x)))),
+  const w = widgets[lang()].moversHead;
+  add(t, add(h("thead"), add(h("tr"), ...[w.stock, w.price, w.today].map((x) => h("th", "", x)))),
     add(h("tbody"), ...items.map((m) => {
       const tr = add(h("tr", "row-link"),
         add(h("td"), linkTo(quoteHref(m.symbol), "num text-ink-strong hover:underline", m.symbol),
@@ -162,11 +168,12 @@ export function tabbed(views: { label: string; render: () => HTMLElement }[], in
 // A part of the overview the provider did not answer is sample data: say so next to its title.
 export function flagSample(o: Overview, sections: string[], title: Element | null) {
   if (!title || !sections.some((s) => o.sample_sections?.includes(s))) return;
-  const badge = h("span", "ml-2 align-middle text-[12.5px] font-normal text-warn", "sample figures");
-  badge.title = "The data provider did not answer this part: these figures are placeholders, not the market.";
+  const w = widgets[lang()];
+  const badge = h("span", "ml-2 align-middle text-[12.5px] font-normal text-warn", w.sample);
+  badge.title = w.sampleTitle;
   title.append(badge);
 }
 
-export function failed(el: HTMLElement, text = "Not available right now.") {
+export function failed(el: HTMLElement, text = widgets[lang()].unavailable) {
   el.replaceChildren(h("p", "py-4 text-sm text-muted", text));
 }

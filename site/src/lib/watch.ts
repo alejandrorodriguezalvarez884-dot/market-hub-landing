@@ -2,10 +2,12 @@
 // draw it. A stock's reading is a set of gauges, one per aspect (how far the price is from its
 // average, its trend, its strength against the index...), each with a sentence under it; the
 // whole list is a map with a dot per stock.
+import { lang } from "../i18n";
+import { watch } from "../i18n/watch";
 import { api } from "./api";
 import { add, h, linkTo, svg } from "./dom";
-import { pct, price, shortDate, signedPct } from "./format";
-import { cell, moveCell, points, tone } from "./hub";
+import { mult, pct, price, shortDate, signedPct } from "./format";
+import { cell, decimals, label, moveCell, points, tone } from "./hub";
 import { link, tidyName } from "./site";
 import { sparkline } from "./spark";
 import { AVERAGES } from "./watchcharts";
@@ -53,10 +55,9 @@ function once<T>(path: string): (t: string) => Promise<T> {
 export const getBars = once<Bars>("/api/watchlist/bars");
 export const getRead = once<Read>("/api/watchlist/read");
 
-export const EXTENSION = { extended_above: "Extended above", above: "Above its average", at: "At its average", below: "Below its average", extended_below: "Extended below" };
-export const TREND = { up: "Uptrend", pullback: "Pullback in an uptrend", down: "Downtrend", rebound: "Rebound in a downtrend", mixed: "No clear trend" };
-export const STRENGTH = { ahead: "Ahead", fading: "Ahead, losing ground", gaining: "Behind, gaining ground", behind: "Behind" };
-const SPANS: [Span, string][] = [["1m", "1 month"], ["3m", "3 months"], ["6m", "6 months"], ["12m", "12 months"]];
+// The words, in the page's language. A state names where a figure sits (i18n/watch.ts).
+const t = () => watch[lang()];
+const SPANS: Span[] = ["1m", "3m", "6m", "12m"];
 export const quoteHref = (t: string) => link(`/quote/?t=${encodeURIComponent(t)}`);
 
 // --- Marks -------------------------------------------------------------------------------------
@@ -114,7 +115,7 @@ function ruler(rows: { label: string; cells: (number | null | undefined)[] }[], 
   }
   return el;
 }
-const inPoints = (v: N | undefined) => points(v).replace(" pts", "");
+const inPoints = (v: N | undefined) => points(v, 1, false);
 
 // --- The gauges, one per aspect ----------------------------------------------------------------
 
@@ -125,21 +126,22 @@ function extensionGauge(r: Reading): HTMLElement | null {
   if (!e) return null;
   const lo = Math.min(e.low, 0), hi = Math.max(e.high, 0), pad = (hi - lo) * 0.04 || 0.01;
   const x = (v: number) => (v - lo + pad) / (hi - lo + 2 * pad);
+  const w = t();
   return add(h("div"),
-    figs(fig(signedPct(e.pct), "from its 50-day average", tone(e.pct)),
-      e.ranges != null ? fig(`${Math.abs(e.ranges).toFixed(1)}×`, "its daily range") : null,
-      e.percentile != null ? fig(pct(e.percentile, 0), `of ${e.sessions} sessions stood lower against it`) : null),
+    figs(fig(signedPct(e.pct), w.fromAverage, tone(e.pct)),
+      e.ranges != null ? fig(mult(Math.abs(e.ranges), 1), w.dailyRange) : null,
+      e.percentile != null ? fig(pct(e.percentile, 0), w.stoodLower(e.sessions)) : null),
     scale([e.band ? band(x(e.band[0]), x(e.band[1])) : null, tick(x(0), AVERAGES[1].color), dot(x(e.pct), tone(e.pct), e.state.startsWith("extended"))], "mt-3"),
     ends(signedPct(e.low, 0), signedPct(e.high, 0), add(h("span", "flex flex-wrap justify-center gap-x-3"),
-      e.band ? key("wl-key-band", "usual range") : null, key("wl-key-tick", "50-day average"))));
+      e.band ? key("wl-key-band", w.usualRange) : null, key("wl-key-tick", w.average50))));
 }
 
 // The price and its three averages on one line of prices: their order is the trend.
 function trendLadder(r: Reading): HTMLElement | null {
-  const t = r.trend;
-  if (!t) return null;
+  const tr = r.trend;
+  if (!tr) return null;
   type Mark = { v: number; a: (typeof AVERAGES)[number] };
-  const marks = [{ v: t.sma200, a: AVERAGES[2] }, { v: t.sma50, a: AVERAGES[1] }, { v: t.sma20, a: AVERAGES[0] }].filter((m) => m.v != null) as Mark[];
+  const marks = [{ v: tr.sma200, a: AVERAGES[2] }, { v: tr.sma50, a: AVERAGES[1] }, { v: tr.sma20, a: AVERAGES[0] }].filter((m) => m.v != null) as Mark[];
   const all = [...marks.map((m) => m.v), r.price];
   const lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.14 || hi * 0.01;
   const x = (v: number) => (v - lo + pad) / (hi - lo + 2 * pad);
@@ -148,31 +150,34 @@ function trendLadder(r: Reading): HTMLElement | null {
     labels(marks.map((m) => ({ x: x(m.v), text: String(m.a.sessions), color: m.a.color }))),
     scale([...marks.map((m) => tick(x(m.v), m.a.color)), dot(x(r.price))]),
     labels([{ x: x(r.price), text: price(r.price) }], "mt-0.5 [&>span]:text-ink-strong"),
-    add(h("div", "mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-[12px] text-muted"), slope("50-day, in a month", t.slope_50), slope("200-day", t.slope_200)));
+    add(h("div", "mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-[12px] text-muted"), slope(t().slope50, tr.slope_50), slope(t().slope200, tr.slope_200)));
 }
 
 function strengthGauge(r: Reading, index: string): HTMLElement | null {
   const s = r.strength;
   if (!s) return null;
-  const extreme = s.high_sessions ? `highest in ${s.high_sessions} sessions` : s.low_sessions ? `lowest in ${s.low_sessions} sessions` : null;
+  const w = t();
+  const extreme = s.high_sessions ? w.highest(s.high_sessions) : s.low_sessions ? w.lowest(s.low_sessions) : null;
   return add(h("div"),
-    ruler(SPANS.map(([k, label]) => ({ label, cells: [s.gaps[k]] })), null, inPoints),
+    ruler(SPANS.map((k) => ({ label: w.spans[k], cells: [s.gaps[k]] })), null, inPoints),
     add(h("div", "mt-2.5 flex items-center gap-3 text-[12px] text-muted"), sparkline(s.line, 112, 26),
-      add(h("span", "min-w-0"), `Its price over the ${index}'s, six months`, extreme ? h("span", "block text-ink", `At its ${extreme}`) : null)));
+      add(h("span", "min-w-0"), w.over(index), extreme ? h("span", "block text-ink", extreme) : null)));
 }
 
 function sectorGauge(item: Item): HTMLElement | null {
   const s = item.sector_strength;
   if (!s?.against_market) return null;
-  return ruler(SPANS.map(([k, label]) => ({ label, cells: [s.against_market!.gaps[k], s.stock?.gaps[k]] })), ["Sector vs index", `${item.ticker} vs sector`], inPoints);
+  const w = t();
+  return ruler(SPANS.map((k) => ({ label: w.spans[k], cells: [s.against_market!.gaps[k], s.stock?.gaps[k]] })), [w.sectorVsIndex, w.vsSector(item.ticker)], inPoints);
 }
 
 function momentumGauge(r: Reading): HTMLElement | null {
   const m = r.momentum;
   if (m.rsi == null) return null;
-  const back: [keyof typeof m.returns, string][] = [["1w", "1W"], ["1m", "1M"], ["3m", "3M"], ["6m", "6M"], ["12m", "12M"]];
+  const w = t();
+  const back = (["1w", "1m", "3m", "6m", "12m"] as const).map((k) => [k, w.back[k]] as const);
   return add(h("div"),
-    add(h("div", "flex items-baseline gap-2"), h("span", "num text-[15px] text-ink-strong", m.rsi.toFixed(0)), h("span", "text-[11.5px] text-muted", "RSI, 14 sessions")),
+    add(h("div", "flex items-baseline gap-2"), h("span", "num text-[15px] text-ink-strong", m.rsi.toFixed(0)), h("span", "text-[11.5px] text-muted", w.rsi)),
     scale([band(0.3, 0.7), dot(m.rsi / 100)], "mt-2"),
     labels([{ x: 0, text: "0" }, { x: 0.3, text: "30" }, { x: 0.7, text: "70" }, { x: 1, text: "100" }], "mt-0.5 [&>span]:text-faint"),
     add(h("div", "mt-2.5 grid grid-cols-5 gap-px overflow-hidden rounded-sm bg-line"), ...back.map(([k, label]) =>
@@ -183,7 +188,7 @@ function rangeGauge(r: Reading): HTMLElement | null {
   const g = r.range;
   if (g.position == null) return null;
   return add(h("div"),
-    figs(fig(signedPct(g.from_high), "from its 52-week high"), fig(String(g.sessions_since_high), "sessions since that high"), fig(signedPct(g.from_low, 0), "from its low")),
+    figs(fig(signedPct(g.from_high), t().fromHigh), fig(String(g.sessions_since_high), t().sinceHigh), fig(signedPct(g.from_low, 0), t().fromLow)),
     scale([dot(g.position)], "mt-3"), ends(price(g.low), price(g.high)));
 }
 
@@ -198,23 +203,25 @@ function volumeGauge(r: Reading): HTMLElement | null {
     add(split, up, down);
   }
   return add(h("div"),
-    figs(fig(`${v.week_ratio.toFixed(2)}×`, "last 5 sessions, against the 50-day average"),
-      v.up_down != null ? fig(`${v.up_down.toFixed(2)}×`, "traded on up days per share on down days") : null),
-    scale([tick(0.5), dot(Math.min(v.week_ratio, 2) / 2)], "mt-3"), ends("0", "2×", h("span", "", "average")),
+    figs(fig(mult(v.week_ratio, 2), t().lastFive),
+      v.up_down != null ? fig(mult(v.up_down, 2), t().upDown) : null),
+    scale([tick(0.5), dot(Math.min(v.week_ratio, 2) / 2)], "mt-3"), ends("0", "2×", h("span", "", t().average)),
     share != null ? split : null);
 }
 
 function growthGauge(g: Growth): HTMLElement | null {
-  return ruler([{ label: "Earnings", cells: [g.eps?.year, g.eps?.next_year] }, { label: "Revenue", cells: [g.revenue?.year, g.revenue?.next_year] }],
-    ["This fiscal year", "Next fiscal year"], (v) => signedPct(v));
+  const w = t();
+  return ruler([{ label: w.earnings, cells: [g.eps?.year, g.eps?.next_year] }, { label: w.revenue, cells: [g.revenue?.year, g.revenue?.next_year] }],
+    [w.thisYear, w.nextYear], (v) => signedPct(v));
 }
 
 function valuationGauge(item: Item): HTMLElement | null {
   const v = item.valuation;
   if (!v || (v.pe == null && v.forward_pe == null && v.days_to_results == null)) return null;
-  return figs(v.pe != null ? fig(`${v.pe.toFixed(1)}×`, "its earnings of the last 12 months") : null,
-    v.forward_pe != null ? fig(`${v.forward_pe.toFixed(1)}×`, "the estimate for next year") : null,
-    v.days_to_results != null ? fig(v.days_to_results ? `${v.days_to_results} days` : "Today", "to its next results") : null);
+  const w = t();
+  return figs(v.pe != null ? fig(mult(v.pe, 1), w.lastTwelve) : null,
+    v.forward_pe != null ? fig(mult(v.forward_pe, 1), w.nextEstimate) : null,
+    v.days_to_results != null ? fig(v.days_to_results ? w.days(v.days_to_results) : w.today, w.toResults) : null);
 }
 
 // --- A stock's reading -------------------------------------------------------------------------
@@ -234,10 +241,11 @@ export function stateMarks(item: Item): HTMLElement[] {
   const r = item.reading;
   if (!r) return [];
   const mark = (text: string, figure?: string, cls = "") => add(h("span", "wl-state"), text, figure ? h("span", `num ml-1 ${cls}`, figure) : null);
+  const w = t();
   return [
-    r.extension ? mark(EXTENSION[r.extension.state].replace(" its average", " 50-day"), signedPct(r.extension.pct, 0), tone(r.extension.pct)) : null,
-    r.trend ? mark(TREND[r.trend.state]) : null,
-    r.strength?.gaps["3m"] != null ? mark("vs S&P 500, 3M", inPoints(r.strength.gaps["3m"]), tone(r.strength.gaps["3m"])) : null,
+    r.extension ? mark(w.extensionShort[r.extension.state], signedPct(r.extension.pct, 0), tone(r.extension.pct)) : null,
+    r.trend ? mark(w.trend[r.trend.state]) : null,
+    r.strength?.gaps["3m"] != null ? mark(w.vsMarket3m, inPoints(r.strength.gaps["3m"]), tone(r.strength.gaps["3m"])) : null,
   ].filter((x): x is HTMLElement => !!x);
 }
 
@@ -257,22 +265,23 @@ export type Card = { el: HTMLElement; load(): void };
 // reading, and puts them in.
 export function readingCard(item: Item, index: string): Card {
   const r = item.reading;
-  if (!r) return { el: add(h("div", "wl-card"), h("p", "text-[13px] text-muted", `No prices for ${item.ticker} right now.`)), load() {} };
+  const w = t();
+  if (!r) return { el: add(h("div", "wl-card"), h("p", "text-[13px] text-muted", w.noPrices(item.ticker))), load() {} };
   const headline = h("p", "wl-headline");
   const contrast = add(h("p", "wl-contrast"), add(svg("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": 1.6, "stroke-linecap": "round",
     "stroke-linejoin": "round", "aria-hidden": "true", class: "mt-0.5 h-4 w-4 flex-none text-muted" }), svg("path", { d: "M7 7h13m0 0-3-3m3 3-3 3M17 17H4m0 0 3-3m-3 3 3 3" })), h("span"));
   contrast.hidden = true;
   const growth = h("div", "contents");
   const grid = add(h("div", "wl-aspects"),
-    block("extension", "Price and its 50-day average", r.extension && EXTENSION[r.extension.state], extensionGauge(r)),
-    block("trend", "Trend", r.trend && TREND[r.trend.state], trendLadder(r)),
-    block("strength", `Against the ${index}, in points`, r.strength && STRENGTH[r.strength.state], strengthGauge(r, index)),
-    block("sector", item.sector_strength ? `Sector: ${item.sector_strength.name}` : "Sector", item.sector_strength?.against_market && STRENGTH[item.sector_strength.against_market.state], sectorGauge(item)),
-    block("momentum", "Momentum", null, momentumGauge(r)),
-    block("range", "52-week range", null, rangeGauge(r)),
-    block("volume", "Volume", null, volumeGauge(r)),
+    block("extension", w.priceAverage, r.extension && w.extension[r.extension.state], extensionGauge(r)),
+    block("trend", w.trendTitle, r.trend && w.trend[r.trend.state], trendLadder(r)),
+    block("strength", w.against(index), r.strength && w.strength[r.strength.state], strengthGauge(r, index)),
+    block("sector", item.sector_strength ? w.sectorOf(label(item.sector_strength.name)) : w.sector, item.sector_strength?.against_market && w.strength[item.sector_strength.against_market.state], sectorGauge(item)),
+    block("momentum", w.momentum, null, momentumGauge(r)),
+    block("range", w.range, null, rangeGauge(r)),
+    block("volume", w.volume, null, volumeGauge(r)),
     growth,
-    block("valuation", "Price to earnings", null, valuationGauge(item)));
+    block("valuation", w.pe, null, valuationGauge(item)));
   const el = add(h("div", "wl-card"), headline, contrast, grid);
 
   // The model's sentence for an aspect where it wrote one; the code's otherwise.
@@ -296,7 +305,7 @@ export function readingCard(item: Item, index: string): Card {
       asked = true;
       getRead(item.ticker)
         .then((read) => {
-          const g = read.growth && block("growth", "Growth, by analysts' consensus", read.growth.analysts ? `${read.growth.analysts} analysts` : null, growthGauge(read.growth));
+          const g = read.growth && block("growth", w.growth, read.growth.analysts ? w.analysts(read.growth.analysts) : null, growthGauge(read.growth));
           if (g) growth.replaceChildren(g);
           if (!read.analysis) return say(null, read.captions);
           el.style.opacity = "0";
@@ -322,12 +331,13 @@ export function listMap(items: Item[], index: string, onPick: (item: Item) => vo
     else placed.push({ item, x, y });
   }
   const host = h("div", "wl-map");
+  const w = t();
   const ringed = placed.some((p) => p.item.reading!.extension!.state.startsWith("extended"));
   const note = add(h("p", "mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-muted"),
-    ringed ? add(h("span", "inline-flex items-center gap-1.5"), h("span", "inline-block h-3 w-3 rounded-full border border-ink-strong"), "Extended from its 50-day average") : null,
-    off.length ? h("span", "", `Not on the map: ${off.join(", ")}.`) : null);
+    ringed ? add(h("span", "inline-flex items-center gap-1.5"), h("span", "inline-block h-3 w-3 rounded-full border border-ink-strong"), w.extendedKey) : null,
+    off.length ? h("span", "", w.offMap(off.join(", "))) : null);
   const el = add(h("div"), host, note);
-  if (!placed.length) return (host.append(h("p", "py-10 text-center text-[13px] text-muted", "Nothing to place on the map yet.")), el);
+  if (!placed.length) return (host.append(h("p", "py-10 text-center text-[13px] text-muted", w.nothingMap)), el);
   const across = Math.min(8, Math.max(3, Math.ceil(Math.max(...placed.map((p) => Math.abs(p.x))))));
   const up = Math.min(0.6, Math.max(0.1, Math.ceil(Math.max(...placed.map((p) => Math.abs(p.y))) / 0.05) * 0.05));
 
@@ -336,10 +346,10 @@ export function listMap(items: Item[], index: string, onPick: (item: Item) => vo
     const m = { l: 44, r: 16, t: 28, b: 46 };
     const px = (v: number) => m.l + ((Math.max(-across, Math.min(across, v)) + across) / (2 * across)) * (W - m.l - m.r);
     const py = (v: number) => m.t + (1 - (Math.max(-up, Math.min(up, v)) + up) / (2 * up)) * (H - m.t - m.b);
-    const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "group", "aria-label": "The stocks by their gap to the 50-day average and their gap to the index" });
-    const text = (x: number, y: number, t: string, cls: string, anchor = "start") => {
+    const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "group", "aria-label": w.mapLabel });
+    const text = (x: number, y: number, words: string, cls: string, anchor = "start") => {
       const e = svg("text", { x, y, "text-anchor": anchor, class: cls });
-      e.textContent = t;
+      e.textContent = words;
       return e;
     };
     for (let i = -across; i <= across; i++) {
@@ -351,15 +361,15 @@ export function listMap(items: Item[], index: string, onPick: (item: Item) => vo
       s.append(text(m.l - 6, py(v) + 4, `${v > 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(0)}`, "num fill-faint text-[11px]", "end"));
     }
     s.append(svg("line", { x1: px(0), x2: px(0), y1: m.t, y2: H - m.b, class: "stroke-line-strong" }), svg("line", { x1: m.l, x2: W - m.r, y1: py(0), y2: py(0), class: "stroke-line-strong" }));
-    s.append(text(m.l, m.t - 12, `Points against the ${index}, 3 months`, "fill-muted text-[11.5px]"),
-      text((m.l + W - m.r) / 2, H - 8, "Daily ranges from the 50-day average", "fill-muted text-[11.5px]", "middle"));
+    s.append(text(m.l, m.t - 12, w.mapUp(index), "fill-muted text-[11.5px]"),
+      text((m.l + W - m.r) / 2, H - 8, w.mapAcross, "fill-muted text-[11.5px]", "middle"));
     // Those nearest the middle are drawn last, so their names are not covered.
     for (const p of [...placed].sort((a, b) => Math.hypot(b.x / across, b.y / up) - Math.hypot(a.x / across, a.y / up))) {
       const cx = px(p.x), cy = py(p.y), left = cx > W - 70;
       const e = p.item.reading!.extension!;
-      const g = svg("g", { class: "wl-map-dot", tabindex: 0, role: "button", "aria-label": `${p.item.ticker}: ${EXTENSION[e.state]}, ${points(p.y)} against the index` });
+      const g = svg("g", { class: "wl-map-dot", tabindex: 0, role: "button", "aria-label": w.dotLabel(p.item.ticker, w.extension[e.state], points(p.y)) });
       const tip = svg("title");
-      tip.textContent = `${tidyName(p.item.name)} · ${signedPct(e.pct)} from its 50-day average (${p.x.toFixed(1)} daily ranges) · ${points(p.y)} against the ${index} over 3 months`;
+      tip.textContent = w.dotTip(tidyName(p.item.name), signedPct(e.pct), decimals(p.x, 1), points(p.y), index);
       g.append(tip);
       if (e.state.startsWith("extended")) g.append(svg("circle", { cx, cy, r: 10, class: "fill-none stroke-ink-strong", "stroke-width": 1 }));
       g.append(svg("circle", { cx, cy, r: 5, class: "fill-ink-strong" }), text(cx + (left ? -13 : 13), cy + 4, p.item.ticker, "num fill-ink text-[12px]", left ? "end" : "start"));
@@ -389,17 +399,18 @@ export function listTable(items: Item[], onPick: (item: Item) => void): HTMLElem
   const gaps = Math.max(0.05, ...read.map((i) => Math.abs(i.reading!.strength?.gaps["3m"] ?? 0)));
   const tracked = (v: N | undefined, width: number, text: string) => add(h("td", "whitespace-nowrap"),
     add(h("span", "mr-2 inline-block w-[84px] align-middle [--track:84px]"), track(v == null ? null : v / width, 1)), h("span", `num ${tone(v)}`, text));
+  const w = t(), hd = w.heads;
   const columns: Column[] = [
-    { head: "Stock", value: (i) => i.ticker, draw: (i) => add(h("td"), h("span", "font-semibold text-ink-strong", i.ticker), h("div", "max-w-[11rem] truncate text-[11px] text-muted", tidyName(i.name))) },
-    { head: "Price", value: (i) => i.reading!.price, draw: (i) => cell(price(i.reading!.price), "num text-ink-strong") },
-    { head: "Today", value: (i) => i.reading!.day_change_pct, draw: (i) => moveCell(i.reading!.day_change_pct, 2) },
-    { head: "From its 50-day average", value: (i) => i.reading!.extension?.ranges, draw: (i) => tracked(i.reading!.extension?.ranges, ranges, signedPct(i.reading!.extension?.pct)) },
-    { head: "", value: (i) => i.reading!.extension?.state, draw: (i) => cell(i.reading!.extension ? EXTENSION[i.reading!.extension.state] : "—", "!text-left !font-sans text-muted") },
-    { head: "Trend", value: (i) => i.reading!.trend?.state, draw: (i) => cell(i.reading!.trend ? TREND[i.reading!.trend.state] : "—", "!font-sans text-muted") },
-    { head: "vs S&P 500, 3 months", value: (i) => i.reading!.strength?.gaps["3m"], draw: (i) => tracked(i.reading!.strength?.gaps["3m"], gaps, points(i.reading!.strength?.gaps["3m"])) },
-    { head: "Sector vs S&P 500", value: (i) => i.sector_strength?.against_market?.gaps["3m"], draw: (i) => cell(points(i.sector_strength?.against_market?.gaps["3m"]), `num ${tone(i.sector_strength?.against_market?.gaps["3m"])}`) },
-    { head: "RSI", value: (i) => i.reading!.momentum.rsi, draw: (i) => cell(i.reading!.momentum.rsi?.toFixed(0) ?? "—", "num") },
-    { head: "From 52-week high", value: (i) => i.reading!.range.from_high, draw: (i) => cell(signedPct(i.reading!.range.from_high), "num text-muted") },
+    { head: hd.stock, value: (i) => i.ticker, draw: (i) => add(h("td"), h("span", "font-semibold text-ink-strong", i.ticker), h("div", "max-w-[11rem] truncate text-[11px] text-muted", tidyName(i.name))) },
+    { head: hd.price, value: (i) => i.reading!.price, draw: (i) => cell(price(i.reading!.price), "num text-ink-strong") },
+    { head: hd.today, value: (i) => i.reading!.day_change_pct, draw: (i) => moveCell(i.reading!.day_change_pct, 2) },
+    { head: hd.fromAverage, value: (i) => i.reading!.extension?.ranges, draw: (i) => tracked(i.reading!.extension?.ranges, ranges, signedPct(i.reading!.extension?.pct)) },
+    { head: "", value: (i) => i.reading!.extension?.state, draw: (i) => cell(i.reading!.extension ? w.extension[i.reading!.extension.state] : "—", "!text-left !font-sans text-muted") },
+    { head: hd.trend, value: (i) => i.reading!.trend?.state, draw: (i) => cell(i.reading!.trend ? w.trend[i.reading!.trend.state] : "—", "!font-sans text-muted") },
+    { head: hd.vsMarket, value: (i) => i.reading!.strength?.gaps["3m"], draw: (i) => tracked(i.reading!.strength?.gaps["3m"], gaps, points(i.reading!.strength?.gaps["3m"])) },
+    { head: hd.sectorVsMarket, value: (i) => i.sector_strength?.against_market?.gaps["3m"], draw: (i) => cell(points(i.sector_strength?.against_market?.gaps["3m"]), `num ${tone(i.sector_strength?.against_market?.gaps["3m"])}`) },
+    { head: hd.rsi, value: (i) => i.reading!.momentum.rsi, draw: (i) => cell(i.reading!.momentum.rsi?.toFixed(0) ?? "—", "num") },
+    { head: hd.fromHigh, value: (i) => i.reading!.range.from_high, draw: (i) => cell(signedPct(i.reading!.range.from_high), "num text-muted") },
   ];
   const table = h("table", "data-table"), body = h("tbody");
   let by = 6, down = true;
@@ -434,4 +445,4 @@ export function listTable(items: Item[], onPick: (item: Item) => void): HTMLElem
   return add(h("div", "overflow-x-auto"), table);
 }
 
-export const asOf = (b: Board) => `Prices of ${shortDate(b.as_of)}`;
+export const asOf = (b: Board) => t().asOf(shortDate(b.as_of));

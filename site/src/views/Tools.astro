@@ -1,0 +1,38 @@
+---
+// The analysis tools of the brand, each a site of its own, said in the page itself so that a
+// search engine reads them without running a script. Its words are in i18n/tools.ts.
+import Site from "../components/Site.astro";
+import { FUNDAMENTALS_URL, OPTIONS_URL, PEERS_URL, PLAYGROUND_URL, RADAR_URL } from "../lib/site";
+import type { Lang } from "../i18n";
+import { tools } from "../i18n/tools";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = tools[lang];
+
+const TOOLS = [
+	{ name: "Fundamentals Lab", url: FUNDAMENTALS_URL, ...t.fundamentals },
+	{ name: "Earnings Radar", url: RADAR_URL, ...t.radar },
+	{ name: "Peer Map", url: PEERS_URL, ...t.peers },
+	{ name: "Options Lab", url: OPTIONS_URL, ...t.options },
+	{ name: "Playground", url: PLAYGROUND_URL, ...t.playground },
+];
+---
+
+<Site title={t.title} description={t.description}>
+	<div class="mb-10 max-w-2xl">
+		<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">{t.h1}</h1>
+		<p class="mt-3 text-ink">{t.lede}</p>
+	</div>
+	<div class="grid gap-x-14 gap-y-10 md:grid-cols-2">
+		{TOOLS.map((tool) => (
+			<section class="sec">
+				<div class="sec-head"><h2 class="text-xl font-medium text-ink-strong">{tool.name}</h2><span class="sec-note">{tool.about}</span></div>
+				<ul class="divide-y divide-line text-ink">{tool.points.map((p) => <li class="py-2">{p}</li>)}</ul>
+				<a href={`${tool.url}/`} class="btn btn-primary mt-6">{t.open(tool.name)}</a>
+			</section>
+		))}
+	</div>
+</Site>

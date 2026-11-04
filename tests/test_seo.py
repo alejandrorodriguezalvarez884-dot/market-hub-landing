@@ -28,4 +28,4 @@ def test_an_article_without_a_date_is_listed_without_one(client, opinion):
     opinion.store.articles["fees-and-more"] = ARTICLE | {"slug": "fees-and-more", "published_utc": "not a date"}
     opinion._cached = None
     r = client.get("/sitemap.xml").text
-    assert f"<loc>{SITE_URL}/opinion/article/?slug=fees-and-more</loc></url>" in r
+    assert f"<loc>{SITE_URL}/opinion/article/?slug=fees-and-more</loc><xhtml:link" in r  # straight to its alternates (test_i18n.py)

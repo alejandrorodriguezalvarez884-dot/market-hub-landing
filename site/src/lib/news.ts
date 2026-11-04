@@ -2,6 +2,9 @@
 // opens the item's own page on the portal, where its article is and, from there, its source. A
 // headline of the press is the exception: nothing of it is here but the headline, so it opens at
 // its publisher.
+import { lang, locale } from "../i18n";
+import { sectorName } from "../i18n/markets";
+import { news } from "../i18n/news";
 import { add, h, linkTo, svg } from "./dom";
 import { timeAgo } from "./format";
 import type { NewsItem } from "./market";
@@ -40,21 +43,22 @@ export function picture(src: string, cls: string, alt = ""): HTMLImageElement {
 
 // How the news reads, drawn with the site's own mark: right of the line is bullish, left of it is
 // bearish, on it is neutral. Nothing when nobody has said.
-const TONES = { bullish: ["Bullish", "text-up", 1], bearish: ["Bearish", "text-down", -1], neutral: ["Neutral", "text-muted", 0] } as const;
+const TONES = { bullish: ["text-up", 1], bearish: ["text-down", -1], neutral: ["text-muted", 0] } as const;
 export type Sentiment = keyof typeof TONES;
 export const SENTIMENTS = Object.keys(TONES) as Sentiment[];
 export const tone = (n: NewsItem): HTMLElement | null => (n.sentiment && TONES[n.sentiment] ? toneMark(n.sentiment) : null);
 
 // The mark and its word alone: what an item carries, and what the news page's filter is chosen by.
 export function toneMark(sentiment: Sentiment): HTMLElement {
-  const [label, color, side] = TONES[sentiment];
+  const [color, side] = TONES[sentiment];
+  const label = news[lang()].tones[sentiment];
   const mark = svg("svg", { viewBox: "0 0 22 12", class: "h-3 w-[22px] flex-none", fill: "none", stroke: "currentColor", "stroke-width": 1.8, "stroke-linecap": "round", "aria-hidden": "true" });
   mark.append(svg("path", { d: `M11 1v10${side ? `M11 6h${side * 6}` : ""}` }), svg("circle", { cx: 11 + side * 7.5, cy: 6, r: 2.6, fill: "currentColor", stroke: "none" }));
   return add(h("span", `inline-flex items-center gap-1.5 font-medium ${color}`), mark, label);
 }
 
 // What it touches: a sector, or the economy as a whole.
-const scope = (n: NewsItem) => (n.scope ? h("span", "chip !font-sans", n.scope) : null);
+const scope = (n: NewsItem) => (n.scope ? h("span", "chip !font-sans", sectorName(n.scope)) : null);
 
 // When it was published, where it comes from, how it reads and what it touches. The owner chose
 // not to say on the page how an item was written.
@@ -62,7 +66,7 @@ export function byline(n: NewsItem): HTMLElement {
   const el = add(h("p", "flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-muted"),
     h("time", "num", timeAgo(n.published_utc)), h("span", "", n.source), tone(n), scope(n));
   (el.firstChild as HTMLTimeElement).dateTime = n.published_utc;
-  (el.firstChild as HTMLElement).title = new Date(n.published_utc).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  (el.firstChild as HTMLElement).title = new Date(n.published_utc).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
   return el;
 }
 
@@ -102,9 +106,12 @@ export function newsLine(n: NewsItem): HTMLElement {
 export function dayLabel(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86400000);
-  if (days <= 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const t = news[lang()];
+  if (days <= 0) return t.today;
+  if (days === 1) return t.yesterday;
+  const date = d.toLocaleDateString(locale(), { weekday: "long", month: "long", day: "numeric" });
+  // Spanish writes the weekday in lower case: a heading starts with a capital all the same.
+  return date.charAt(0).toUpperCase() + date.slice(1);
 }
 
 // The day an item belongs to, in the reader's own time zone, as YYYY-MM-DD: what the day filter

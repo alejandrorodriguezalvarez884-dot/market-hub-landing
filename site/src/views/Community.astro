@@ -1,0 +1,233 @@
+---
+// My Hub, Community, Share portfolio: sharing your portfolio. It takes a portfolio first; then a
+// name, and the say-so. Under it, the portfolios their owners chose to share, ranked by how today's
+// holdings did over a period, and where yours stands among them, shared or not. Sharing shows
+// weights and returns only: never amounts. The other page of Community is the monthly competition.
+// Its words are in i18n/community.ts.
+import App from "../components/App.astro";
+import type { Lang } from "../i18n";
+import { community } from "../i18n/community";
+
+interface Props {
+	lang: Lang;
+}
+const t = community[Astro.props.lang];
+---
+
+<App title={t.title} description={t.description}>
+	<div id="community" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-40"></div><div class="skeleton h-96"></div></div>
+</App>
+
+<script>
+	import { api, requireUser } from "../lib/api";
+	import { add, card, h, linkTo } from "../lib/dom";
+	import { pct, signedPct, timeAgo } from "../lib/format";
+	import { cell, failure, pageHead, points, shareBar, tone } from "../lib/hub";
+	import { link } from "../lib/site";
+	import type { Board, Member, PeriodKey, Sharing } from "../lib/types";
+	import { lang, locale } from "../i18n";
+	import { community } from "../i18n/community";
+
+	const t = community[lang()];
+	// A period's name in the page's language (the server names them in English).
+	const named = (p: { key: string; label: string }) => t.periods[p.key] ?? p.label;
+	const root = document.getElementById("community")!;
+	let period: PeriodKey = "ytd";
+	const digits = (key: PeriodKey) => (key === "1d" ? 2 : 1);
+
+	// --- Where you stand ---------------------------------------------------------------------------
+
+	function standing(b: Board): HTMLElement | null {
+		if (!b.you.performance) return null; // nothing to stand with yet: the sharing block asks for the portfolio
+		const c = card(t.whereYouStand, b.you.sharing ? t.sharedAs(b.you.handle) : t.onlyYou);
+		c.body.className = "";
+		c.body.append(add(h("div", "grid grid-cols-2 gap-px bg-line sm:grid-cols-5"), ...b.periods.map((p) => {
+			const st = b.you.standing[p.key];
+			const mine = b.you.performance![p.key];
+			const pick = h("button", "block w-full bg-page p-4 text-left transition-colors hover:bg-raised aria-[pressed=true]:bg-raised");
+			pick.type = "button";
+			pick.setAttribute("aria-pressed", String(p.key === period));
+			pick.addEventListener("click", () => ((period = p.key), draw(b)));
+			add(pick, h("div", "label", named(p)), h("div", `num mt-1 text-xl font-semibold ${tone(mine)}`, signedPct(mine, digits(p.key))));
+			if (!st) return add(pick, h("div", "mt-2 text-[12.5px] text-muted", t.nobodyYet));
+			// Where the portfolio falls between the last and the first: a dot on a line.
+			const line = h("div", "relative mt-3 h-[3px] rounded-full bg-raised");
+			const dot = h("span", `absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ${st.above_average ? "bg-up" : "bg-down"}`);
+			dot.style.left = `${st.ahead_of * 100}%`;
+			const middle = h("span", "absolute top-[-3px] h-[9px] w-px bg-line-strong");
+			middle.style.left = "50%";
+			line.append(middle, dot);
+			return add(pick,
+				add(h("div", `mt-1 flex items-center gap-1.5 text-[13px] font-medium ${st.above_average ? "up" : "down"}`), st.above_average ? t.above : t.below),
+				h("div", "num text-[12.5px] text-muted", t.vsAverage(points(st.return - st.average, digits(p.key)), signedPct(st.average, digits(p.key)))),
+				line,
+				h("div", "mt-2 text-[12.5px] text-muted", t.place(st.rank, st.of)));
+		})));
+		return c.el;
+	}
+
+	// --- Sharing -----------------------------------------------------------------------------------
+
+	// The way to a shared portfolio, in three steps: the one being taken is lit, those behind it are ticked.
+	function steps(at: number): HTMLElement {
+		return add(h("ol", "grid gap-px overflow-hidden rounded-[3px] border border-line bg-line sm:grid-cols-3"),
+			...t.steps.map((text, i) => {
+				const done = i < at;
+				const li = add(h("li", `flex items-center gap-3 p-3 ${i === at ? "bg-raised" : "bg-page"}`),
+					h("span", `num flex h-6 w-6 flex-none items-center justify-center rounded-full border text-[12px] ${done ? "border-up text-up" : i === at ? "border-ink-strong text-ink-strong" : "border-line-strong text-faint"}`, done ? "✓" : String(i + 1)),
+					h("span", `text-[13px] ${i <= at ? "text-ink-strong" : "text-muted"}`, text));
+				if (i === at) li.setAttribute("aria-current", "step");
+				return li;
+			}));
+	}
+
+	function sharing(b: Board): HTMLElement {
+		const on = b.you.sharing;
+		if (!on && !b.you.performance) {
+			// No portfolio, nothing to share: it has to be added first.
+			const gate = card(t.shareYours, t.startsWith);
+			add(gate.body, steps(0),
+				h("p", "mt-4 max-w-2xl text-sm text-ink", t.noPortfolio),
+				add(h("p", "mt-4"), linkTo(link("/portfolio/"), "btn btn-primary", t.addPortfolio)));
+			return gate.el;
+		}
+		const c = card(on ? t.isShared : t.shareYours, on ? t.asSince(b.you.handle, b.you.since_utc ? new Date(b.you.since_utc).toLocaleDateString(locale(), { month: "long", day: "numeric", year: "numeric" }) : null) : t.off);
+		const name = h("input", "field w-56");
+		name.maxLength = 20;
+		name.placeholder = t.namePlaceholder;
+		name.value = b.you.handle;
+		name.autocomplete = "off";
+		name.setAttribute("aria-label", t.nameLabel);
+		const note = h("p", "text-[13px] text-down");
+		note.setAttribute("role", "alert");
+		const send = async (body: { enabled: boolean; handle?: string }, button: HTMLButtonElement) => {
+			button.disabled = true;
+			note.textContent = "";
+			try {
+				await api<Sharing>("/api/sharing", { method: "PUT", body: JSON.stringify(body) });
+				await load();
+			} catch (e) {
+				button.disabled = false;
+				note.textContent = e instanceof Error ? e.message : t.failed;
+			}
+		};
+		const share = h("button", on ? "btn btn-ghost" : "btn btn-primary", on ? t.changeName : t.shareMine);
+		share.type = "submit";
+		const form = add(h("form", "flex flex-wrap items-center gap-2"), name, share);
+		form.addEventListener("submit", (e) => (e.preventDefault(), send({ enabled: true, handle: name.value }, share)));
+		const stop = h("button", "btn btn-ghost", t.stop);
+		stop.type = "button";
+		stop.addEventListener("click", () => send({ enabled: false }, stop));
+		const list = (title: string, items: string[]) => add(h("div"), h("h3", "label mb-1.5", title),
+			add(h("ul", "space-y-1 text-[13px] text-ink"), ...items.map((x) => h("li", "", x))));
+		add(c.body, steps(on ? 3 : 1),
+			add(h("div", "mt-4 grid gap-x-10 gap-y-4 sm:grid-cols-2"),
+				list(t.othersSee, t.othersSeeItems),
+				list(t.nobodySees, t.nobodySeesItems)),
+			h("p", "mt-4 text-[13px] text-muted", t.whoSees),
+			add(h("div", "mt-4 flex flex-wrap items-center gap-2"), form, on ? stop : null), note);
+		return c.el;
+	}
+
+	// --- The board ---------------------------------------------------------------------------------
+
+	type Line = { name: string; value: number | null; kind: "member" | "index" | "average" | "you"; member?: Member };
+
+	function holdings(m: Member): HTMLElement {
+		return add(h("div", "grid gap-x-8 gap-y-1.5 px-1 py-3 sm:grid-cols-2 lg:grid-cols-3"), ...m.positions.map((p) =>
+			add(h("div", "grid grid-cols-[4rem_1fr_3.25rem] items-center gap-2 text-[13px]"),
+				linkTo(link(`/quote/?t=${encodeURIComponent(p.ticker)}`), "font-semibold text-ink-strong hover:underline", p.ticker),
+				shareBar(p.weight, "w-full"), h("span", "num text-right text-ink", pct(p.weight)))));
+	}
+
+	function board(b: Board): HTMLElement {
+		const label = named(b.periods.find((p) => p.key === period)!);
+		const c = card(t.shared, b.shared ? t.sharedSoFar(b.shared, label.toLowerCase()) : t.noneShared(label.toLowerCase()));
+		const tabs = h("div", "tabs");
+		tabs.setAttribute("role", "tablist");
+		for (const p of b.periods) {
+			const tab = h("button", "tab-btn", named(p));
+			tab.type = "button";
+			tab.setAttribute("role", "tab");
+			tab.setAttribute("aria-selected", String(p.key === period));
+			tab.addEventListener("click", () => ((period = p.key), draw(b)));
+			tabs.append(tab);
+		}
+		c.head.append(tabs);
+
+		const lines: Line[] = [
+			...b.members.map((m): Line => ({ name: m.handle, value: m.performance[period], kind: "member", member: m })),
+			...b.indices.map((i): Line => ({ name: i.name, value: i.performance[period], kind: "index" })),
+			{ name: t.average, value: b.average[period], kind: "average" },
+		];
+		// Someone who does not share sees their own line among the others; nobody else does.
+		if (b.you.performance && !b.you.sharing) lines.push({ name: t.youNotShared, value: b.you.performance[period], kind: "you" });
+		lines.sort((x, y) => (y.value ?? -Infinity) - (x.value ?? -Infinity));
+		const reach = Math.max(0.01, ...lines.map((l) => Math.abs(l.value ?? 0)));
+
+		const table = h("table", "data-table");
+		const body = h("tbody");
+		let place = 0;
+		for (const l of lines) {
+			const m = l.member;
+			const ranked = l.kind === "member" || l.kind === "you";
+			if (ranked) place++;
+			const mine = l.kind === "you" || m?.you;
+			const bar = h("span", `block h-[5px] rounded-full ${(l.value ?? 0) >= 0 ? "bg-up" : "bg-down"} ${ranked ? "" : "opacity-40"}`);
+			bar.style.width = `${Math.max(2, (Math.abs(l.value ?? 0) / reach) * 100)}%`;
+			const who = add(h("td", "!text-left !font-sans"),
+				h("span", ranked ? "font-semibold text-ink-strong" : "text-muted", l.name),
+				m?.you ? h("span", "chip !font-sans ml-2", t.you) : null,
+				m?.stand_in ? h("span", "ml-2 text-[11.5px] text-warn", t.sample) : null,
+				l.kind === "index" ? h("span", "ml-2 text-[11.5px] text-faint", t.index) : null);
+			const row = add(h("tr", mine ? "bg-raised/60" : ""),
+				cell(ranked ? String(place) : "", "num w-8 !text-left text-muted"),
+				who,
+				cell(signedPct(l.value, digits(period)), `num font-semibold ${ranked ? tone(l.value) : "text-muted"}`),
+				add(h("td", "hidden w-40 sm:table-cell"), add(h("span", "block w-full"), bar)),
+				cell(m ? String(m.count) : "", "num hidden text-muted md:table-cell"),
+				cell(m?.top_sector ?? "", "hidden !font-sans text-muted md:table-cell"),
+				add(h("td", "hidden lg:table-cell"), m ? h("span", "text-[12.5px] text-muted", m.positions.slice(0, 3).map((p) => `${p.ticker} ${pct(p.weight, 0)}`).join(" · ")) : null),
+				cell(m && !m.stand_in ? timeAgo(m.updated_utc) : "", "hidden !font-sans text-[12.5px] text-faint xl:table-cell"));
+			body.append(row);
+			if (m) {
+				// A member's line opens onto what they hold.
+				const detail = add(h("tr"), add(Object.assign(h("td"), { colSpan: 8 }), holdings(m)));
+				detail.hidden = true;
+				row.classList.add("cursor-pointer");
+				row.tabIndex = 0;
+				row.setAttribute("aria-expanded", "false");
+				const toggle = () => ((detail.hidden = !detail.hidden), row.setAttribute("aria-expanded", String(!detail.hidden)));
+				row.addEventListener("click", (e) => (e.target as HTMLElement).closest("a") || toggle());
+				row.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle()));
+				body.append(detail);
+			}
+		}
+		add(table, add(h("thead"), add(h("tr"), h("th", "!text-left", "#"), h("th", "!text-left", t.portfolio), h("th", "", label), h("th", "hidden sm:table-cell"),
+			h("th", "hidden md:table-cell", t.positions), h("th", "hidden md:table-cell", t.largestSector), h("th", "hidden lg:table-cell", t.largestPositions), h("th", "hidden xl:table-cell", t.updated))), body);
+		c.body.className = "";
+		c.body.append(add(h("div", "overflow-x-auto"), table),
+			h("p", "border-t border-line px-4 py-3 text-[12.5px] text-muted", t.boardNote));
+		return c.el;
+	}
+
+	function draw(b: Board) {
+		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"),
+			pageHead(t.title, t.description, { sample: b.sample, over: t.over }),
+			sharing(b), standing(b), board(b)));
+	}
+
+	async function load() {
+		draw(await api<Board>("/api/community"));
+	}
+
+	async function start() {
+		await requireUser();
+		try {
+			await load();
+		} catch (e) {
+			failure(root, e);
+		}
+	}
+	start().catch(() => {});
+</script>

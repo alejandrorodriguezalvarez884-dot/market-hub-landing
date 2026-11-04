@@ -1,0 +1,229 @@
+---
+// My Hub, Community, Bot competition. The competition has its own site, Bot League
+// (BOT_LEAGUE_URL): a member downloads the kit there, builds a bot of rules with their AI agent and
+// sends it in, and Bot League runs it on paper. Here, on the same data: the member's bot, the top of
+// the board over the day, week, month, year and since each bot started, and the way to Bot League.
+// Its words are in i18n/bots.ts; its links to Bot League open its pages in the page's language.
+import App from "../components/App.astro";
+import type { Lang } from "../i18n";
+import { bots } from "../i18n/bots";
+
+interface Props {
+	lang: Lang;
+}
+const t = bots[Astro.props.lang];
+---
+
+<App title={t.title} description={t.description}>
+	<div id="bots" class="space-y-4"><div class="skeleton h-16 w-80"></div><div class="skeleton h-56"></div><div class="skeleton h-96"></div></div>
+</App>
+
+<script>
+	import { requireUser } from "../lib/api";
+	import { botBoard, dropBotKey, refreshBots, withdrawBot, type BotBoard, type BotHolding, type BotLine, type BotPeriod } from "../lib/bots";
+	import { add, card, h, linkTo } from "../lib/dom";
+	import { pct, shortDate, signedPct, timeAgo } from "../lib/format";
+	import { cell, failure, pageHead, tone } from "../lib/hub";
+	import { C, returnsChart } from "../lib/lwc";
+	import { botLeague, link } from "../lib/site";
+	import { lang } from "../i18n";
+	import { bots } from "../i18n/bots";
+
+	const t = bots[lang()];
+
+	const root = document.getElementById("bots")!;
+	const TOP = 20; // the top of the board: the whole of it is in Bot League
+	let data: BotBoard;
+	let period: BotPeriod = "1m";
+	let moving = false;
+
+	const PERIODS: { key: BotPeriod; label: string; over: string }[] = (["1d", "1w", "1m", "1y", "all"] as const).map((key) => ({ key, ...t.periods[key] }));
+	const digits = (p: BotPeriod) => (p === "1d" ? 2 : 1);
+	const day = (iso: string) => shortDate(iso);
+	const button = (cls: string, text: string, onClick: (b: HTMLButtonElement) => void) => {
+		const b = h("button", cls, text);
+		b.type = "button";
+		b.addEventListener("click", () => onClick(b));
+		return b;
+	};
+	const chip = (text: string) => h("span", "chip !font-sans ml-2", text);
+	const mix = (held: BotHolding[], cash: number | null, max = 12) => [
+		...held.slice(0, max).map((x) => linkTo(link(`/quote/?t=${encodeURIComponent(x.ticker)}`), "chip hover:text-ink-strong", `${x.ticker} ${pct(x.weight, x.weight < 0.1 ? 1 : 0)}`)),
+		cash && cash > 0.005 ? h("span", "chip text-muted", t.cash(pct(cash, 0))) : null,
+	];
+
+	// --- The member's bot ---------------------------------------------------------------------------
+
+	function mine(b: BotBoard): HTMLElement {
+		const you = b.you;
+		const panel = add(h("section", "panel p-5 sm:p-6"), h("p", "label", t.yourBot));
+		if (!you) {
+			return add(panel, h("h2", "mt-1 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong", t.noBot),
+				h("p", "mt-2 max-w-prose text-[13.5px] text-muted",
+					t.whatIsABot),
+				add(h("p", "mt-4"), Object.assign(h("a", "btn btn-primary", t.buildYours), { href: botLeague("/me/") })));
+		}
+		const live = you.returns;
+		const stat = (p: (typeof PERIODS)[number]) => {
+			const v = live?.[p.key] ?? null;
+			const rank = you.ranks[p.key];
+			return add(h("div", "min-w-0 bg-page p-3"), h("div", "label", p.label), h("div", `num mt-1 text-lg font-semibold ${v == null ? "text-faint" : tone(v)}`, v == null ? "—" : signedPct(v, digits(p.key))),
+				h("div", "truncate text-[12px] text-muted", rank ? t.place(rank, you.entrants) : v == null ? t.notYet : " "));
+		};
+		const started = you.since
+			? t.running(day(you.since), you.sessions, day(you.as_of!))
+			: t.sentIn(timeAgo(you.submitted_utc));
+		const rules = add(h("details", "mt-4 rounded-[3px] border border-line bg-page"),
+			h("summary", "cursor-pointer px-3 py-2 text-[13px] font-semibold text-ink", t.itsRules),
+			add(h("ul", "list-disc space-y-1 px-3 pb-3 pl-7 text-[13px] text-ink"), ...you.rules.map((r) => h("li", "", r))));
+		const chart = h("div", "mt-4");
+		add(panel,
+			h("h2", "mt-1 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong", you.name),
+			h("p", "mt-0.5 text-[12.5px] text-muted", t.byLine(you.handle, you.universe)),
+			you.about ? h("p", "mt-2 max-w-prose text-[13.5px] text-ink", you.about) : null,
+			h("p", "mt-3 text-[12.5px] text-muted", started),
+			live ? add(h("div", "mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-[3px] border border-line bg-line sm:grid-cols-3 2xl:grid-cols-5"), ...PERIODS.map(stat)) : null,
+			you.curve.length > 1 ? chart : null,
+			you.holdings.length ? add(h("div", "mt-4"), h("p", "label pb-1.5", t.holdsNow), add(h("div", "flex flex-wrap gap-1.5"), ...mix(you.holdings, you.cash, 50))) : null,
+			rules,
+			add(h("p", "mt-4 flex flex-wrap items-center gap-3 text-[12.5px] text-muted"),
+				button("btn btn-ghost py-1.5 text-[13px]", t.withdraw, async (el) => {
+					if (!confirm(t.withdrawAsk)) return;
+					el.disabled = true;
+					await withdrawBot();
+					await load();
+				}),
+				Object.assign(h("a", "link", t.itsPage), { href: botLeague(`/bot/?b=${encodeURIComponent(you.id ?? "")}`) }),
+				h("span", "", t.toChange)));
+		if (you.curve.length > 1) {
+			requestAnimationFrame(() => returnsChart(chart, you.curve.map((p) => p.date), [{ name: you.name, values: you.curve.map((p) => p.value - 1), color: C.ink }], 200));
+		}
+		return panel;
+	}
+
+	// --- Bot League ------------------------------------------------------------------------------
+
+	function league(b: BotBoard): HTMLElement {
+		const panel = add(h("section", "panel p-5 sm:p-6"), h("p", "label", "Bot League"),
+			h("h2", "mt-1 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong", b.you ? t.changeOrAgain : t.buildOne),
+			h("p", "mt-2 max-w-prose text-[13.5px] text-muted", t.ownSite),
+			add(h("ol", "mt-4 list-decimal space-y-1.5 pl-5 text-[13.5px] text-ink"), ...t.steps.map((s) => h("li", "", s))),
+			add(h("p", "mt-4 flex flex-wrap gap-2"), Object.assign(h("a", "btn btn-primary", t.open), { href: botLeague("/me/") }),
+				Object.assign(h("a", "btn btn-ghost", t.wholeBoard), { href: botLeague("/board/") })));
+		if (b.key) {
+			const k = b.key;
+			add(panel, add(h("div", "mt-5 border-t border-line pt-4"), h("p", "label pb-1", t.yourKey),
+				h("p", "text-[12.5px] text-muted", t.keyNote(timeAgo(k.created_utc), k.used_utc ? timeAgo(k.used_utc) : null)),
+				add(h("p", "mt-2"), button("btn btn-ghost py-1.5 text-[13px]", t.takeBack, async (el) => {
+					if (!confirm(t.takeBackAsk)) return;
+					el.disabled = true;
+					await dropBotKey();
+					await load();
+				}))));
+		}
+		return panel;
+	}
+
+	// --- The board -----------------------------------------------------------------------------------
+
+	function board(b: BotBoard): HTMLElement {
+		const p = PERIODS.find((x) => x.key === period)!;
+		const c = card(t.board, b.as_of ? t.returnsOver(p.over, day(b.as_of)) : t.noClose);
+		const tabs = add(h("div", "flex flex-wrap gap-1"));
+		for (const x of PERIODS) {
+			const tab = h("button", "tab-btn", x.label);
+			tab.type = "button";
+			tab.setAttribute("aria-pressed", String(x.key === period));
+			tab.addEventListener("click", () => ((period = x.key), draw()));
+			tabs.append(tab);
+		}
+		c.head.append(tabs);
+		const rows = b.rows.slice().sort((x, y) => (x.ranks[period] ?? 1e9) - (y.ranks[period] ?? 1e9) || (y.returns.all ?? -1e9) - (x.returns.all ?? -1e9)).slice(0, TOP);
+		const bench = b.benchmark.returns?.[period] ?? null;
+		const table = h("table", "data-table");
+		const body = h("tbody");
+		let indexShown = bench == null;
+		const indexRow = () => add(h("tr", ""), cell("", "w-8"), add(h("td", "!text-left !font-sans"), h("span", "text-muted", "S&P 500"), h("span", "ml-2 text-[11.5px] text-faint", b.benchmark.ticker)),
+			cell("", "hidden md:table-cell"), cell(signedPct(bench, digits(period)), "num font-semibold text-muted"), cell("", "hidden sm:table-cell"), cell("", "hidden lg:table-cell"), cell("", "hidden xl:table-cell"));
+		for (const r of rows) {
+			const v = r.returns[period];
+			if (!indexShown && (v == null || v < bench!)) {
+				body.append(indexRow());
+				indexShown = true;
+			}
+			body.append(...line(r, v));
+		}
+		if (!indexShown) body.append(indexRow());
+		add(table, add(h("thead"), add(h("tr"), h("th", "!text-left", "#"), h("th", "!text-left", t.member), h("th", "!text-left hidden md:table-cell", t.bot), h("th", "", p.label),
+			h("th", "hidden sm:table-cell", t.sinceStart), h("th", "hidden lg:table-cell", t.runningHead), h("th", "!text-left hidden xl:table-cell", t.largest))), body);
+		c.body.className = "";
+		c.body.append(rows.length ? add(h("div", "overflow-x-auto"), table) : h("p", "px-4 py-6 text-[13px] text-muted", t.noneRunning),
+			add(h("p", "border-t border-line px-4 py-3 text-[12.5px] text-muted"), t.boardNote(b.entrants, TOP),
+				Object.assign(h("a", "link", t.wholeBoardThere), { href: botLeague("/board/") })));
+		return c.el;
+	}
+
+	function line(r: BotLine, v: number | null): HTMLElement[] {
+		const rank = r.ranks[period];
+		const row = add(h("tr", `cursor-pointer ${r.you ? "bg-raised/60" : ""}`),
+			cell(rank ? String(rank) : "", "num w-8 !text-left text-muted"),
+			add(h("td", "!text-left !font-sans"), h("span", "font-semibold text-ink-strong", r.handle), r.you ? chip(t.you) : null,
+				r.stand_in ? h("span", "ml-2 text-[11.5px] text-warn", t.sample) : null,
+				h("span", "block text-[12px] text-muted md:hidden", r.name)),
+			cell(r.name, "!font-sans hidden text-ink md:table-cell !text-left"),
+			cell(v == null ? "—" : signedPct(v, digits(period)), `num font-semibold ${v == null ? "text-faint" : tone(v)}`),
+			cell(signedPct(r.returns.all, 1), `num hidden sm:table-cell ${tone(r.returns.all)}`),
+			cell(r.since ? t.sessions(r.sessions) : t.nextClose, "hidden !font-sans text-[12.5px] text-muted lg:table-cell"),
+			add(h("td", "!text-left hidden xl:table-cell"), h("span", "text-[12.5px] text-muted", r.holdings.slice(0, 3).map((x) => `${x.ticker} ${pct(x.weight, 0)}`).join(" · "))));
+		const detail = add(h("tr"), add(Object.assign(h("td", "!text-left !font-sans"), { colSpan: 7 }), add(h("div", "px-1 py-3"),
+			r.about ? h("p", "max-w-prose text-[13px] text-ink", r.about) : null,
+			h("p", "mt-1 text-[12.5px] text-muted", r.since ? t.runningSince(day(r.since), r.holding) : t.startsNext),
+			r.holdings.length ? add(h("div", "mt-2 flex flex-wrap gap-1.5"), ...mix(r.holdings, r.cash)) : null)));
+		detail.hidden = true;
+		row.tabIndex = 0;
+		row.setAttribute("aria-expanded", "false");
+		const toggle = () => ((detail.hidden = !detail.hidden), row.setAttribute("aria-expanded", String(!detail.hidden)));
+		row.addEventListener("click", (e) => (e.target as HTMLElement).closest("a") || toggle());
+		row.addEventListener("keydown", (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle()));
+		return [row, detail];
+	}
+
+	function rules(b: BotBoard): HTMLElement {
+		const c = card(t.how);
+		const items = t.rules(b.rules.universe, b.rules.hold, pct(b.rules.cost, 2));
+		c.body.append(add(h("ul", "list-disc space-y-1.5 pl-5 text-[13px] text-ink"), ...items.map((x) => h("li", "", x))));
+		return c.el;
+	}
+
+	function draw() {
+		const b = data;
+		const asOf = moving ? h("span", "text-[12.5px] text-muted", t.moving) : null;
+		root.replaceChildren(add(h("div", "grid min-w-0 gap-4"),
+			pageHead(t.title, t.description, { sample: b.sample, over: t.over, action: asOf }),
+			add(h("div", "grid gap-4 lg:grid-cols-2"), mine(b), league(b)),
+			board(b), rules(b)));
+	}
+
+	async function load() {
+		data = await botBoard();
+		draw();
+	}
+
+	async function start() {
+		await requireUser();
+		try {
+			await load();
+			// A visit that finds the bots behind the last close moves them on, then shows them again.
+			if (data.stale) {
+				moving = true;
+				draw();
+				await refreshBots().catch(() => null);
+				moving = false;
+				await load();
+			}
+		} catch (e) {
+			failure(root, e);
+		}
+	}
+	start().catch(() => {});
+</script>

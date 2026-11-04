@@ -12,6 +12,11 @@ article's text is read once and kept, so a crawler costs no read of the store, a
 slug none at all. An unknown slug gets the page as it was built.
 
 Everything taken from an article is escaped: nothing in an article can become markup.
+
+The same three pages are built in Spanish under /es/ (docs/i18n.md) and filled the same way: the
+words around an article are Spanish there, its links lead to Spanish pages, and an article's page
+names its address in each language, as Layout.astro does for every page. The article itself
+stays in the language it was written in.
 """
 
 from __future__ import annotations
@@ -29,15 +34,37 @@ SHARE_IMAGE = "/share.png"  # the site's own card (film/share.mjs), for an artic
 HOME_PATH = "/"
 HOME_ARTICLES = 3  # the newest, on the home page
 
+# The words of these pages that are not the article's, by language (as site/src/i18n/opinion.ts).
+WORDS = {
+    "en": {"by": "By {}", "minutes": "{} min read", "sources": "Sources", "latest": "The latest from Opinion", "all": "All the articles"},
+    "es": {"by": "Por {}", "minutes": "{} min de lectura", "sources": "Fuentes", "latest": "Lo último de Opinión", "all": "Todos los artículos"},
+}
+# The kinds of piece, as an article names them, in Spanish. Another kind is shown as it comes.
+KINDS = {"Analysis": "Análisis", "Column": "Columna", "Counterpoint": "Contrapunto", "Explainer": "Explicación",
+         "Reader's view": "Tribuna del lector"}
+LOCALES = {"en": "en_US", "es": "es_ES"}
+MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
 # The tags the build writes for every page, which an article replaces with its own.
 _GENERIC = re.compile(
     r'<title>[^<]*</title>'
     r'|<meta name="description" content="[^"]*"\s*/?>'
     r'|<meta property="og:[a-z_:]+" content="[^"]*"\s*/?>'
     r'|<meta name="twitter:[a-z_:]+" content="[^"]*"\s*/?>'
-    r'|<link rel="canonical" href="[^"]*"\s*/?>')
+    r'|<link rel="canonical" href="[^"]*"\s*/?>'
+    r'|<link rel="alternate" hreflang="[^"]*" href="[^"]*"\s*/?>')
 _CANONICAL = re.compile(r'<link rel="canonical" href="([^"]*)"')
 _CHARSET = re.compile(r'<meta charset="[^"]*"\s*/?>', re.IGNORECASE)
+
+
+def at(path: str, lang: str = "en") -> str:
+    """A path of the site in a language: "/opinion/" or "/es/opinion/"."""
+    return f"/es{path}" if lang == "es" else path
+
+
+def _local(url: str, lang: str) -> str:
+    """An article's link to a page of the site, kept in the page's language. Not the API's."""
+    return at(url, lang) if not url.startswith(("/api/", "/es/")) else url
 
 
 def origin(page: str, fallback: str) -> str:
@@ -48,20 +75,27 @@ def origin(page: str, fallback: str) -> str:
     return f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else fallback.rstrip("/")
 
 
-def article_page(page: str, card: dict, site: str, article: dict | None = None) -> str:
-    """``page`` (the built article page) with the tags of the article ``card`` instead of the
-    generic ones and, given the whole ``article``, its text in place of the placeholder. ``site``
-    is the public address, as https://themarkethub.app."""
+def article_page(page: str, card: dict, site: str, article: dict | None = None, lang: str = "en", both: bool = False) -> str:
+    """``page`` (the built article page, in ``lang``) with the tags of the article ``card``
+    instead of the generic ones and, given the whole ``article``, its text in place of the
+    placeholder. ``site`` is the public address, as https://themarkethub.app. With ``both`` (the
+    page is built in both languages) it names the article's address in each."""
     slug = quote(card["slug"], safe="")
-    address = f"{site}{PATH}?slug={slug}"
+    address = f"{site}{at(PATH, lang)}?slug={slug}"
     dek = card.get("dek") or ""
     image = _cover(card)
     tags = [
         ("title", f"{card['title']} — {SITE_NAME}"),
         ('meta name="description"', dek),
         ('link rel="canonical"', address),
+    ]
+    if both:  # as Layout.astro names a page's two languages
+        tags += [(f'link rel="alternate" hreflang="{code}"', f"{site}{at(PATH, of)}?slug={slug}")
+                 for code, of in (("en", "en"), ("es", "es"), ("x-default", "en"))]
+    tags += [
         ('meta property="og:type"', "article"),
         ('meta property="og:site_name"', SITE_NAME),
+        ('meta property="og:locale"', LOCALES[lang]),
         ('meta property="og:title"', card["title"]),
         ('meta property="og:description"', dek),
         ('meta property="og:url"', address),
@@ -78,44 +112,45 @@ def article_page(page: str, card: dict, site: str, article: dict | None = None) 
         tags.append(('meta property="article:published_time"', card["published_utc"]))
     head = "".join(_tag(name, value) for name, value in tags) + _schema(_article_data(card, site, address, image))
     page = _GENERIC.sub("", page)
-    at = _CHARSET.search(page)
-    cut = at.end() if at else page.find("<head>") + len("<head>")
+    charset = _CHARSET.search(page)
+    cut = charset.end() if charset else page.find("<head>") + len("<head>")
     page = page[:cut] + head + page[cut:]
-    return _fill(page, "article", "piece", _article_html(article)) if article else page
+    return _fill(page, "article", "piece", _article_html(article, lang)) if article else page
 
 
-def list_page(page: str, cards: list[dict]) -> str:
-    """``page`` (the built list page) with the articles of ``cards``, newest first, in place of
-    the placeholder: the newest leads, the rest follow, each with its title as a link."""
+def list_page(page: str, cards: list[dict], lang: str = "en") -> str:
+    """``page`` (the built list page, in ``lang``) with the articles of ``cards``, newest first, in
+    place of the placeholder: the newest leads, the rest follow, each with its title as a link."""
     if not cards:
         return page
     first, *rest = cards
-    words = (f'<div class="min-w-0">{_overline(first)}'
-             f'<h2 class="lede mt-3 !max-w-[22em] !text-ink-strong">{_to_article(first, "hover:underline")}</h2>'
+    words = (f'<div class="min-w-0">{_overline(first, lang)}'
+             f'<h2 class="lede mt-3 !max-w-[22em] !text-ink-strong">{_to_article(first, "hover:underline", lang)}</h2>'
              f'<p class="mt-4 max-w-2xl text-lg leading-relaxed text-ink">{escape(first.get("dek") or "")}</p>{_tags(first)}</div>')
-    picture = _pictured(first, "lg:order-last")
+    picture = _pictured(first, "lg:order-last", lang)
     shape = "grid items-center gap-x-12 gap-y-6 lg:grid-cols-[1fr_1.15fr]" if picture else ""
     lead = f'<article class="sec pb-10 {shape}">{picture}{words}</article>'
     others = "".join(
-        f'<article class="sec pb-2">{_pictured(a, "mb-5")}{_overline(a)}'
-        f'<h2 class="mt-2 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong">{_to_article(a, "hover:underline")}</h2>'
+        f'<article class="sec pb-2">{_pictured(a, "mb-5", lang)}{_overline(a, lang)}'
+        f'<h2 class="mt-2 text-[1.5rem] font-medium leading-tight tracking-tight text-ink-strong">{_to_article(a, "hover:underline", lang)}</h2>'
         f'<p class="mt-2.5 text-ink">{escape(a.get("dek") or "")}</p>{_tags(a)}</article>' for a in rest)
     return _fill(page, "div", "opinion", lead + f'<div class="grid gap-x-14 gap-y-10 md:grid-cols-2">{others}</div>')
 
 
-def home_page(page: str, cards: list[dict]) -> str:
-    """``page`` (the built home page) with the newest opinion articles of ``cards`` in its place for
-    them, as one more part of the page. Without articles that place stays empty."""
+def home_page(page: str, cards: list[dict], lang: str = "en") -> str:
+    """``page`` (the built home page, in ``lang``) with the newest opinion articles of ``cards`` in
+    its place for them, as one more part of the page. Without articles that place stays empty."""
     if not cards:
         return page
+    said = WORDS[lang]
     items = "".join(
-        f'<article data-rv style="--i:{i}">{_pictured(a, "mb-5")}{_overline(a)}'
-        f'<h3 class="mt-2 text-lg font-medium leading-snug text-ink-strong">{_to_article(a, "hover:underline")}</h3>'
+        f'<article data-rv style="--i:{i}">{_pictured(a, "mb-5", lang)}{_overline(a, lang)}'
+        f'<h3 class="mt-2 text-lg font-medium leading-snug text-ink-strong">{_to_article(a, "hover:underline", lang)}</h3>'
         f'<p class="mt-2 text-sm text-ink">{escape(a.get("dek") or "")}</p></article>' for i, a in enumerate(cards[:HOME_ARTICLES]))
     part = ('<section class="chapter" aria-labelledby="opinion-title">'
-            '<header class="chapter-head" data-rv><h2 id="opinion-title" class="chapter-title">The latest from Opinion</h2></header>'
+            f'<header class="chapter-head" data-rv><h2 id="opinion-title" class="chapter-title">{said["latest"]}</h2></header>'
             f'<div class="mt-8 grid gap-x-14 gap-y-10 md:grid-cols-3">{items}</div>'
-            f'<p class="mt-8 text-[13px]" data-rv><a href="{LIST_PATH}" class="link">All the articles</a></p></section>')
+            f'<p class="mt-8 text-[13px]" data-rv><a href="{at(LIST_PATH, lang)}" class="link">{said["all"]}</a></p></section>')
     return _fill(page, "div", "home-opinion", part)
 
 
@@ -146,43 +181,50 @@ def _schema(data: dict) -> str:
 # --- The article, as the page's script draws it (lib/opinion.ts) ----------------------------------
 
 
-def _article_html(a: dict) -> str:
+def _article_html(a: dict, lang: str = "en") -> str:
     image = _cover(a)
     cover = (f'<img class="rounded-md bg-line object-cover mt-8 aspect-video w-full" src="{escape(image)}" '
              f'alt="{escape((a.get("cover") or {}).get("alt") or "")}" decoding="async">') if image else ""
-    tickers = "".join(f'<a href="/quote/?t={quote(t, safe="")}" class="chip">{escape(t)}</a>' for t in a.get("tickers") or [])
-    sources = "".join(f"<li>{_source(s)}</li>" for s in a.get("sources") or [] if s.get("url"))
-    return (_overline(a)
+    tickers = "".join(f'<a href="{at("/quote/", lang)}?t={quote(t, safe="")}" class="chip">{escape(t)}</a>' for t in a.get("tickers") or [])
+    sources = "".join(f"<li>{_source(s, lang)}</li>" for s in a.get("sources") or [] if s.get("url"))
+    return (_overline(a, lang)
             + f'<h1 class="mt-3 text-[2rem] font-medium leading-[1.12] tracking-tight text-ink-strong sm:text-[2.6rem]">{escape(a["title"])}</h1>'
             + f'<p class="mt-5 text-xl leading-relaxed text-ink-strong">{escape(a.get("dek") or "")}</p>'
             + cover
-            + f'<div class="mt-8 space-y-5 text-[17px] leading-[1.7] text-ink">{prose(a.get("body") or "")}</div>'
+            + f'<div class="mt-8 space-y-5 text-[17px] leading-[1.7] text-ink">{prose(a.get("body") or "", lang)}</div>'
             + (f'<p class="mt-8 flex flex-wrap gap-1.5">{tickers}</p>' if tickers else "")
-            + (f'<footer class="sec mt-12"><div class="sec-head"><h2 class="sec-title">Sources</h2></div>'
+            + (f'<footer class="sec mt-12"><div class="sec-head"><h2 class="sec-title">{WORDS[lang]["sources"]}</h2></div>'
                f'<ul class="space-y-1.5 text-sm text-ink">{sources}</ul></footer>' if sources else ""))
 
 
-def _source(s: dict) -> str:
+def _source(s: dict, lang: str = "en") -> str:
     url, title = str(s["url"]), escape(str(s.get("title") or s["url"]))
     if url.startswith("/"):
-        return f'<a href="{escape(url)}" class="link">{title}</a>'
+        return f'<a href="{escape(_local(url, lang))}" class="link">{title}</a>'
     return f'<a href="{escape(url)}" class="link" target="_blank" rel="noopener">{title}</a> ↗'
 
 
-def _overline(a: dict) -> str:
-    by = f'<span class="text-ink">By {escape(a["author"])}</span>' if a.get("author") else ""
-    when = _day(a.get("published_utc") or "")
+def _overline(a: dict, lang: str = "en") -> str:
+    said = WORDS[lang]
+    by = f'<span class="text-ink">{escape(said["by"].format(a["author"]))}</span>' if a.get("author") else ""
+    when = _day(a.get("published_utc") or "", lang)
+    kind = a.get("kind") or ""
+    if lang == "es":
+        kind = KINDS.get(kind, kind)
     return (f'<p class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-muted">'
-            f'<span class="font-medium text-ink-strong">{escape(a.get("kind") or "")}</span>{by}'
+            f'<span class="font-medium text-ink-strong">{escape(kind)}</span>{by}'
             f'<time datetime="{escape(a.get("published_utc") or "")}">{when}</time>'
-            f'<span>{escape(str(a.get("minutes") or ""))} min read</span></p>')
+            f'<span>{escape(said["minutes"].format(a.get("minutes") or ""))}</span></p>')
 
 
-def _day(iso: str) -> str:
+def _day(iso: str, lang: str = "en") -> str:
+    """The day an article was published: "November 4, 2026", or "4 de noviembre de 2026"."""
     try:
         d = datetime.fromisoformat(iso)
     except ValueError:
         return ""
+    if lang == "es":
+        return f"{d.day} de {MONTHS[d.month - 1]} de {d.year}"
     return f"{d:%B} {d.day}, {d.year}"
 
 
@@ -192,16 +234,16 @@ def _cover(a: dict) -> str | None:
     return f"/api/public/opinion/cover?slug={quote(a['slug'], safe='')}&v={quote(v, safe='')}" if v else None
 
 
-def _to_article(a: dict, cls: str) -> str:
-    return f'<a href="{PATH}?slug={quote(a["slug"], safe="")}" class="{cls}">{escape(a["title"])}</a>'
+def _to_article(a: dict, cls: str, lang: str = "en") -> str:
+    return f'<a href="{at(PATH, lang)}?slug={quote(a["slug"], safe="")}" class="{cls}">{escape(a["title"])}</a>'
 
 
-def _pictured(a: dict, cls: str) -> str:
+def _pictured(a: dict, cls: str, lang: str = "en") -> str:
     image = _cover(a)
     if not image:
         return ""
     alt = escape((a.get("cover") or {}).get("alt") or "")
-    return (f'<a href="{PATH}?slug={quote(a["slug"], safe="")}" class="block {cls}" tabindex="-1">'
+    return (f'<a href="{at(PATH, lang)}?slug={quote(a["slug"], safe="")}" class="block {cls}" tabindex="-1">'
             f'<img class="rounded-md bg-line object-cover aspect-video w-full" src="{escape(image)}" alt="{alt}" loading="lazy" decoding="async"></a>')
 
 
@@ -216,7 +258,7 @@ def _tags(a: dict) -> str:
 _MARK = re.compile(r"\*\*([^*]+)\*\*|\*([^*]+)\*|\[([^\]]+)\]\(([^)\s]+)\)")
 
 
-def _inline(text: str) -> str:
+def _inline(text: str, lang: str = "en") -> str:
     out, at = [], 0
     for m in _MARK.finditer(text):
         out.append(escape(text[at:m.start()]))
@@ -225,7 +267,7 @@ def _inline(text: str) -> str:
         elif m[2] is not None:
             out.append(f"<em>{escape(m[2])}</em>")
         elif m[4].startswith("/"):
-            out.append(f'<a href="{escape(m[4])}" class="link">{escape(m[3])}</a>')
+            out.append(f'<a href="{escape(_local(m[4], lang))}" class="link">{escape(m[3])}</a>')
         elif re.match(r"https?://", m[4]):
             out.append(f'<a href="{escape(m[4])}" class="link" target="_blank" rel="noopener">{escape(m[3])}</a>')
         else:
@@ -235,19 +277,19 @@ def _inline(text: str) -> str:
     return "".join(out)
 
 
-def prose(body: str) -> str:
+def prose(body: str, lang: str = "en") -> str:
     blocks = [b.strip() for b in re.split(r"\n\s*\n", body.replace("\r\n", "\n")) if b.strip()]
     out = []
     for block in blocks:
         lines = block.split("\n")
         if block.startswith("## "):
-            out.append(f'<h2 class="pt-4 text-[1.375rem] font-medium leading-snug tracking-tight text-ink-strong">{_inline(block[3:])}</h2>')
+            out.append(f'<h2 class="pt-4 text-[1.375rem] font-medium leading-snug tracking-tight text-ink-strong">{_inline(block[3:], lang)}</h2>')
         elif all(line.startswith("> ") for line in lines):
-            out.append(f'<blockquote class="border-l-2 border-line-strong pl-5 text-ink-strong">{_inline(" ".join(line[2:] for line in lines))}</blockquote>')
+            out.append(f'<blockquote class="border-l-2 border-line-strong pl-5 text-ink-strong">{_inline(" ".join(line[2:] for line in lines), lang)}</blockquote>')
         elif all(line.startswith("- ") for line in lines):
-            out.append('<ul class="list-disc space-y-2 pl-6">' + "".join(f"<li>{_inline(line[2:])}</li>" for line in lines) + "</ul>")
+            out.append('<ul class="list-disc space-y-2 pl-6">' + "".join(f"<li>{_inline(line[2:], lang)}</li>" for line in lines) + "</ul>")
         else:
-            out.append(f"<p>{_inline(' '.join(lines))}</p>")
+            out.append(f"<p>{_inline(' '.join(lines), lang)}</p>")
     return "".join(out)
 
 

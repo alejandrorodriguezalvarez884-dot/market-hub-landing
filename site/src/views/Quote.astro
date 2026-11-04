@@ -1,0 +1,403 @@
+---
+// One instrument: price, chart, key figures and past returns, with the way to the same company
+// in the analysis tools. Below, its past against the S&P 500 and, for a company, its business
+// and its accounts; for a fund, what it costs and what it holds. Its words are in i18n/quote.ts.
+import Search from "../components/Search.astro";
+import Site from "../components/Site.astro";
+import type { Lang } from "../i18n";
+import { quote } from "../i18n/quote";
+import { link } from "../lib/site";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = quote[lang];
+---
+
+<Site noindex title={t.title} description={t.description}>
+	<section id="empty" class="mx-auto max-w-xl py-16" hidden>
+		<h1 class="text-[2rem] font-medium leading-tight tracking-tight text-ink-strong">{t.lookUp}</h1>
+		<p class="mt-2 text-ink">{t.lookUpNote}</p>
+		<div class="mt-6"><Search large autofocus id="quote-search" /></div>
+	</section>
+
+	<div id="quote" hidden>
+		<div class="mb-10 flex flex-wrap items-end justify-between gap-4">
+			<div class="min-w-0">
+				<div id="q-head"><span class="skeleton block h-20 w-80"></span></div>
+				<nav id="q-tabs" class="tabs mt-5" aria-label={t.inHub} hidden></nav>
+			</div>
+			<div id="q-actions" class="flex flex-wrap gap-2"></div>
+		</div>
+
+		<div class="grid gap-x-14 gap-y-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
+			<div class="min-w-0 space-y-12">
+				<section class="sec"><div class="sec-head"><h2 class="sec-title">{t.price}</h2></div><div id="q-chart" class="min-h-[520px]"></div></section>
+				<section class="sec">
+					<div class="sec-head"><h2 class="sec-title">{t.past}</h2><span class="sec-note">{t.priceOnly}</span></div>
+					<div id="q-perf" class="grid grid-cols-3 gap-y-5 sm:grid-cols-6"></div>
+				</section>
+			</div>
+			<aside class="min-w-0 space-y-12">
+				<section class="sec">
+					<div class="sec-head"><h2 class="sec-title">{t.keyFigures}</h2></div>
+					<div id="q-stats"></div>
+				</section>
+				<section id="q-news-sec" class="sec" hidden>
+					<div class="sec-head"><h2 class="sec-title">{t.filings}</h2><a href={link("/news/", lang)} class="sec-note hover:text-ink-strong">{t.allNews}</a></div>
+					<div id="q-news"></div>
+				</section>
+			</aside>
+		</div>
+
+		<div id="q-more" class="mt-14 space-y-14"></div>
+	</div>
+</Site>
+
+<script>
+	import { lang, locale } from "../i18n";
+	import { assetName, fundTypeName, instrumentName, sectorName } from "../i18n/markets";
+	import { quote as words } from "../i18n/quote";
+	import { api, ApiError, signedIn, type Portfolio } from "../lib/api";
+	import { add, h, linkTo } from "../lib/dom";
+	import { change, compact, count, level, money, mult, num, pct, price, shortDate, signedPct, toneClass } from "../lib/format";
+	import { priceChart } from "../lib/lwc";
+	import { isEquity, quote, quoteMore, type Company, type Fund, type History, type Period, type Quote, type QuoteMore } from "../lib/market";
+	import { newsLine } from "../lib/news";
+	import { BENCH, EARNINGS, REVENUE, SELF, SPANS, columns, drawdowns, growth, mix, picker, spansOf, weights, type Span } from "../lib/quotecharts";
+	import { SITE_NAME, fundamentalsUrl, link, radarUrl, tidyName } from "../lib/site";
+	import { fromTv, tvChart } from "../lib/tv";
+	import { failed, quoteHref } from "../lib/widgets";
+
+	const $ = (id: string) => document.getElementById(id)!;
+	const t = words[lang()];
+	// A figure with a fixed count of decimals and the page's decimal mark.
+	const dec = (v: number, digits: number) => (lang() === "es" ? v.toFixed(digits).replace(".", ",") : v.toFixed(digits));
+	// The ticker in the address; a block of TradingView's map arrives with it in TradingView's own writing.
+	const asked = new URLSearchParams(location.search);
+	const ticker = (asked.get("t") ?? "").trim().toUpperCase() || fromTv(asked.get("tvwidgetsymbol") ?? "");
+
+	function head(q: Quote) {
+		const kindLabel = t.kinds;
+		const name = isEquity(q.kind) ? tidyName(q.name) : instrumentName(q.symbol, tidyName(q.name));
+		document.title = `${q.symbol} ${level(q.price, q.kind)} — ${name} — ${SITE_NAME}`;
+		const late = q.extended;
+		$("q-head").replaceChildren(
+			h("p", "text-[13px] text-muted", [q.symbol, q.fund_type ? fundTypeName(q.fund_type) : q.kind === "stock" ? null : kindLabel[q.kind], isEquity(q.kind) ? q.exchange : null,
+				q.kind === "stock" && q.sector !== "—" ? sectorName(q.sector) : null].filter(Boolean).join(" · ")),
+			h("h1", "mt-1 text-[2rem] font-medium leading-tight tracking-tight text-ink-strong", name),
+			add(h("div", "mt-4 flex flex-wrap items-baseline gap-x-4"),
+				h("span", "num text-[2.75rem] leading-none text-ink-strong", level(q.price, q.kind)),
+				h("span", `num text-lg ${toneClass(q.change_pct)}`, `${change(q.change, q.kind)} (${signedPct(q.change_pct, 2)})`),
+				h("span", "text-[13px] text-muted", t.today)),
+			// Before the open and after the close, what the share last traded at, small, under the price.
+			...(late ? [add(h("p", "mt-2 flex flex-wrap items-baseline gap-x-2 text-[13px] text-muted"),
+				h("span", "", late.session === "pre" ? t.pre : t.post),
+				h("span", "num text-ink", level(late.price, q.kind)),
+				h("span", `num ${toneClass(late.change_pct)}`, `${change(late.change, q.kind)} (${signedPct(late.change_pct, 2)})`),
+				h("span", "", `· ${newYorkTime(late.at)}`))] : []));
+	}
+
+	// A moment as New York's clock reads it; with the day of the week when it was not today.
+	function newYorkTime(iso: string): string {
+		const at = new Date(iso);
+		const zone = { timeZone: "America/New_York" } as const;
+		const day = (d: Date) => d.toLocaleDateString(locale(), zone);
+		const time = at.toLocaleTimeString(locale(), { ...zone, hour: "numeric", minute: "2-digit" });
+		return `${day(at) === day(new Date()) ? "" : `${at.toLocaleDateString(locale(), { ...zone, weekday: "short" })} `}${time} ${t.et}`;
+	}
+
+	function row(label: string, value: string | HTMLElement) {
+		return add(h("div", "flex items-baseline justify-between gap-3 border-b border-line py-2 text-sm last:border-0"),
+			h("span", "text-muted", label), typeof value === "string" ? h("span", "num text-[13px] text-ink-strong", value) : value);
+	}
+
+	function range52(q: Quote): HTMLElement {
+		const pos = q.year_high > q.year_low ? (q.price - q.year_low) / (q.year_high - q.year_low) : 0.5;
+		// Where the price sits between the year's low and high.
+		const dot = h("span", "absolute top-1/2 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ink-strong");
+		dot.style.left = `${Math.min(100, Math.max(0, pos * 100))}%`;
+		return add(h("div", "border-b border-line py-2.5"),
+			h("div", "text-sm text-muted", t.range52),
+			add(h("div", "relative mt-3 h-px bg-line-strong"), dot),
+			add(h("div", "mt-2.5 flex justify-between text-[13px]"), h("span", "num text-ink", level(q.year_low, q.kind)), h("span", "num text-ink", level(q.year_high, q.kind))));
+	}
+
+	function stats(q: Quote) {
+		const eq = isEquity(q.kind);
+		const mutual = q.fund_type === "Mutual fund";
+		const items: (HTMLElement | null)[] = [
+			row(t.prevClose, level(q.prev_close, q.kind)),
+			// A mutual fund has one price a day, its net asset value: no open and no range within the day.
+			mutual ? null : row(t.open, level(q.open, q.kind)),
+			mutual ? null : row(t.dayRange, `${level(q.day_low, q.kind)} – ${level(q.day_high, q.kind)}`),
+			range52(q),
+			q.volume ? row(t.volume, compact(q.volume)) : null,
+			q.avg_volume ? row(t.avgVolume, compact(q.avg_volume)) : null,
+			eq && q.market_cap ? row(t.marketCap, money(q.market_cap)) : null,
+			q.net_assets ? row(t.netAssets, money(q.net_assets)) : null,
+			q.kind === "stock" && q.pe != null ? row(t.pe, dec(q.pe, 1)) : null,
+			q.kind === "stock" && q.eps != null ? row(t.eps, price(q.eps)) : null,
+			eq ? row(t.dividendYield, q.dividend_yield == null ? "—" : pct(q.dividend_yield, 2)) : null,
+			q.kind === "stock" ? row(t.beta, q.beta == null ? "—" : dec(q.beta, 2)) : null,
+		];
+		$("q-stats").replaceChildren(...items.filter((x): x is HTMLElement => !!x));
+	}
+
+	function performance(q: Quote) {
+		const periods: [string, number | null][] = [[t.periods.today, q.change_pct], [t.periods.m1, q.return_1m], [t.periods.m6, q.return_6m],
+			[t.periods.ytd, q.return_ytd], [t.periods.y1, q.return_1y], [t.periods.y5, q.return_5y]];
+		$("q-perf").replaceChildren(...periods.map(([label, v]) =>
+			add(h("div"), h("div", "text-[13px] text-muted", label), h("div", `num mt-1 text-lg ${toneClass(v)}`, signedPct(v)))));
+	}
+
+	async function follow(q: Quote) {
+		const box = $("q-actions");
+		if (!isEquity(q.kind)) return;
+		const who = await signedIn().catch(() => null);
+		if (!who) {
+			box.replaceChildren(linkTo(link(`/signin/?next=${encodeURIComponent(location.pathname + location.search)}`), "btn btn-ghost", t.add));
+			return;
+		}
+		const p = await api<Portfolio>("/api/portfolio");
+		const held = p.positions.some((x) => x.ticker === q.symbol);
+		const watched = p.watchlist.includes(q.symbol);
+		if (held || watched) {
+			box.replaceChildren(add(linkTo(link("/dashboard/"), "btn btn-ghost"), held ? t.inPortfolio : t.inWatchlist));
+			return;
+		}
+		const b = h("button", "btn btn-primary", t.add);
+		b.type = "button";
+		b.addEventListener("click", async () => {
+			b.disabled = true;
+			try {
+				await api("/api/portfolio", { method: "PUT", body: JSON.stringify({ positions: p.positions, watchlist: [...p.watchlist, q.symbol] }) });
+				box.replaceChildren(add(linkTo(link("/dashboard/"), "btn btn-ghost"), t.inWatchlist));
+			} catch (e) {
+				b.disabled = false;
+				b.textContent = e instanceof ApiError ? e.message : t.couldNotAdd;
+			}
+		});
+		box.replaceChildren(b);
+	}
+
+	// The same company in the three parts of Market Hub: its price here, its numbers in
+	// Fundamentals Lab and its latest results release in the Earnings Radar (companies only).
+	function tabs(q: Quote) {
+		if (q.kind !== "stock" || q.fund_type) return; // a fund's own figures are on this page
+		const items: [string, string, boolean][] = [[t.tabs.price, location.href, true], [t.tabs.fundamentals, fundamentalsUrl(q.symbol), false],
+			[t.tabs.results, radarUrl(q.symbol), false]];
+		const nav = $("q-tabs");
+		nav.replaceChildren(...items.map(([label, href, current]) => {
+			const a = linkTo(href, "tab-btn", label);
+			if (current) a.setAttribute("aria-selected", "true"), a.setAttribute("aria-current", "page");
+			return a;
+		}));
+		nav.hidden = false;
+	}
+
+	// --- below the price -------------------------------------------------------------------------
+
+	const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(locale(), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+	const month = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(locale(), { month: "short", year: "numeric", timeZone: "UTC" });
+
+	function section(title: string, note?: string | HTMLElement): { el: HTMLElement; body: HTMLElement } {
+		const body = h("div");
+		const head = add(h("div", "sec-head"), h("h2", "sec-title", title), typeof note === "string" ? h("span", "sec-note", note) : note);
+		return { el: add(h("section", "sec"), head, body), body };
+	}
+
+	// A list of figures under a small heading; rows with nothing to show are left out, and so is a
+	// list with none.
+	type Fig = [label: string, value: string | null | undefined, tone?: string];
+	function figures(title: string, items: Fig[]): HTMLElement | null {
+		const shown = items.filter(([, v]) => v && v !== "—");
+		if (!shown.length) return null;
+		return add(h("div", "min-w-0"), title ? h("h3", "mb-1 text-[13px] font-medium text-ink-strong", title) : null,
+			...shown.map(([label, v, tone]) => add(h("div", "flex items-baseline justify-between gap-3 border-b border-line py-2 text-sm last:border-0"),
+				h("span", "text-muted", label), h("span", `num text-right text-[13px] ${tone ?? "text-ink-strong"}`, v!))));
+	}
+
+	function grid(cols: string, ...items: (HTMLElement | null)[]): HTMLElement | null {
+		const shown = items.filter((x): x is HTMLElement => !!x);
+		return shown.length ? add(h("div", `grid gap-x-14 gap-y-12 ${cols}`), ...shown) : null;
+	}
+
+	// Charts are drawn once they are on the page, where they have a width.
+	const pending: (() => void)[] = [];
+
+	function rest(q: Quote, m: QuoteMore) {
+		const parts: (HTMLElement | null)[] = [];
+		if (m.history) parts.push(versus(q, m.history), grid("lg:grid-cols-2", years(q, m.history), falls(m.history)));
+		if (m.company) parts.push(...company(m.company, m.financials));
+		if (m.fund) parts.push(...fund(m.fund, m.fund_type ?? q.fund_type ?? t.fund));
+		$("q-more").replaceChildren(...parts.filter((x): x is HTMLElement => !!x));
+		for (const draw of pending.splice(0)) draw();
+	}
+
+	function versus(q: Quote, hist: History): HTMLElement {
+		const spans = spansOf(hist);
+		const span: Span = spans.includes("5Y") ? "5Y" : spans[spans.length - 1];
+		const box = h("div");
+		const labels = Object.fromEntries(spans.map((k) => [k, t.years(SPANS[k] / 252)]));
+		const s = section(hist.benchmark ? t.against : t.overYears, picker(spans, span, (v) => growth(box, hist, q.symbol, v), labels));
+		s.body.append(box, h("p", "mt-2 text-[12.5px] text-muted", `${t.priceOnlyNote}${hist.benchmark ? t.spyNote : ""}`));
+		pending.push(() => growth(box, hist, q.symbol, span));
+		return s.el;
+	}
+
+	function years(q: Quote, hist: History): HTMLElement | null {
+		const ys = hist.years.slice(-6);
+		if (ys.length < 2) return null;
+		const series = [{ name: q.symbol, color: SELF }, ...(hist.benchmark ? [{ name: "S&P 500", color: BENCH }] : [])];
+		const last = ys[ys.length - 1];
+		const s = section(t.yearByYear, t.yearByYearNote);
+		s.body.append(columns(ys.map((y) => ({ label: String(y.year), note: y.partial ? (y === last ? t.toDate : t.inPart) : undefined,
+			values: hist.benchmark ? [y.return, y.benchmark] : [y.return] })), series, (v) => signedPct(v, 0)));
+		return s.el;
+	}
+
+	function falls(hist: History): HTMLElement {
+		const r = hist.risk;
+		const n = Math.min(hist.dates.length, SPANS["5Y"] + 1);
+		const box = h("div");
+		const s = section(t.falls, t.fallsNote);
+		const dd = r.max_drawdown, bd = r.benchmark_max_drawdown;
+		const rows = figures("", [
+			[t.deepest, dd ? `${pct(dd.depth)} · ${month(dd.peak)} → ${month(dd.trough)}` : null, "down"],
+			[t.benchDeepest, bd ? `${pct(bd.depth)} · ${month(bd.peak)} → ${month(bd.trough)}` : null, "text-muted"],
+			[t.volatility, r.volatility_1y == null ? null : `${pct(r.volatility_1y)}${r.benchmark_volatility_1y != null ? ` (S&P 500 ${pct(r.benchmark_volatility_1y)})` : ""}`],
+			[t.beta1y, r.beta_1y == null ? null : num(r.beta_1y, 2)],
+			[t.bestDay, r.best_day ? `${signedPct(r.best_day.return)} · ${day(r.best_day.date)}` : null, "up"],
+			[t.worstDay, r.worst_day ? `${signedPct(r.worst_day.return)} · ${day(r.worst_day.date)}` : null, "down"],
+			[t.upDays, r.up_days_1y == null ? null : pct(r.up_days_1y, 0)],
+		]);
+		s.body.append(box);
+		if (rows) s.body.append(add(h("div", "mt-4"), rows));
+		pending.push(() => drawdowns(box, hist.dates.slice(-n), hist.closes.slice(-n)));
+		return s.el;
+	}
+
+	// --- a company --------------------------------------------------------------------------------
+
+	function about(text: string): HTMLElement {
+		const p = h("p", "max-w-[68ch] whitespace-pre-line text-[14.5px] leading-relaxed text-ink line-clamp-5", text);
+		const box = add(h("div"), p);
+		if (text.length > 420) {
+			const more = h("button", "mt-2 text-[13px] text-muted hover:text-ink-strong", t.readMore);
+			more.type = "button";
+			more.addEventListener("click", () => {
+				const closed = p.classList.toggle("line-clamp-5");
+				more.textContent = closed ? t.readMore : t.showLess;
+			});
+			box.append(more);
+		}
+		return box;
+	}
+
+	const fiscal = (end: string) => t.fiscal(end.slice(0, 4));
+	const quarter = (end: string) => new Date(`${end}T00:00:00Z`).toLocaleDateString(locale(), { month: "short", year: "2-digit", timeZone: "UTC" }).replace(" ", " '");
+	type Accounts = { annual: Period[]; quarterly: Period[] };
+
+	function accounts(fin: Accounts): HTMLElement | null {
+		const names = { annual: t.annual, quarterly: t.quarterly };
+		const views = (["annual", "quarterly"] as const).filter((k) => fin[k].length);
+		if (!views.length) return null;
+		const box = h("div");
+		const draw = (k: keyof Accounts) => box.replaceChildren(columns(fin[k].map((p) => ({
+			label: k === "annual" ? fiscal(p.end) : quarter(p.end),
+			note: p.revenue && p.net_income != null ? t.margin(pct(p.net_income / p.revenue, 0)) : undefined,
+			values: [p.revenue, p.net_income],
+		})), [{ name: t.revenue, color: REVENUE }, { name: t.netIncome, color: EARNINGS }], (v) => money(v, Math.abs(v) >= 1e11 ? 0 : 1), 210));
+		const s = section(t.statements, picker(views, views[0], draw, names));
+		draw(views[0]);
+		s.body.append(box, h("p", "mt-3 text-[12.5px] text-muted", t.statementsNote));
+		return s.el;
+	}
+
+	function company(c: Company, fin?: Accounts): (HTMLElement | null)[] {
+		const place = [c.city, c.state, c.country].filter(Boolean).join(", ");
+		let site: HTMLAnchorElement | null = null;
+		if (/^https?:\/\//.test(c.website)) {
+			site = linkTo(c.website, "text-ink-strong hover:underline", c.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""));
+			site.target = "_blank";
+			site.rel = "noopener nofollow";
+		}
+		const known: [string, string][] = [[t.sector, c.sector ? sectorName(c.sector) : ""], [t.industry, c.industry], [t.employees, c.employees ? count(c.employees) : ""],
+			[t.headquarters, place], [t.nextResults, c.next_results ? shortDate(c.next_results) : ""]];
+		const facts = add(h("div", "mt-5 grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-3"),
+			...known.filter(([, v]) => v).map(([k, v]) => add(h("div", "min-w-0"), h("div", "text-[12.5px] text-muted", k), h("div", "truncate text-ink-strong", v))),
+			site ? add(h("div", "min-w-0"), h("div", "text-[12.5px] text-muted", t.website), add(h("div", "truncate"), site)) : null);
+		const biz = section(t.company);
+		if (c.summary) biz.body.append(about(c.summary));
+		biz.body.append(facts);
+
+		const v = c.valuation, p = c.profitability, g = c.growth, hl = c.health, o = c.ownership, d = c.dividends;
+		const books = grid("sm:grid-cols-2 xl:grid-cols-4",
+			figures(t.valuation, [[t.peTrailing, v.pe == null ? null : num(v.pe, 1)], [t.peForward, v.forward_pe == null ? null : num(v.forward_pe, 1)],
+				[t.ps, mult(v.ps)], [t.pb, mult(v.pb)], [t.evEbitda, mult(v.ev_ebitda)], [t.ev, money(v.enterprise_value)]]),
+			figures(t.margins, [[t.grossMargin, pct(p.gross_margin)], [t.operatingMargin, pct(p.operating_margin)], [t.netMargin, pct(p.net_margin)],
+				[t.roe, pct(p.roe)], [t.roa, pct(p.roa)],
+				[t.revenueGrowth, signedPct(g.revenue), toneClass(g.revenue)], [t.earningsGrowth, signedPct(g.earnings), toneClass(g.earnings)]]),
+			figures(t.balance, [[t.revenue12m, money(hl.revenue)], [t.ebitda, money(hl.ebitda)], [t.fcf, money(hl.free_cash_flow)],
+				[t.cash, money(hl.cash)], [t.debt, money(hl.debt)], [t.debtToEquity, mult(hl.debt_to_equity, 2)],
+				[t.currentRatio, hl.current_ratio == null ? null : num(hl.current_ratio, 2)]]),
+			figures(t.owners, [[t.insiders, pct(o.insiders)], [t.institutions, pct(o.institutions)],
+				[t.short, pct(o.short_of_float)], [t.shares, compact(o.shares)],
+				[t.dividendRate, d.rate ? price(d.rate) : null], [t.payout, d.payout_ratio ? pct(d.payout_ratio, 0) : null],
+				[t.exDate, d.ex_date ? shortDate(d.ex_date) : null], [t.avgYield, d.five_year_avg_yield ? pct(d.five_year_avg_yield, 2) : null]]));
+		const numbers = books ? section(t.numbers, t.numbersNote) : null;
+		if (numbers && books) numbers.body.append(books);
+		const statements = fin ? accounts(fin) : null;
+		return [statements ? grid("lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]", statements, biz.el) : biz.el, numbers?.el ?? null];
+	}
+
+	// --- a fund -----------------------------------------------------------------------------------
+
+	function fund(f: Fund, type: string): (HTMLElement | null)[] {
+		const held = f.holdings.length ? section(t.holdings, f.holdings_weight ? t.holdingsNote(f.holdings.length, pct(f.holdings_weight, 0)) : undefined) : null;
+		held?.body.append(weights(f.holdings.map((x) => ({ name: tidyName(x.name), weight: x.weight, tag: x.label, href: x.symbol ? quoteHref(x.symbol) : null }))));
+		const sectors = f.sectors.length ? section(t.sectors) : null;
+		sectors?.body.append(weights(f.sectors.map((x) => ({ ...x, name: sectorName(x.name) }))));
+
+		const facts = section(type === "ETF" ? t.theEtf : t.theFund);
+		const sheet = grid("sm:grid-cols-2",
+			figures(t.whatItIs, [[t.type, f.legal_type || fundTypeName(type)], [t.family, f.family], [t.category, f.category],
+				[t.started, f.inception ? shortDate(f.inception) : null], [t.beta3y, f.beta_3y == null ? null : num(f.beta_3y, 2)]]),
+			figures(t.costs, [[t.expenseRatio, f.expense_ratio == null ? null : pct(f.expense_ratio, 2)],
+				[t.netAssets, money(f.assets)], [t.yield, f.yield == null ? null : pct(f.yield, 2)], [t.nav, f.nav ? price(f.nav) : null],
+				[t.return3y, signedPct(f.return_3y), toneClass(f.return_3y)],
+				[t.return5y, signedPct(f.return_5y), toneClass(f.return_5y)]]));
+		if (sheet) facts.body.append(sheet);
+		if (f.asset_mix.length) facts.body.append(add(h("div", "mt-8"), h("h3", "mb-3 text-[13px] font-medium text-ink-strong", t.holds), mix(f.asset_mix.map((x) => ({ ...x, name: assetName(x.name) })))));
+		if (f.summary) facts.body.append(add(h("div", "mt-8"), h("h3", "mb-2 text-[13px] font-medium text-ink-strong", t.does), about(f.summary)));
+		return [grid("lg:grid-cols-2", held?.el ?? null, sectors?.el ?? null), facts.el];
+	}
+
+	async function start() {
+		if (!ticker) return void ($("empty").hidden = false);
+		$("quote").hidden = false;
+		tvChart($("q-chart"), { symbol: ticker, range: "12M", height: 520 });
+		const more = quoteMore(ticker);
+		more.catch(() => {}); // drawn, or left out, once the quote is there
+		$("q-more").replaceChildren(h("span", "skeleton block h-[340px] w-full"));
+		try {
+			const q = await quote(ticker);
+			// TradingView has no chart for a mutual fund: it gets the site's own, from its daily prices.
+			if (q.fund_type === "Mutual fund") priceChart($("q-chart"), { symbol: ticker, range: "1Y", height: 460, intraday: false, style: "area" });
+			head(q);
+			stats(q);
+			performance(q);
+			$("q-news-sec").hidden = !q.news.length;
+			$("q-news").replaceChildren(...q.news.map(newsLine));
+			follow(q).catch(() => {});
+			tabs(q);
+			more.then((m) => rest(q, m), () => $("q-more").replaceChildren());
+		} catch (e) {
+			$("q-more").replaceChildren();
+			failed($("q-head"), e instanceof ApiError && e.status === 400 ? t.notTicker : t.unavailable);
+		}
+	}
+	start();
+</script>

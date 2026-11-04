@@ -2,7 +2,8 @@
 // The search box: ticker or company name. Suggestions come from the API (the SEC list of US
 // listed companies). In "open" mode a choice opens the quote page; in "pick" mode it fires a
 // `pick` event on the form instead (the portfolio editor uses that to add a stock).
-import { link } from "../lib/site";
+import { langAt, link } from "../lib/site";
+import { layout } from "../i18n/layout";
 
 interface Props {
 	large?: boolean;
@@ -12,11 +13,13 @@ interface Props {
 	button?: string;
 	id?: string;
 }
-const { large = false, compact = false, autofocus = false, mode = "open", button = "Open", id = "search" } = Astro.props;
+const lang = langAt(Astro.url.pathname);
+const t = layout[lang];
+const { large = false, compact = false, autofocus = false, mode = "open", button = t.open, id = "search" } = Astro.props;
 ---
 
-<form class="company-search relative" role="search" data-mode={mode} data-stock={link("/quote/")} id={id}>
-	<label class="sr-only" for={`${id}-input`}>Ticker or company name</label>
+<form class="company-search relative" role="search" data-mode={mode} data-stock={link("/quote/", lang)} id={id}>
+	<label class="sr-only" for={`${id}-input`}>{t.searchLabel}</label>
 	<div
 		class:list={[
 			"group flex items-center gap-2 rounded-[3px] border border-line-strong transition focus-within:border-ink-strong",
@@ -33,7 +36,7 @@ const { large = false, compact = false, autofocus = false, mode = "open", button
 			autocomplete="off"
 			spellcheck="false"
 			autofocus={autofocus}
-			placeholder={compact ? "Search a company or ticker" : "Company or ticker: Apple, MSFT, SPY…"}
+			placeholder={compact ? t.searchShort : t.searchLong}
 			class:list={["min-w-0 flex-1 bg-transparent text-ink-strong placeholder:text-faint focus:outline-none [&::-webkit-search-cancel-button]:hidden", large ? "py-2 text-base" : compact ? "py-1 text-[13px]" : "py-1 text-sm"]}
 		/>
 		{compact && <kbd class="hidden flex-none rounded-sm border border-line-strong px-1.5 text-[11px] leading-5 text-muted group-focus-within:hidden md:block" aria-hidden="true">/</kbd>}
@@ -50,6 +53,8 @@ const { large = false, compact = false, autofocus = false, mode = "open", button
 <script>
 	import { API } from "../lib/api";
 	import { tidyName } from "../lib/site";
+	import { lang } from "../i18n";
+	import { layout } from "../i18n/layout";
 
 	type Found = { ticker: string; name: string; kind?: string }; // kind: "ETF" or "Mutual fund", for a fund
 
@@ -85,7 +90,7 @@ const { large = false, compact = false, autofocus = false, mode = "open", button
 					name.textContent = tidyName(c.name);
 					const ticker = document.createElement("span");
 					ticker.className = "num flex-none text-xs text-muted";
-					ticker.textContent = c.kind ? `${c.ticker} · ${c.kind}` : c.ticker;
+					ticker.textContent = c.kind ? `${c.ticker} · ${lang() === "es" && c.kind === "Mutual fund" ? "Fondo de inversión" : c.kind}` : c.ticker;
 					li.append(name, ticker);
 					li.addEventListener("pointerdown", (e) => (e.preventDefault(), go(c)));
 					return li;
@@ -113,9 +118,9 @@ const { large = false, compact = false, autofocus = false, mode = "open", button
 				const res = await fetch(`${API}/api/search?q=${encodeURIComponent(q)}`);
 				if (!res.ok) throw new Error(String(res.status));
 				next = (await res.json()).companies;
-				if (!next.length) message = "No US-listed company or fund with that name or ticker.";
+				if (!next.length) message = layout[lang()].noMatch;
 			} catch {
-				message = "The search is not available right now. You can still type a ticker and press Enter.";
+				message = layout[lang()].searchDown;
 			}
 			if (mine !== seq) return;
 			found = next;

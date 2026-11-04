@@ -1,5 +1,8 @@
 // Calls to the portal's API. Same origin in production; in development the API runs on another
 // port and PUBLIC_API_URL points at it (with credentials, so the session cookie goes along).
+import { lang } from "../i18n";
+import { link } from "./site";
+
 export const API = (import.meta.env.PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
 // `provider` says how the account signs in: with Google, with Apple (from the phone app) or with
@@ -19,14 +22,19 @@ export class ApiError extends Error {
   }
 }
 
+// Every call says the page's language (X-MH-Lang), so what the service writes in words comes back
+// in it. A header of our own, not Accept-Language: browsers and the phone app send that one by
+// themselves, and only a page in Spanish asks for Spanish (docs/i18n.md).
+export const langHeader = (): Record<string, string> => ({ "x-mh-lang": lang() });
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
     ...init,
-    headers: init.body ? { "content-type": "application/json", ...(init.headers ?? {}) } : init.headers,
+    headers: { ...langHeader(), ...(init.body ? { "content-type": "application/json" } : {}), ...((init.headers as Record<string, string>) ?? {}) },
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, body.detail ?? `Request failed (${res.status}).`);
+  if (!res.ok) throw new ApiError(res.status, body.detail ?? (lang() === "es" ? `La petición ha fallado (${res.status}).` : `Request failed (${res.status}).`));
   return body as T;
 }
 
@@ -46,7 +54,7 @@ export async function signedIn(): Promise<{ user: User; has_data: boolean; moder
 export async function requireUser(): Promise<{ user: User; has_data: boolean; moderator?: boolean }> {
   const who = await signedIn();
   if (!who) {
-    location.replace(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/signin/?next=${encodeURIComponent(location.pathname + location.search)}`);
+    location.replace(`${link("/signin/")}?next=${encodeURIComponent(location.pathname + location.search)}`);
     throw new Error("not signed in");
   }
   return who;

@@ -2,6 +2,8 @@
 // the market-hub-opinion repo; the comments are written here by signed-in readers.
 import { API, api } from "./api";
 import { add, h, linkTo } from "./dom";
+import { lang, locale } from "../i18n";
+import { opinion } from "../i18n/opinion";
 import { link } from "./site";
 
 export type Source = { title: string; url: string };
@@ -44,7 +46,8 @@ export const submit = (a: { title: string; dek: string; body: string; sources: s
 export const withdraw = (id: string) => api<{ withdrawn: boolean }>(`/api/opinion/submissions/${encodeURIComponent(id)}`, { method: "DELETE" });
 
 export const articleHref = (slug: string) => link(`/opinion/article/?slug=${encodeURIComponent(slug)}`);
-export const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+// "November 4, 2026" / "4 de noviembre de 2026".
+export const day = (iso: string) => new Date(iso).toLocaleDateString(locale(), { year: "numeric", month: "long", day: "numeric" });
 
 // The picture an article was published with, if it has one. Its address names its version, so a
 // browser keeps it for good and a cover drawn again is asked for again.
@@ -57,9 +60,10 @@ export function cover(a: Card, cls: string): HTMLImageElement | null {
 
 // The line over a title: what kind of piece it is, when it was published and how long it takes.
 export function overline(a: Card): HTMLElement {
+  const t = opinion[lang()];
   return add(h("p", "flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-muted"),
-    h("span", "font-medium text-ink-strong", a.kind), a.author ? h("span", "text-ink", `By ${a.author}`) : null,
-    h("time", "", day(a.published_utc)), h("span", "", `${a.minutes} min read`));
+    h("span", "font-medium text-ink-strong", t.kinds[a.kind] ?? a.kind), a.author ? h("span", "text-ink", t.by(a.author)) : null,
+    h("time", "", day(a.published_utc)), h("span", "", t.minutes(a.minutes)));
 }
 
 // --- The text of an article ---------------------------------------------------------------------

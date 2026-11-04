@@ -336,50 +336,81 @@ def needs(bot: dict) -> int:
     return out
 
 
-def _figure(name: str, v: float) -> str:
+def _figure(name: str, v: float, lang: str = "en") -> str:
     if name in PERCENT:
-        return f"{v * 100:+.0f}%".replace("+0%", "0%").replace("-", "−")
-    return f"{v:g}".replace("-", "−")
+        out = f"{v * 100:+.0f}%".replace("+0%", "0%").replace("-", "−")
+        return out.replace("%", " %") if lang == "es" else out
+    out = f"{v:g}".replace("-", "−")
+    return out.replace(".", ",") if lang == "es" else out
 
 
-def _what(f: dict) -> str:
-    name = f["factor"]
-    if name == "momentum":
-        return f"its return over {f['days']} sessions" + (f", leaving out the last {f['skip']}" if f["skip"] else "")
-    if name == "sma_cross":
-        return f"its {f['fast']}-session average against its {f['slow']}-session one"
-    return {"trend": "its close against its {days}-session average", "volatility": "its volatility over {days} sessions",
-            "rsi": "its RSI over {days} sessions", "drawdown": "how far it is under its high of {days} sessions",
-            "beta": "its beta to the S&P 500 over {days} sessions"}[name].format(**f)
+# The words of describe(), in English and in Spanish (market-hub-bots: docs/i18n.md).
+WHAT = {
+    "en": {"momentum": "its return over {days} sessions", "skip": ", leaving out the last {skip}",
+           "sma_cross": "its {fast}-session average against its {slow}-session one", "trend": "its close against its {days}-session average",
+           "volatility": "its volatility over {days} sessions", "rsi": "its RSI over {days} sessions",
+           "drawdown": "how far it is under its high of {days} sessions", "beta": "its beta to the S&P 500 over {days} sessions"},
+    "es": {"momentum": "su rentabilidad en {days} sesiones", "skip": ", sin contar las últimas {skip}",
+           "sma_cross": "su media de {fast} sesiones frente a la de {slow}", "trend": "su cierre frente a su media de {days} sesiones",
+           "volatility": "su volatilidad en {days} sesiones", "rsi": "su RSI en {days} sesiones",
+           "drawdown": "su caída desde su máximo de {days} sesiones", "beta": "su beta al S&P 500 en {days} sesiones"},
+}
+RULES = {
+    "en": {"largest": "Looks at the {n} largest US companies", "leaving": ", leaving out {names}", "tickers": "Looks at {n} companies: {names}",
+           "keeps": "Keeps those where {what} is {range}.", "scores": "Scores them on ", "term": "{what} ({side} is better, weight {w})",
+           "higher": "higher", "lower": "lower", "holds": "Holds the best {n}, {parts}{cap}.", "holds_one": "Holds the best 1, {parts}{cap}.",
+           "cap": ", none above {x}%", "equal": "in equal parts", "inverse_volatility": "the calmer ones with more", "score": "the best scored with more",
+           "daily": "Looks again at every close.", "weekly": "Looks again at the first close of each week.",
+           "monthly": "Looks again at the first close of each month.", "market": "When, for the S&P 500, {what} is not {range}, holds {x}% in cash.",
+           "between": "between {a} and {b}", "least": "at least {a}", "most": "at most {b}"},
+    "es": {"largest": "Mira las {n} mayores empresas de EE. UU.", "leaving": ", sin contar {names}", "tickers": "Mira {n} empresas: {names}",
+           "keeps": "Se queda con aquellas en las que {what} es {range}.", "scores": "Las puntúa por ",
+           "term": "{what} (mejor cuanto más {side}, peso {w})", "higher": "alto", "lower": "bajo", "holds": "Mantiene las {n} mejores, {parts}{cap}.",
+           "holds_one": "Mantiene la mejor, {parts}{cap}.", "cap": ", ninguna por encima del {x} %", "equal": "a partes iguales",
+           "inverse_volatility": "con más peso para las más tranquilas", "score": "con más peso para las mejor puntuadas",
+           "daily": "Revisa la cartera en cada cierre.", "weekly": "Revisa la cartera en el primer cierre de cada semana.",
+           "monthly": "Revisa la cartera en el primer cierre de cada mes.",
+           "market": "Cuando, para el S&P 500, {what} no es {range}, mantiene el {x} % en liquidez.",
+           "between": "entre {a} y {b}", "least": "al menos {a}", "most": "como mucho {b}"},
+}
 
 
-def _range(f: dict) -> str:
-    low, high = f.get("min"), f.get("max")
+def _what(f: dict, lang: str = "en") -> str:
+    w = WHAT[lang]
+    if f["factor"] == "momentum":
+        return w["momentum"].format(**f) + (w["skip"].format(**f) if f["skip"] else "")
+    return w[f["factor"]].format(**f)
+
+
+def _range(f: dict, lang: str = "en") -> str:
+    low, high, r = f.get("min"), f.get("max"), RULES[lang]
     if low is not None and high is not None:
-        return f"between {_figure(f['factor'], low)} and {_figure(f['factor'], high)}"
-    return f"at least {_figure(f['factor'], low)}" if low is not None else f"at most {_figure(f['factor'], high)}"
+        return r["between"].format(a=_figure(f["factor"], low, lang), b=_figure(f["factor"], high, lang))
+    return r["least"].format(a=_figure(f["factor"], low, lang)) if low is not None else r["most"].format(b=_figure(f["factor"], high, lang))
 
 
-def describe(bot: dict, universe: list[str] | None = None) -> list[str]:
-    """The rules of a bot in a few sentences, written by the code."""
+def describe(bot: dict, universe: list[str] | None = None, lang: str = "en") -> list[str]:
+    """The rules of a bot in a few sentences, written by the code, in English or in Spanish ("es")."""
+    lang = "es" if lang == "es" else "en"
+    r = RULES[lang]
     u = bot["universe"]
     if "largest" in u:
-        out = [f"Looks at the {u['largest']} largest US companies" + (f", leaving out {', '.join(u['exclude'])}." if u["exclude"] else ".")]
+        first = r["largest"].format(n=u["largest"]) + (r["leaving"].format(names=", ".join(u["exclude"])) if u["exclude"] else "")
+        out = [first if first.endswith(".") else first + "."]  # "EE. UU." ends the sentence already
     else:
         names = universe if universe is not None else [t for t in u["tickers"] if t not in u["exclude"]]
-        out = [f"Looks at {len(names)} companies: {', '.join(names[:12])}{'…' if len(names) > 12 else ''}."]
+        out = [r["tickers"].format(n=len(names), names=", ".join(names[:12]) + ("…" if len(names) > 12 else "")) + "."]
     for f in bot["filters"]:
-        out.append(f"Keeps those where {_what(f)} is {_range(f)}.")
-    terms = [f"{_what(s)} ({'higher' if s['weight'] > 0 else 'lower'} is better, weight {abs(s['weight']):g})" for s in bot["score"]]
-    out.append("Scores them on " + "; ".join(terms) + ".")
-    parts = {"equal": "in equal parts", "inverse_volatility": "the calmer ones with more", "score": "the best scored with more"}
-    cap = f", none above {bot['max_weight'] * 100:.0f}%" if bot["max_weight"] < 1 else ""
-    out.append(f"Holds the best {bot['hold']}, {parts[bot['weighting']]}{cap}.")
-    out.append({"daily": "Looks again at every close.", "weekly": "Looks again at the first close of each week.",
-                "monthly": "Looks again at the first close of each month."}[bot["rebalance"]])
+        out.append(r["keeps"].format(what=_what(f, lang), range=_range(f, lang)))
+    terms = [r["term"].format(what=_what(s, lang), side=r["higher" if s["weight"] > 0 else "lower"], w=_figure("weight", abs(s["weight"]), lang))
+             for s in bot["score"]]
+    out.append(r["scores"] + "; ".join(terms) + ".")
+    cap = r["cap"].format(x=f"{bot['max_weight'] * 100:.0f}") if bot["max_weight"] < 1 else ""
+    out.append(r["holds_one" if bot["hold"] == 1 else "holds"].format(n=bot["hold"], parts=r[bot["weighting"]], cap=cap))
+    out.append(r[bot["rebalance"]])
     if bot.get("market"):
         m = bot["market"]
-        out.append(f"When, for the S&P 500, {_what(m)} is not {_range(m)}, holds {m['cash'] * 100:.0f}% in cash.")
+        out.append(r["market"].format(what=_what(m, lang), range=_range(m, lang), x=f"{m['cash'] * 100:.0f}"))
     return out
 
 
@@ -1265,8 +1296,8 @@ class Bots:
         """A line of the board as members get it: never the account id."""
         return {k: v for k, v in r.items() if k not in ("user_id", "submitted_utc")} | {"you": bool(r["user_id"]) and r["user_id"] == user_id}
 
-    def mine(self, user_id: str) -> dict | None:
-        """The member's own bot, with its rules: for its owner alone."""
+    def mine(self, user_id: str, lang: str = "en") -> dict | None:
+        """The member's own bot, with its rules (in ``lang``): for its owner alone."""
         doc = self.store.get(user_id)
         if not doc:
             return None
@@ -1277,27 +1308,28 @@ class Bots:
                 "since": doc["curve"][0][0] if doc.get("curve") else None, "as_of": doc.get("as_of"), "sessions": len(values),
                 "returns": returns(values) if values else None, "ranks": (row or {}).get("ranks", {}), "entrants": len(self._state()["rows"]),
                 "holdings": [{"ticker": t, "weight": w} for t, w in held], "cash": max(0.0, 1 - sum(w for _, w in held)) if values else None,
-                "rules": describe(doc["spec"], doc["universe"]), "bot": doc["spec"], "universe": len(doc["universe"]),
+                "rules": describe(doc["spec"], doc["universe"], lang), "bot": doc["spec"], "universe": len(doc["universe"]),
                 "curve": [{"date": d, "value": v} for d, v in doc.get("curve") or []],
                 "paused": bool(doc.get("paused")), "exclude": doc["spec"]["universe"]["exclude"], "preview": doc.get("preview"),
                 "rules_changed_utc": doc.get("rules_changed_utc"), "log": activity(doc.get("log") or [], 60),
                 "versions": [{k: v.get(k) for k in ("from", "changed_utc", "what")} for v in doc.get("versions") or []],
-                "pending": self._pending(doc)}
+                "pending": self._pending(doc, lang)}
 
-    def _pending(self, doc: dict) -> dict | None:
+    def _pending(self, doc: dict, lang: str = "en") -> dict | None:
         """A change waiting for the next close, for its owner."""
         p = doc.get("pending")
         if not p:
             return None
         state = {**doc, **p}
         return {"changed_utc": p["changed_utc"], "what": changes(doc, p), "paused": bool(state.get("paused")),
-                "rules": describe(state["spec"], state["universe"]), "bot": state["spec"], "exclude": state["spec"]["universe"]["exclude"]}
+                "rules": describe(state["spec"], state["universe"], lang), "bot": state["spec"], "exclude": state["spec"]["universe"]["exclude"]}
 
-    def overview(self, user_id: str) -> dict:
+    def overview(self, user_id: str, lang: str = "en") -> dict:
+        """The board, and the member's own bot with its rules in ``lang``."""
         state = self._state()
         return {"sample": self.sample, "as_of": state["as_of"], "stale": self.behind(), "periods": [{"key": k, "label": label} for k, label, _ in PERIODS],
                 "rows": [self._line(r, user_id) for r in state["rows"][:SHOWN]], "entrants": len(state["rows"]), "benchmark": state["benchmark"],
-                "you": self.mine(user_id), "key": self.key_status(user_id), "name": (self.store.get(user_id) or {}).get("handle") or "",
+                "you": self.mine(user_id, lang), "key": self.key_status(user_id), "name": (self.store.get(user_id) or {}).get("handle") or "",
                 "rules": {"cost": BOT_COST, "universe": BOT_UNIVERSE_MAX, "hold": BOT_HOLD_MAX}}
 
     # --- What is kept of a member ---
