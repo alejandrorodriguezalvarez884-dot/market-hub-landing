@@ -22,6 +22,13 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-04: **Desplegado** `market-hub-00071-5vg` desde un export limpio de d1e33a8, con el OK del usuario y a la vez que
+> Bot League (`bot-league-00011-g7c`). Lleva **el portal en inglés y en español** (1624e88) y **Community sin el kit** (la
+> entrada de abajo). Configuración igual antes y después; el `.env` del Mac no tenía `MARKETHUB_APP_REDIRECTS` ni
+> `MARKETHUB_SUBMISSIONS_BUCKET`, así que se pusieron en el `.env` del export con los valores del servicio (sin ellos se
+> habrían borrado las redirecciones de la app). Comprobado: `/`, `/es/`, `/community/bots/` y su `/es/`, `/privacy/` y su
+> `/es/` y salud en 200.
+
 > 2026-11-04: **Community ya no ofrece el kit de Bot League** (sin desplegar). El usuario quitó la vía de crear el bot
 > "en tu ordenador" (el kit con la clave para el agente propio); el bot se crea hablando con Claude en Bot League. En
 > Community > Bot competition (`i18n/bots.ts`, `views/Bots.astro`), en inglés y en español: el botón principal de la
