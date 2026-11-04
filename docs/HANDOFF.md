@@ -22,6 +22,9 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-04: **Desplegado** `market-hub-00070-6ml` desde un export limpio de d3f173f (solo el párrafo de Bot League en
+> `/privacy/`), sin cambios de configuración. Comprobado: `/`, `/privacy/` y salud en 200, y la privacidad nueva en producción.
+
 > 2026-11-04: **Privacidad, el chat de Bot League al crear un bot** (sin desplegar). Bot League deja crear el bot
 > desde su web hablando con Claude; el párrafo de Bot League de `/privacy/` dice ahora que entonces van al modelo
 > el borrador y las cifras de un backtest. Nada más cambia aquí (ni `bots.py` ni la API).
