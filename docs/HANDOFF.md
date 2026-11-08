@@ -22,6 +22,12 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-08: **Desplegado** `market-hub-00072-hc4` desde un export limpio de 56a10ee (el campo `always` de los bots), con
+> el OK del usuario y a la vez que Bot League (`bot-league-00014-fvr`). `.env` del export rehecho con los valores del
+> servicio (`SESSION_SECRET` y `FMP_API_KEY` de Secret Manager, iguales; `ANTHROPIC_SECRET=ANTHROPIC_API_KEY`) y borrado
+> después. Configuración igual antes y después; la clave de sesión sigue en su versión 1. Comprobado: `/`, `/es/`,
+> `/community/bots/` y su `/es/` y `/api/health` en 200.
+
 > 2026-11-08: **Bots: campo `always`** (sin desplegar). `bots.py` lleva el mismo cambio que `engine.py` de Bot League
 > (`market-hub-bots`): empresas que un bot mantiene siempre, cada una con su peso mínimo (`min_weight`), los
 > interruptores `pin`/`unpin`, los cambios `pinned`/`unpinned`, la línea "Always holds…" en las reglas en palabras, y
