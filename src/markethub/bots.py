@@ -64,6 +64,7 @@ SHOWN = 200  # lines of the board sent to the page
 SHOWN_HOLDINGS = 12
 LOG_KEPT = 260  # rebalances kept in a bot's log, the latest
 VERSIONS_KEPT = 100
+ALWAYS_MAX = 10  # companies a bot holds whatever its other rules say
 LOGGED_TURNOVER = 0.0005  # a rebalance that trades less than this is not logged
 MOVED = 0.005  # in the log, a weight that moved less than this is drift, not a change
 PLAYER = "Member"  # shown for an account with no first name to show
@@ -106,7 +107,7 @@ FACTOR_NOTES = {
 PERCENT = {"momentum", "trend", "sma_cross", "volatility", "drawdown"}  # figures that read as a percentage
 REBALANCE = ("daily", "weekly", "monthly")
 WEIGHTING = ("equal", "inverse_volatility", "score")
-FIELDS = {"format", "name", "about", "universe", "rebalance", "filters", "score", "hold", "weighting", "max_weight", "market"}
+FIELDS = {"format", "name", "about", "universe", "always", "rebalance", "filters", "score", "hold", "weighting", "max_weight", "market"}
 TICKER = re.compile(r"[A-Z][A-Z0-9\-]{0,9}")
 USER_ID = re.compile(r"[A-Za-z0-9_\-]{1,128}")
 
@@ -245,6 +246,34 @@ def check(raw) -> dict:
         universe["exclude"] = _tickers(u["exclude"], '"universe.exclude"', 0, 100, problems) if "exclude" in u else []
         out["universe"] = universe
 
+    # The companies it holds whatever its other rules say, each with the least share it keeps of
+    # the whole portfolio. Written only when there are some, so a bot without any is as it was.
+    always = raw.get("always", [])
+    pins: list[dict] = []
+    if not isinstance(always, list) or len(always) > ALWAYS_MAX:
+        problems.append(f'"always" is a list of at most {ALWAYS_MAX} companies, each {{"ticker": "NVDA", "min_weight": 0.1}}.')
+        always = []
+    for n, a in enumerate(always, 1):
+        a = {"ticker": a} if isinstance(a, str) else a
+        if not isinstance(a, dict):
+            problems.append(f'always[{n}] is an object: {{"ticker": "NVDA", "min_weight": 0.1}}.')
+            continue
+        for k in a:
+            if k not in ("ticker", "min_weight"):
+                problems.append(f'always[{n}] has no field "{k}" (it takes ticker and min_weight).')
+        t = _ticker(a.get("ticker"))
+        mw = a.get("min_weight", 0)
+        if not t:
+            problems.append(f'always[{n}]: {json.dumps(a.get("ticker"))} is not a ticker.')
+        elif any(p["ticker"] == t for p in pins):
+            problems.append(f'"always": {t} is there twice.')
+        elif not _number(mw) or not 0 <= mw <= 1:
+            problems.append(f'always[{n}]: "min_weight" is the least share of the portfolio it keeps, from 0 to 1.')
+        else:
+            pins.append({"ticker": t, "min_weight": float(mw)})
+    if pins:
+        out["always"] = pins
+
     rebalance = raw.get("rebalance", "weekly")
     if rebalance not in REBALANCE:
         problems.append(f'"rebalance" is one of {", ".join(REBALANCE)}.')
@@ -303,23 +332,41 @@ def check(raw) -> dict:
             else:
                 got["cash"] = float(cash)
             out["market"] = got
+    left_out = set((out.get("universe") or {}).get("exclude") or [])
+    for p in pins:
+        if p["ticker"] in left_out:
+            problems.append(f'{p["ticker"]} is both in "always" and in "universe.exclude".')
+        if "max_weight" in out and p["min_weight"] > out["max_weight"] + 1e-9:
+            problems.append(f'"always": {p["ticker"]} keeps at least {_share(p["min_weight"])}, above "max_weight", the most one stock can be ({_share(out["max_weight"])}).')
+    if "hold" in out and len(pins) > out["hold"]:
+        problems.append(f'"always" has {len(pins)} companies and the bot holds {out["hold"]}: it holds at least as many as it always holds.')
+    if sum(p["min_weight"] for p in pins) > 1 + 1e-9:
+        problems.append('"always": the least shares add up to more than 100%.')
     if problems:
         raise Refused(problems)
     return out
+
+
+def _share(x: float) -> str:
+    return f"{x * 100:.4g}%"
+
+
+def pinned(bot: dict) -> dict[str, float]:
+    """The companies a bot always holds, each with the least share it keeps."""
+    return {p["ticker"]: p["min_weight"] for p in bot.get("always") or []}
 
 
 def resolve(bot: dict, largest: Callable[[int], list[str]]) -> list[str]:
     """The companies a bot chooses among, as of today. Refused when one is not among the largest."""
     pool = largest(BOT_UNIVERSE_MAX)
     u = bot["universe"]
-    if "largest" in u:
-        chosen = pool[:u["largest"]]
-    else:
-        known = set(pool)
-        outside = [t for t in u["tickers"] if t not in known]
-        if outside:
-            raise Refused(f"Not among the {BOT_UNIVERSE_MAX} largest US companies (funds are left out): {', '.join(outside)}.")
-        chosen = list(u["tickers"])
+    known = set(pool)
+    pins = list(pinned(bot))
+    outside = [t for t in dict.fromkeys([*u.get("tickers", []), *pins]) if t not in known]
+    if outside:
+        raise Refused(f"Not among the {BOT_UNIVERSE_MAX} largest US companies (funds are left out): {', '.join(outside)}.")
+    chosen = pool[:u["largest"]] if "largest" in u else list(u["tickers"])
+    chosen += [t for t in pins if t not in chosen]  # the ones it always holds are among those it chooses from
     chosen = [t for t in chosen if t not in set(u["exclude"])]
     if len(chosen) < 2:
         raise Refused("The universe leaves fewer than two companies to choose from.")
@@ -362,7 +409,8 @@ RULES = {
            "cap": ", none above {x}%", "equal": "in equal parts", "inverse_volatility": "the calmer ones with more", "score": "the best scored with more",
            "daily": "Looks again at every close.", "weekly": "Looks again at the first close of each week.",
            "monthly": "Looks again at the first close of each month.", "market": "When, for the S&P 500, {what} is not {range}, holds {x}% in cash.",
-           "between": "between {a} and {b}", "least": "at least {a}", "most": "at most {b}"},
+           "between": "between {a} and {b}", "least": "at least {a}", "most": "at most {b}",
+           "always": "Always holds {names}, whatever its other rules say.", "pin_least": "{t} (at least {x}%)", "and": " and "},
     "es": {"largest": "Mira las {n} mayores empresas de EE. UU.", "leaving": ", sin contar {names}", "tickers": "Mira {n} empresas: {names}",
            "keeps": "Se queda con aquellas en las que {what} es {range}.", "scores": "Las puntúa por ",
            "term": "{what} (mejor cuanto más {side}, peso {w})", "higher": "alto", "lower": "bajo", "holds": "Mantiene las {n} mejores, {parts}{cap}.",
@@ -371,7 +419,8 @@ RULES = {
            "daily": "Revisa la cartera en cada cierre.", "weekly": "Revisa la cartera en el primer cierre de cada semana.",
            "monthly": "Revisa la cartera en el primer cierre de cada mes.",
            "market": "Cuando, para el S&P 500, {what} no es {range}, mantiene el {x} % en liquidez.",
-           "between": "entre {a} y {b}", "least": "al menos {a}", "most": "como mucho {b}"},
+           "between": "entre {a} y {b}", "least": "al menos {a}", "most": "como mucho {b}",
+           "always": "Mantiene siempre {names}, digan lo que digan sus otras reglas.", "pin_least": "{t} (al menos el {x} %)", "and": " y "},
 }
 
 
@@ -399,7 +448,13 @@ def describe(bot: dict, universe: list[str] | None = None, lang: str = "en") -> 
         out = [first if first.endswith(".") else first + "."]  # "EE. UU." ends the sentence already
     else:
         names = universe if universe is not None else [t for t in u["tickers"] if t not in u["exclude"]]
+        names = [t for t in names if t in u["tickers"]]  # the ones it always holds are told apart
         out = [r["tickers"].format(n=len(names), names=", ".join(names[:12]) + ("…" if len(names) > 12 else "")) + "."]
+    pins = pinned(bot)
+    if pins:
+        items = [r["pin_least"].format(t=t, x=f"{x * 100:.4g}".replace(".", "," if lang == "es" else ".")) if x > 0 else t for t, x in pins.items()]
+        listed = items[0] if len(items) == 1 else ", ".join(items[:-1]) + r["and"] + items[-1]
+        out.append(r["always"].format(names=listed))
     for f in bot["filters"]:
         out.append(r["keeps"].format(what=_what(f, lang), range=_range(f, lang)))
     terms = [r["term"].format(what=_what(s, lang), side=r["higher" if s["weight"] > 0 else "lower"], w=_figure("weight", abs(s["weight"]), lang))
@@ -421,6 +476,7 @@ def spec() -> dict:
         "factors": {k: {"settings": {s: {"min": lo, "max": hi, **({"default": d} if d is not None else {})} for s, (lo, hi, d) in v.items()},
                         "means": FACTOR_NOTES[k]} for k, v in FACTORS.items()},
         "universe": {"largest": {"min": 20, "max": BOT_UNIVERSE_MAX}, "tickers": {"min": 2, "max": 100}, "exclude": {"max": 100}},
+        "always": {"max": ALWAYS_MAX, "min_weight": {"min": 0, "max": 1}},
         "rebalance": list(REBALANCE), "weighting": list(WEIGHTING), "hold": {"min": 1, "max": BOT_HOLD_MAX},
         "max_weight": {"min": 0.02, "max": 1}, "filters": {"max": 8}, "score": {"min": 1, "max": 8, "weight": {"min": -5, "max": 5}},
         "cost": BOT_COST, "backtest_years": {"min": 1, "max": BOT_BACKTEST_YEARS_MAX},
@@ -502,6 +558,19 @@ def _cap(weights: list[float], cap: float) -> list[float]:
     return w
 
 
+def _floor(weights: dict[str, float], least: dict[str, float]) -> dict[str, float]:
+    """Each company it always holds at least at its share: what that takes comes from cash first,
+    then from the others, in proportion to what each holds over its own least share."""
+    w = {t: max(x, least.get(t, 0.0)) for t, x in weights.items()}
+    over = sum(w.values()) - 1
+    if over > 1e-12:
+        room = {t: x - least.get(t, 0.0) for t, x in w.items()}
+        total = sum(room.values())
+        if total > 0:
+            w = {t: x - over * room[t] / total for t, x in w.items()}
+    return w
+
+
 def _inside(v: float, f: dict) -> bool:
     return f.get("min", -math.inf) <= v <= f.get("max", math.inf)
 
@@ -510,10 +579,13 @@ def decide(bot: dict, universe: list[str], prices: Prices, i: int) -> dict[str, 
     """What a bot holds after the close of session ``i``: each stock's share of the portfolio."""
     import numpy as np
 
-    names = [t for t in universe if t in prices.col]
-    if not names:
+    pins = pinned(bot)
+    # The ones it always holds, when they have a close: whatever the filters and the score say.
+    held = [t for t in pins if t in prices.col and np.isfinite(prices.close[i, prices.col[t]])]
+    names = [t for t in universe if t in prices.col and t not in pins]
+    if not names and not held:
         return {}
-    idx = np.array([prices.col[t] for t in names])
+    idx = np.array([prices.col[t] for t in names], dtype=int)
     ok = np.isfinite(prices.close[i, idx])
     with np.errstate(invalid="ignore"):
         for f in bot["filters"]:
@@ -521,8 +593,8 @@ def decide(bot: dict, universe: list[str], prices: Prices, i: int) -> dict[str, 
             ok &= np.isfinite(v) & (v >= f.get("min", -np.inf)) & (v <= f.get("max", np.inf))
         for s in bot["score"]:
             ok &= np.isfinite(prices.factor(s)[i, idx])
-    keep = np.flatnonzero(ok)
-    if keep.size == 0:
+    keep = np.flatnonzero(ok) if names else np.array([], dtype=int)
+    if keep.size == 0 and not held:
         return {}
     total = np.zeros(keep.size)
     for s in bot["score"]:
@@ -530,25 +602,29 @@ def decide(bot: dict, universe: list[str], prices: Prices, i: int) -> dict[str, 
         sd = v.std()
         z = (v - v.mean()) / sd if sd > 0 else np.zeros(keep.size)
         total += s["weight"] * np.clip(z, -3, 3)
-    order = sorted(range(keep.size), key=lambda k: (-total[k], names[keep[k]]))[:bot["hold"]]
-    chosen = [names[keep[k]] for k in order]
-    n = len(chosen)
+    order = sorted(range(keep.size), key=lambda k: (-total[k], names[keep[k]]))[:bot["hold"] - len(held)]
+    chosen = [names[keep[k]] for k in order] + held
+    n = len(order)
     if bot["weighting"] == "score":
-        raw = [float(n - k) for k in range(n)]
+        # The ones it always holds are not ranked: they get the middle of the others' shares.
+        raw = [float(n - k) for k in range(n)] + [(n + 1) / 2 if n else 1.0] * len(held)
     elif bot["weighting"] == "inverse_volatility":
         vol = prices.factor({"factor": "volatility", "days": 63})[i, [prices.col[t] for t in chosen]]
         inv = [1 / v if np.isfinite(v) and v > 0 else None for v in vol]
         known = sorted(x for x in inv if x is not None)
         raw = [x if x is not None else (known[len(known) // 2] if known else 1.0) for x in inv]
     else:
-        raw = [1.0] * n
-    weights = _cap([x / sum(raw) for x in raw], bot["max_weight"])
+        raw = [1.0] * len(chosen)
+    weights = dict(zip(chosen, _cap([x / sum(raw) for x in raw], bot["max_weight"])))
     m = bot.get("market")
     if m:
         v = prices.factor(m)[i, prices.col[BENCHMARK]]
         if np.isfinite(v) and not _inside(float(v), m):
-            weights = [w * (1 - m["cash"]) for w in weights]
-    return {t: float(w) for t, w in zip(chosen, weights) if w > 1e-9}
+            weights = {t: w * (1 - m["cash"]) for t, w in weights.items()}
+    if held:
+        # Its least shares are of the whole portfolio, and they hold when the market rule steps aside.
+        weights = _floor(weights, {t: pins[t] for t in held})
+    return {t: float(w) for t, w in weights.items() if w > 1e-9}
 
 
 def _due(rule: str, days: list[str], i: int) -> bool:
@@ -627,15 +703,17 @@ def activity(log: list[dict], last: int | None = None) -> list[dict]:
 
 def changes(doc: dict, pending: dict) -> list[str]:
     """What a waiting change does to a bot, in words a page can show: "rules", "excluded NVDA",
-    "included NVDA", "paused", "resumed"."""
+    "included NVDA", "pinned NVDA", "unpinned NVDA", "paused", "resumed"."""
     out: list[str] = []
     old, new = doc["spec"], pending.get("spec", doc["spec"])
     if new != old:
         a, b = set(old["universe"]["exclude"]), set(new["universe"]["exclude"])
-        bare = lambda s: {**s, "universe": {**s["universe"], "exclude": []}}  # noqa: E731
+        pa, pb = pinned(old), pinned(new)
+        bare = lambda s: {**{k: v for k, v in s.items() if k != "always"}, "universe": {**s["universe"], "exclude": []}}  # noqa: E731
         if bare(old) != bare(new):
             out.append("rules")
         out += [f"excluded {t}" for t in sorted(b - a)] + [f"included {t}" for t in sorted(a - b)]
+        out += [f"pinned {t}" for t in sorted(pb) if pa.get(t) != pb[t]] + [f"unpinned {t}" for t in sorted(set(pa) - set(pb))]
     was, now = bool(doc.get("paused")), bool(pending.get("paused", doc.get("paused")))
     if was != now:
         out.append("paused" if now else "resumed")
@@ -1072,7 +1150,7 @@ class Bots:
         bot = check(raw)
         # The companies left out with the switch stay out: they come back with "include".
         state = {**doc, **(doc.get("pending") or {})}
-        left_out = list(dict.fromkeys([*bot["universe"]["exclude"], *state["spec"]["universe"]["exclude"]]))
+        left_out = [t for t in dict.fromkeys([*bot["universe"]["exclude"], *state["spec"]["universe"]["exclude"]]) if t not in pinned(bot)]
         if len(left_out) > 100:
             raise Refused("A bot leaves out at most 100 companies.")
         bot["universe"]["exclude"] = left_out
@@ -1086,40 +1164,66 @@ class Bots:
         self._cached = None
         return self.mine(user_id)
 
-    def switch(self, user_id: str, action: str, ticker: str | None = None) -> dict:
-        """Pause the bot (cash from the next close), resume it, or leave a company out of it or let it
-        back in. Not a change of rules: it does not count as the day's change."""
+    def switch(self, user_id: str, action: str, ticker: str | None = None, min_weight: float | None = None) -> dict:
+        """Pause the bot (cash from the next close), resume it, leave a company out of it or let it
+        back in, or have it always hold a company, with the least share it keeps (``min_weight``), or
+        no longer. Not a change of rules: it does not count as the day's change."""
         doc = self.store.get(user_id)
         if not doc:
             raise Refused("There is no bot to change: send one in first.")
         state = {**doc, **(doc.get("pending") or {})}  # the bot as it will be at the next close
         if action in ("pause", "resume"):
             fields: dict = {"paused": action == "pause"}
-        elif action in ("exclude", "include"):
+        elif action in ("exclude", "include", "pin", "unpin"):
             t = _ticker(ticker or "")
             if not t:
                 raise Refused("Give the ticker of a company.")
             spec = json.loads(json.dumps(state["spec"]))
             left_out = spec["universe"]["exclude"]
-            if action == "exclude":
+            pins = [p for p in spec.get("always") or [] if p["ticker"] != t]
+            was_pinned = len(pins) < len(spec.get("always") or [])
+            if action in ("pin", "unpin"):
+                if action == "pin":
+                    mw = 0.0 if min_weight is None else min_weight
+                    if not _number(mw) or not 0 <= mw <= 1:
+                        raise Refused("The least share is from 0% to 100%.")
+                    if len(pins) >= ALWAYS_MAX:
+                        raise Refused(f"A bot always holds at most {ALWAYS_MAX} companies.")
+                    pins.append({"ticker": t, "min_weight": float(mw)})
+                    if t in left_out:
+                        left_out.remove(t)
+                elif not was_pinned:
+                    raise Refused(f"{t} is not always held.")
+            elif action == "exclude":
                 if t in left_out:
                     raise Refused(f"{t} is already left out.")
                 if t not in state["universe"] and t not in (doc.get("weights") or {}):
                     raise Refused(f"{t} is not among the companies the bot chooses from.")
                 if len(left_out) >= 100:
                     raise Refused("A bot leaves out at most 100 companies.")
-                left_out.append(t)
-                universe = [x for x in state["universe"] if x != t]
-                if len(universe) < 2 or spec["hold"] > len(universe):
-                    raise Refused(f"Without {t} the bot would have too few companies to choose from.")
+                left_out.append(t)  # one it always held is no longer held
             else:
                 if t not in left_out:
                     raise Refused(f"{t} is not left out.")
                 left_out.remove(t)
-                universe = resolve(spec, self.largest)
+            if pins:
+                spec["always"] = pins
+            else:
+                spec.pop("always", None)
+            spec = check(spec)
+            # The companies it chooses from were fixed when it was sent in: only this one comes or goes.
+            resolved = resolve(spec, self.largest) if action != "exclude" else []
+            if action == "include":
+                universe = resolved
+            elif action == "pin" or (action == "unpin" and t in resolved):
+                universe = [*state["universe"], *([t] if t not in state["universe"] else [])]
+            else:
+                universe = [x for x in state["universe"] if x != t]
+            if len(universe) < 2 or spec["hold"] > len(universe):
+                raise Refused(f"Without {t} the bot would have too few companies to choose from.")
             fields = {"spec": spec, "universe": universe}
         else:
-            raise Refused('The switches are "pause", "resume", "exclude" and "include".')
+            raise Refused('The switches are "pause", "resume", "exclude", "include", "pin" and "unpin".')
         self._change(doc, fields)
         self.store.put(doc)
         self._cached = None
@@ -1210,7 +1314,9 @@ class Bots:
             try:
                 docs = self.store.all()
                 if docs:
-                    tickers = {t for d in docs for t in d["universe"]} | {t for d in docs for t in d.get("weights") or {}}
+                    # The companies a waiting change brings in are read too: it applies at this close.
+                    tickers = ({t for d in docs for t in d["universe"]} | {t for d in docs for t in d.get("weights") or {}}
+                               | {t for d in docs for t in (d.get("pending") or {}).get("universe") or []})
                     prices = Prices(self.closes(tickers | {BENCHMARK}))
                     end = last_settled(prices.days, now)
                     if end is not None:
@@ -1310,7 +1416,8 @@ class Bots:
                 "holdings": [{"ticker": t, "weight": w} for t, w in held], "cash": max(0.0, 1 - sum(w for _, w in held)) if values else None,
                 "rules": describe(doc["spec"], doc["universe"], lang), "bot": doc["spec"], "universe": len(doc["universe"]),
                 "curve": [{"date": d, "value": v} for d, v in doc.get("curve") or []],
-                "paused": bool(doc.get("paused")), "exclude": doc["spec"]["universe"]["exclude"], "preview": doc.get("preview"),
+                "paused": bool(doc.get("paused")), "exclude": doc["spec"]["universe"]["exclude"], "always": doc["spec"].get("always") or [],
+                "preview": doc.get("preview"),
                 "rules_changed_utc": doc.get("rules_changed_utc"), "log": activity(doc.get("log") or [], 60),
                 "versions": [{k: v.get(k) for k in ("from", "changed_utc", "what")} for v in doc.get("versions") or []],
                 "pending": self._pending(doc, lang)}
@@ -1322,7 +1429,8 @@ class Bots:
             return None
         state = {**doc, **p}
         return {"changed_utc": p["changed_utc"], "what": changes(doc, p), "paused": bool(state.get("paused")),
-                "rules": describe(state["spec"], state["universe"], lang), "bot": state["spec"], "exclude": state["spec"]["universe"]["exclude"]}
+                "rules": describe(state["spec"], state["universe"], lang), "bot": state["spec"], "exclude": state["spec"]["universe"]["exclude"],
+                "always": state["spec"].get("always") or []}
 
     def overview(self, user_id: str, lang: str = "en") -> dict:
         """The board, and the member's own bot with its rules in ``lang``."""

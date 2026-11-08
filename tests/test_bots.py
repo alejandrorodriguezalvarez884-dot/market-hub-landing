@@ -111,6 +111,33 @@ def test_the_universe_is_among_the_largest_companies():
         resolve(bot(universe={"tickers": ["AAA", "BBB"]}, hold=3), largest)
 
 
+
+def test_companies_it_always_holds_are_checked():
+    b = bot(hold=2, always=[{"ticker": "ccc", "min_weight": 0.25}, "BBB"])
+    assert b["always"] == [{"ticker": "CCC", "min_weight": 0.25}, {"ticker": "BBB", "min_weight": 0.0}]
+    assert "always" not in bot()  # a bot without any is as it was
+    with pytest.raises(Refused) as exc:
+        bot(hold=1, max_weight=0.3, universe={"tickers": ["AAA", "BBB"], "exclude": ["BBB"]},
+            always=[{"ticker": "AAA", "min_weight": 0.4}, {"ticker": "BBB", "min_weight": 0.7}, {"ticker": "AAA"}, {"ticker": "DDD", "least": 1}])
+    problems = " | ".join(exc.value.problems)
+    for words in ('"always": AAA is there twice', 'always[4] has no field "least"', 'BBB is both in "always" and in "universe.exclude"',
+                  'AAA keeps at least 40%, above "max_weight"', '"always" has 3 companies and the bot holds 1', "add up to more than 100%"):
+        assert words in problems, words
+
+
+def test_companies_it_always_holds_in_words():
+    b = bot(hold=3, always=[{"ticker": "CCC", "min_weight": 0.125}, {"ticker": "DDD"}])
+    assert "Always holds CCC (at least 12.5%) and DDD, whatever its other rules say." in describe(b)
+    assert describe(b, ["AAA", "BBB", "CCC", "DDD"])[0] == "Looks at 3 companies: AAA, BBB, CCC."
+    assert "Mantiene siempre CCC (al menos el 12,5 %) y DDD, digan lo que digan sus otras reglas." in describe(b, lang="es")
+
+
+def test_the_companies_it_always_holds_are_among_those_it_chooses_from():
+    largest = lambda n: ["AAA", "BBB", "CCC", "DDD"][:n]  # noqa: E731
+    assert resolve(bot(universe={"tickers": ["AAA", "BBB"]}, always=["DDD"]), largest) == ["AAA", "BBB", "DDD"]
+    with pytest.raises(Refused, match="ZZZ"):
+        resolve(bot(always=["ZZZ"]), largest)
+
 # --- Running it ------------------------------------------------------------------------------------
 
 DAYS = sessions(40)
@@ -150,6 +177,21 @@ def test_filters_caps_and_the_market_switch():
     careful = bot(hold=1, market={"factor": "trend", "days": 10, "min": 0, "cash": 0.5})
     assert decide(careful, ["AAA", "BBB"], falling, 20) == {"AAA": 0.5}
     assert decide(careful, ["AAA", "BBB"], p, 20) == {"AAA": 1.0}
+
+
+def test_it_always_holds_its_companies_at_least_at_their_share():
+    p = prices()
+    trending = bot(hold=2, filters=[{"factor": "trend", "days": 10, "min": 0}], always=[{"ticker": "CCC", "min_weight": 0.7}])
+    assert decide(trending, ["AAA", "BBB", "CCC"], p, 20) == pytest.approx({"AAA": 0.3, "CCC": 0.7})  # under its average, held all the same
+    loose = bot(hold=3, always=["CCC"])
+    assert decide(loose, ["AAA", "BBB", "CCC"], p, 20) == pytest.approx({"AAA": 1 / 3, "BBB": 1 / 3, "CCC": 1 / 3})
+    ranked = bot(hold=3, weighting="score", always=[{"ticker": "CCC", "min_weight": 0.1}])
+    assert decide(ranked, ["AAA", "BBB", "CCC"], p, 20) == pytest.approx({"AAA": 2 / 4.5, "BBB": 1 / 4.5, "CCC": 1.5 / 4.5})
+    falling = Prices({"SPY": steady(DAYS, -0.005), "AAA": steady(DAYS, 0.01), "CCC": steady(DAYS, -0.01)})
+    careful = bot(hold=2, always=[{"ticker": "CCC", "min_weight": 0.2}], market={"factor": "trend", "days": 10, "min": 0, "cash": 1})
+    assert decide(careful, ["AAA", "CCC"], falling, 20) == pytest.approx({"CCC": 0.2})  # the rest in cash
+    only = bot(hold=1, always=["CCC"])
+    assert decide(only, ["AAA", "BBB", "CCC"], p, 20) == {"CCC": 1.0}
 
 
 def test_lower_is_better_with_a_negative_weight():
@@ -431,6 +473,34 @@ def test_pause_exclude_and_resume_apply_at_the_next_close():
     kept = store.get("u1")
     assert not kept["paused"] and len(kept["weights"]) == 4 and held in kept["universe"]
     assert kept["versions"][-1]["what"] == [f"included {held}", "resumed"]
+
+
+def test_always_and_never_are_switches_that_apply_at_the_next_close():
+    bots, store, clock, market = competition(380)
+    bots.submit("u1", {**TREND, "hold": 5, "universe": {"largest": 20}}, name="Ana Torres")
+    market.upto, clock.when = LONG[382], at(LONG[382], 17)
+    bots.refresh()
+    clock.when = at(LONG[383], 10)
+    with pytest.raises(Refused, match="above \"max_weight\""):
+        bots.edit("u1", {**TREND, "max_weight": 0.2, "always": [{"ticker": "T25", "min_weight": 0.5}]})
+    with pytest.raises(Refused, match="ZZZ"):
+        bots.switch("u1", "pin", "ZZZ", 0.1)
+    mine = bots.switch("u1", "pin", "T25", 0.3)  # among the 500 largest, not among the 20 it looks at
+    assert mine["pending"]["what"] == ["pinned T25"] and mine["pending"]["always"] == [{"ticker": "T25", "min_weight": 0.3}]
+    assert "T25" in store.get("u1")["pending"]["universe"]
+    mine = bots.switch("u1", "exclude", "T25")  # never: it is no longer always held
+    assert mine["pending"]["always"] == [] and "T25" in mine["pending"]["exclude"]
+    mine = bots.switch("u1", "pin", "T25", 0.3)  # always again: it is no longer left out
+    assert mine["pending"]["exclude"] == [] and mine["pending"]["what"] == ["pinned T25"]
+    market.upto, clock.when = LONG[384], at(LONG[384], 17)
+    bots.refresh(force=True)
+    kept = store.get("u1")
+    assert kept["log"][-1]["after"]["T25"] >= 0.3 - 1e-6 and kept["versions"][-1]["what"] == ["pinned T25"]
+    clock.when = at(LONG[385], 10)
+    with pytest.raises(Refused, match="not always held"):
+        bots.switch("u1", "unpin", "T03")
+    mine = bots.switch("u1", "unpin", "T25")
+    assert mine["pending"]["what"] == ["unpinned T25"] and "T25" not in store.get("u1")["pending"]["universe"]
 
 
 def test_a_refresh_does_not_undo_a_change_made_meanwhile():

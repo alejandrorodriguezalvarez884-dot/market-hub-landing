@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-10-20.
+Última actualización: 2026-11-08.
 
 ## Qué se pidió
 
@@ -21,6 +21,12 @@ Decisiones del usuario:
 - Cada posición guarda **acciones y precio medio**; los favoritos son solo tickers.
 
 ## Dónde estamos
+
+> 2026-11-08: **Bots: campo `always`** (sin desplegar). `bots.py` lleva el mismo cambio que `engine.py` de Bot League
+> (`market-hub-bots`): empresas que un bot mantiene siempre, cada una con su peso mínimo (`min_weight`), los
+> interruptores `pin`/`unpin`, los cambios `pinned`/`unpinned`, la línea "Always holds…" en las reglas en palabras, y
+> el refresh lee también los cierres de las empresas que trae un cambio pendiente. Tests copiados en `test_bots.py`.
+> Opcional en el formato: los bots de antes no cambian. Detalle en el HANDOFF de `market-hub-bots`.
 
 > 2026-11-04: **Desplegado** `market-hub-00071-5vg` desde un export limpio de d1e33a8, con el OK del usuario y a la vez que
 > Bot League (`bot-league-00011-g7c`). Lleva **el portal en inglés y en español** (1624e88) y **Community sin el kit** (la
