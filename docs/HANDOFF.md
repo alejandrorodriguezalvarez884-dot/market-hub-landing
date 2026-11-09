@@ -48,6 +48,14 @@ Decisiones del usuario:
 > - **Falta**: el OK del usuario para fusionar y **desplegar** (`make deploy`); hasta entonces la app de Bot League en
 >   producción solo entra con email y contraseña (el portal rechaza `botleague://auth` y el `aud` de Bot League).
 
+> 2026-11-09: **Bot League guarda por qué hizo cada movimiento** (rama `bl-why-moves`, sin desplegar ni fusionar). Copia
+> del cambio del motor de `market-hub-bots` (misma rama): `bots.py` anota en cada rebalanceo del registro (`log[].why`,
+> `reasons()`) el puesto de cada acción que movió, las cifras de sus filtros y de su puntuación en ese cierre y el
+> motivo; solo los 60 últimos movimientos lo guardan (`WHY_KEPT`). `decide()` usa `_ranked()`, el mismo orden. El
+> portal no lo enseña: lo cuenta Bot League (público sin las reglas, el dueño con sus cifras); en Community, el `log`
+> de "you" lo lleva tal cual, solo para su dueño. Tests nuevos en `test_bots.py` (los mismos que en Bot League);
+> `make test` en verde. Se despliega a la vez que Bot League.
+
 > 2026-11-09: **Desplegado** `market-hub-00073-xjb` desde un export limpio de b9cb1f7 (la lista «A fondo» de la página
 > Media, con el vídeo largo del caso Jensen Huang), con el OK del usuario, por `gcloud run deploy market-hub --source`
 > sin flags. Configuración igual antes y después (solo cambia el nonce). Comprobado: `/`, `/es/`, `/media/`, `/es/media/`,
