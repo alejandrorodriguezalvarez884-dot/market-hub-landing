@@ -12,8 +12,9 @@ from fastapi.testclient import TestClient
 
 from conftest import CLIENT_ID, ORIGIN, fake_verifier, sign_in
 from markethub.api import create_app
+from markethub import bots as engine
 from markethub.bots import (FORMAT, NEW_YORK, Bots, MemoryBots, Prices, Refused, activity, check, decide, describe, examples, first_session,
-                            last_settled, packed, resolve, run, unpacked)
+                            last_settled, packed, reasons, resolve, run, unpacked)
 from markethub.config import BOT_COST
 from markethub.instagram import Posts
 from markethub.market import Company, Directory
@@ -411,6 +412,49 @@ def test_each_rebalance_is_logged_with_what_it_bought_sold_raised_and_cut():
     sold = activity([{"date": "d", "turnover": 0.6, "cost": 0.0006, "before": {"AAA": 0.5, "BBB": 0.5}, "after": {"AAA": 0.8, "CCC": 0.2}}])[0]
     assert sold["sold"] == [{"ticker": "BBB", "weight": 0.5}] and sold["bought"] == [{"ticker": "CCC", "weight": 0.2}]
     assert sold["raised"] == [{"ticker": "AAA", "before": 0.5, "after": 0.8}] and sold["cut"] == []
+    assert "why" not in sold  # a move logged before why was kept reads as it did
+
+
+def test_each_rebalance_keeps_why_it_moved():
+    log = []
+    run(bot(), ["AAA", "BBB", "CCC"], prices(), 10, 30, log=log)
+    why = activity(log)[-1]["why"]
+    assert (why["of"], why["passed"], why["slots"]) == (3, 3, 1) and why["rules"]["score"] == bot()["score"]
+    aaa = why["names"]["AAA"]
+    assert aaa["why"] == "rank" and aaa["rank"] == 1 and aaa["f"] == [] and aaa["s"][0] == pytest.approx(1.01 ** 5 - 1, rel=1e-3)
+    # Ranked under the places it fills, or failing a filter: each stock it sells says which.
+    p = prices()
+    out = reasons(bot(), ["AAA", "BBB", "CCC"], p, 20, {"CCC": 1.0}, {"AAA": 1.0})["names"]
+    assert out["CCC"]["why"] == "below" and out["CCC"]["rank"] == 3 and out["AAA"]["why"] == "rank"
+    picky = bot(filters=[{"factor": "momentum", "days": 5, "min": 0}])
+    out = reasons(picky, ["AAA", "BBB", "CCC"], p, 20, {"CCC": 1.0}, {"AAA": 1.0})
+    assert out["passed"] == 2 and out["names"]["CCC"]["why"] == "filter" and out["names"]["CCC"]["fail"] == 0 and "rank" not in out["names"]["CCC"]
+    assert out["names"]["CCC"]["f"][0] < 0
+    # Left out by its owner, no longer among those it chooses from, paused, or the market rule in cash.
+    never = bot(universe={"tickers": ["AAA", "BBB", "CCC"], "exclude": ["CCC"]})
+    assert reasons(never, ["AAA", "BBB"], p, 20, {"CCC": 1.0}, {"AAA": 1.0})["names"]["CCC"]["why"] == "excluded"
+    assert reasons(bot(), ["AAA", "BBB"], p, 20, {"CCC": 1.0}, {"AAA": 1.0})["names"]["CCC"]["why"] == "left"
+    paused = reasons(bot(), ["AAA", "BBB", "CCC"], p, 20, {"AAA": 1.0}, {}, paused=True)
+    assert paused["paused"] and paused["names"]["AAA"]["why"] == "paused"
+    shy = bot(market={"factor": "momentum", "days": 5, "min": 1, "cash": 1})
+    out = reasons(shy, ["AAA", "BBB", "CCC"], p, 20, {"AAA": 1.0}, {})
+    assert out["market"]["out"] and out["names"]["AAA"]["why"] == "cash" and out["rules"]["market"]["cash"] == 1
+    # The ones it always holds, and a weight at its cap.
+    pin = bot(hold=2, max_weight=0.5, universe={"tickers": ["AAA", "BBB"]}, always=[{"ticker": "CCC", "min_weight": 0.2}])
+    out = reasons(pin, ["AAA", "BBB", "CCC"], p, 20, {}, {"AAA": 0.5, "CCC": 0.5})
+    assert out["slots"] == 1 and out["of"] == 2 and out["names"]["CCC"]["why"] == "always" and out["names"]["CCC"]["least"] == 0.2
+    assert out["names"]["AAA"]["cap"] and "rank" not in out["names"]["CCC"]
+
+
+def test_only_the_latest_rebalances_keep_why(monkeypatch):
+    monkeypatch.setattr(engine, "WHY_KEPT", 1)
+    bots, store, clock, market = competition(380)
+    bots.submit("u1", {**TREND, "rebalance": "daily"}, name="Ana Torres")
+    market.upto, clock.when = LONG[386], at(LONG[386], 17)
+    bots.refresh(force=True)
+    log = store.get("u1")["log"]
+    assert len(log) > 1 and "why" in log[-1] and all("why" not in e for e in log[:-1])
+    assert "why" in bots.mine("u1")["log"][0] and "why" not in bots.mine("u1")["log"][-1]
 
 
 def test_new_rules_keep_the_record_and_apply_from_the_next_close():

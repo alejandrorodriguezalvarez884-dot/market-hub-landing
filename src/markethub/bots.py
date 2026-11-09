@@ -65,6 +65,7 @@ SHOWN_HOLDINGS = 12
 LOG_KEPT = 260  # rebalances kept in a bot's log, the latest
 VERSIONS_KEPT = 100
 ALWAYS_MAX = 10  # companies a bot holds whatever its other rules say
+WHY_KEPT = 60  # of those, the latest keep why they moved (reasons()): the rest keep what they moved
 LOGGED_TURNOVER = 0.0005  # a rebalance that trades less than this is not logged
 MOVED = 0.005  # in the log, a weight that moved less than this is drift, not a change
 PLAYER = "Member"  # shown for an account with no first name to show
@@ -575,16 +576,16 @@ def _inside(v: float, f: dict) -> bool:
     return f.get("min", -math.inf) <= v <= f.get("max", math.inf)
 
 
-def decide(bot: dict, universe: list[str], prices: Prices, i: int) -> dict[str, float]:
-    """What a bot holds after the close of session ``i``: each stock's share of the portfolio."""
+def _ranked(bot: dict, universe: list[str], prices: Prices, i: int) -> list[str]:
+    """The companies a bot ranks at the close of session ``i``, best first: those it chooses among
+    (not the ones it always holds) that have a close, pass its filters and have every figure of its
+    score. The score is the sum of each figure's z-score among them, clipped at 3, times its weight."""
     import numpy as np
 
     pins = pinned(bot)
-    # The ones it always holds, when they have a close: whatever the filters and the score say.
-    held = [t for t in pins if t in prices.col and np.isfinite(prices.close[i, prices.col[t]])]
     names = [t for t in universe if t in prices.col and t not in pins]
-    if not names and not held:
-        return {}
+    if not names:
+        return []
     idx = np.array([prices.col[t] for t in names], dtype=int)
     ok = np.isfinite(prices.close[i, idx])
     with np.errstate(invalid="ignore"):
@@ -593,17 +594,28 @@ def decide(bot: dict, universe: list[str], prices: Prices, i: int) -> dict[str, 
             ok &= np.isfinite(v) & (v >= f.get("min", -np.inf)) & (v <= f.get("max", np.inf))
         for s in bot["score"]:
             ok &= np.isfinite(prices.factor(s)[i, idx])
-    keep = np.flatnonzero(ok) if names else np.array([], dtype=int)
-    if keep.size == 0 and not held:
-        return {}
+    keep = np.flatnonzero(ok)
     total = np.zeros(keep.size)
     for s in bot["score"]:
         v = prices.factor(s)[i, idx[keep]]
         sd = v.std()
         z = (v - v.mean()) / sd if sd > 0 else np.zeros(keep.size)
         total += s["weight"] * np.clip(z, -3, 3)
-    order = sorted(range(keep.size), key=lambda k: (-total[k], names[keep[k]]))[:bot["hold"] - len(held)]
-    chosen = [names[keep[k]] for k in order] + held
+    return [names[keep[k]] for k in sorted(range(keep.size), key=lambda k: (-total[k], names[keep[k]]))]
+
+
+def decide(bot: dict, universe: list[str], prices: Prices, i: int) -> dict[str, float]:
+    """What a bot holds after the close of session ``i``: each stock's share of the portfolio."""
+    import numpy as np
+
+    pins = pinned(bot)
+    # The ones it always holds, when they have a close: whatever the filters and the score say.
+    held = [t for t in pins if t in prices.col and np.isfinite(prices.close[i, prices.col[t]])]
+    ranked = _ranked(bot, universe, prices, i)
+    if not ranked and not held:
+        return {}
+    order = ranked[:bot["hold"] - len(held)]
+    chosen = order + held
     n = len(order)
     if bot["weighting"] == "score":
         # The ones it always holds are not ranked: they get the middle of the others' shares.
@@ -625,6 +637,81 @@ def decide(bot: dict, universe: list[str], prices: Prices, i: int) -> dict[str, 
         # Its least shares are of the whole portfolio, and they hold when the market rule steps aside.
         weights = _floor(weights, {t: pins[t] for t in held})
     return {t: float(w) for t, w in weights.items() if w > 1e-9}
+
+
+def _sig(v) -> float | None:
+    """A figure kept in a bot's log: four significant digits, or None when there is none."""
+    v = float(v)
+    return float(f"{v:.4g}") if math.isfinite(v) else None
+
+
+def reasons(bot: dict, universe: list[str], prices: Prices, i: int, before: dict[str, float], after: dict[str, float],
+            paused: bool = False) -> dict:
+    """Why a rebalance at the close of session ``i`` moved what it moved, from what its rules read
+    there: how many companies it chose among and passed its filters, how many places its ranking
+    fills, the market rule's figure, and, for each stock bought, sold, raised or cut, its place in
+    the ranking, every figure of its filters and score, and what kept it or left it out:
+    "rank" or "always" for a stock it holds; "paused", "excluded", "left" (no longer among those it
+    chooses from), "missing" (no close or no figure), "filter" (with the first one it failed), "below"
+    (ranked under the places it fills) or "cash" (the market rule moved everything to cash) for one
+    it no longer holds. It keeps the rules it read, so the figures can be told after they change."""
+    import numpy as np
+
+    pins = pinned(bot)
+    m = bot.get("market")
+    has = lambda t: t in prices.col and bool(np.isfinite(prices.close[i, prices.col[t]]))  # noqa: E731
+    held = [t for t in pins if has(t)]
+    ranked = _ranked(bot, universe, prices, i)
+    place = {t: k + 1 for k, t in enumerate(ranked)}
+    slots = max(0, bot["hold"] - len(held))
+    out: dict = {"of": sum(1 for t in universe if t not in pins and has(t)), "passed": len(ranked), "slots": slots,
+                 "rules": {k: bot[k] for k in ("filters", "score", "weighting", "max_weight")} | ({"market": m} if m else {})}
+    if paused:
+        out["paused"] = True
+    if m:
+        v = float(prices.factor(m)[i, prices.col[BENCHMARK]])
+        if math.isfinite(v):
+            out["market"] = {"value": _sig(v), "out": not _inside(v, m)}
+    names = {}
+    for t in sorted(set(before) | set(after)):
+        a, b = before.get(t, 0.0), after.get(t, 0.0)
+        if bool(a) == bool(b) and abs(b - a) < MOVED:
+            continue  # only drifted back into place: not one of its moves
+        e: dict = {}
+        j = prices.col.get(t)
+        if j is not None:
+            e["f"] = [_sig(prices.factor(f)[i, j]) for f in bot["filters"]]
+            e["s"] = [_sig(prices.factor(f)[i, j]) for f in bot["score"]]
+            if bot["weighting"] == "inverse_volatility" and b:
+                e["vol"] = _sig(prices.factor({"factor": "volatility", "days": 63})[i, j])
+        if t in place:
+            e["rank"] = place[t]
+        if t in pins:
+            e["least"] = pins[t]
+        if b:
+            e["why"] = "always" if t in pins else "rank"
+            if bot["max_weight"] < 1 and abs(b - bot["max_weight"]) < 1e-4:
+                e["cap"] = True
+        elif paused:
+            e["why"] = "paused"
+        elif t in bot["universe"]["exclude"]:
+            e["why"] = "excluded"
+        elif t not in universe and t not in pins:
+            e["why"] = "left"
+        elif t in place:
+            e["why"] = "below" if place[t] > slots else "cash"
+        elif j is None or not has(t):
+            e["why"] = "missing"
+        else:
+            seen = [float(prices.factor(f)[i, j]) for f in bot["filters"]]
+            failed = [k for k, f in enumerate(bot["filters"]) if not math.isfinite(seen[k]) or not _inside(seen[k], f)]
+            if failed:
+                e["why"], e["fail"] = "filter", failed[0]
+            else:
+                e["why"] = "missing"
+        names[t] = e
+    out["names"] = names
+    return out
 
 
 def _due(rule: str, days: list[str], i: int) -> bool:
@@ -675,8 +762,9 @@ def run(bot: dict, universe: list[str], prices: Prices, start: int, end: int, he
             value *= 1 - BOT_COST * turnover
             traded += turnover
             if log is not None and turnover > LOGGED_TURNOVER:
+                before, after = _rounded(w), _rounded(target)
                 log.append({"date": prices.days[i], "turnover": round(turnover, 6), "cost": round(BOT_COST * turnover, 6),
-                            "before": _rounded(w), "after": _rounded(target)})
+                            "before": before, "after": after, "why": reasons(bot, universe, prices, i, before, after, paused)})
             w = target
         curve.append((prices.days[i], value))
     return curve, w, traded
@@ -684,7 +772,8 @@ def run(bot: dict, universe: list[str], prices: Prices, start: int, end: int, he
 
 def activity(log: list[dict], last: int | None = None) -> list[dict]:
     """A bot's rebalances, latest first: what it bought and sold outright, and what it raised or
-    cut. Weights that only drifted back into place are left out."""
+    cut. Weights that only drifted back into place are left out. A rebalance logged since why was
+    kept carries it ("why", from reasons(): it holds the rules, so it is for the bot's owner)."""
     out = []
     for e in reversed(log[-last:] if last else log):
         before, after = e.get("before") or {}, e.get("after") or {}
@@ -697,7 +786,7 @@ def activity(log: list[dict], last: int | None = None) -> list[dict]:
                                if moves[t][0] and moves[t][1] - moves[t][0] >= MOVED],
                     "cut": [{"ticker": t, "before": moves[t][0], "after": moves[t][1]} for t in order
                             if moves[t][1] and moves[t][0] - moves[t][1] >= MOVED],
-                    "after": after})
+                    "after": after, **({"why": e["why"]} if e.get("why") else {})})
     return out
 
 
@@ -1275,6 +1364,8 @@ class Bots:
         doc["curve"] = curve + [[d, round(v, 6)] for d, v in new]
         doc["weights"] = {t: round(w, 6) for t, w in held.items() if w >= 5e-7}
         doc["log"] = log[-LOG_KEPT:]
+        for e in doc["log"][:-WHY_KEPT]:
+            e.pop("why", None)  # only the latest rebalances keep why they moved
         doc["as_of"] = days[end]
         doc.pop("preview", None)
         return True
