@@ -22,6 +22,11 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-09: **Desplegado** `market-hub-00073-xjb` desde un export limpio de b9cb1f7 (la lista «A fondo» de la página
+> Media, con el vídeo largo del caso Jensen Huang), con el OK del usuario, por `gcloud run deploy market-hub --source`
+> sin flags. Configuración igual antes y después (solo cambia el nonce). Comprobado: `/`, `/es/`, `/media/`, `/es/media/`,
+> `/api/health` y la portada nueva en 200, y «A fondo» en la página.
+>
 > 2026-11-08: **Desplegado** `market-hub-00072-hc4` desde un export limpio de 56a10ee (el campo `always` de los bots), con
 > el OK del usuario y a la vez que Bot League (`bot-league-00014-fvr`). `.env` del export rehecho con los valores del
 > servicio (`SESSION_SECRET` y `FMP_API_KEY` de Secret Manager, iguales; `ANTHROPIC_SECRET=ANTHROPIC_API_KEY`) y borrado
