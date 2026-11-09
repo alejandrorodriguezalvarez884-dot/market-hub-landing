@@ -22,6 +22,11 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-09 (noche): **Desplegado** `market-hub-00076-dnh` desde un export limpio de 5f39bca, con el OK del usuario: la
+> página de privacidad cuenta lo que guarda la app de Bot League para iPhone (rama `bot-league-app-privacy`, fusionada en
+> `main` y borrada), para la revisión de Apple. `make check` en verde. Configuración igual antes y después. Comprobado
+> `/privacy/` y `/es/privacy/`.
+
 > 2026-11-09 (noche): **Desplegado** `market-hub-00075-ttb` desde un export limpio de 6f85f57 (el porqué de cada movimiento en
 > la copia del motor, `bl-why-moves`), con el OK del usuario, a la vez que Bot League (`bot-league-00017-rt7`), por
 > `gcloud run deploy market-hub --source` sin flags. Configuración igual antes y después. Comprobado: `/`, `/es/`,
