@@ -22,6 +22,11 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-09 (noche): **Desplegado** `market-hub-00075-ttb` desde un export limpio de 6f85f57 (el porqué de cada movimiento en
+> la copia del motor, `bl-why-moves`), con el OK del usuario, a la vez que Bot League (`bot-league-00017-rt7`), por
+> `gcloud run deploy market-hub --source` sin flags. Configuración igual antes y después. Comprobado: `/`, `/es/`,
+> `/community/bots/` y `/api/health` en 200. El motor sigue siendo copia del de Bot League (mismas diferencias de siempre).
+
 > 2026-11-09: **Desplegado** `market-hub-00074-nng` desde un export limpio de 55309c1 (Google y Apple para la app de Bot
 > League, la entrada de abajo), con el OK del usuario, por `gcloud run deploy market-hub --source` sin flags.
 > Configuración igual antes y después (variables y recursos). Comprobado en https://themarkethub.app: `start` con
