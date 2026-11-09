@@ -92,6 +92,16 @@ the phone, and the app carries no advertising or analytics kit. It asks you for 
 your location, your contacts, your photos, your camera or your microphone. Signing in with Google there goes
 through your phone's browser, signing in with Apple is done by the iPhone itself, the analysis tools open inside the app in a page of their own (for
 that page we set the same session cookie as on this site, and it is gone when you leave the page), and making an account shows the same Cloudflare check as here.</li>
+<li>In the Bot League app for iPhone, which plays with this same account: nothing more with us than what your bot already
+keeps (above). On your phone the app keeps your sign-in (the same kind of token, in the phone's keychain), the language you
+chose, whether you have seen its welcome and, for the summary it shows when you open it, the last close it summed up with your
+bot's public id. Signing out removes them. If you turn on its daily notice after the US close, the phone itself schedules it:
+no server of ours sends it and we keep nothing for it, its text only says that the close is in, and you can turn it off at any
+time. The app asks for that one permission, and only when you turn the notice on: not your location, your contacts, your
+photos, your camera or your microphone. Sharing your bot as a picture draws the picture on our server from what the
+leaderboard already shows and hands it to your phone's share sheet; we never learn whom you share it with. Your conversation
+with Claude about your bot stays on the screen, and what you write is sent as described for Bot League's chat below. The app
+carries no advertising or analytics kit. You can delete your account from the app, and everything above goes with it.</li>
 <li>In your browser only, not with us: on the Watchlist page, which stocks you chose to see (the ones you looked up there
 among them), how many at a time and how the charts are drawn. And on the page where you write for Opinion, the article you are
 writing, until you send it. Clearing the site's data in your browser removes it.</li>
@@ -231,6 +241,16 @@ tus contactos, ni tus fotos, ni tu cámara, ni tu micrófono. Entrar con Google 
 Apple lo hace el propio iPhone, las herramientas de análisis se abren dentro de la app en una página propia (para esa página
 ponemos la misma cookie de sesión que en esta web, y desaparece cuando sales de la página), y crear una cuenta muestra la misma
 comprobación de Cloudflare que aquí.</li>
+<li>En la app de Bot League para iPhone, que juega con esta misma cuenta: nada más en nuestros servidores que lo que ya
+guarda tu bot (arriba). En tu móvil la app guarda tu sesión (el mismo tipo de token, en el llavero del teléfono), el idioma que
+elegiste, si ya viste su bienvenida y, para el resumen que enseña al abrirla, el último cierre que resumió con el id público de
+tu bot. Al salir de tu cuenta se borran. Si enciendes su aviso diario tras el cierre de EE. UU., lo programa el propio teléfono:
+no lo envía ningún servidor nuestro ni guardamos nada para ello, su texto solo dice que ya hay cierre, y puedes apagarlo cuando
+quieras. La app pide ese único permiso, y solo cuando enciendes el aviso: ni tu ubicación, ni tus contactos, ni tus fotos, ni
+tu cámara, ni tu micrófono. Compartir tu bot como imagen dibuja la imagen en nuestro servidor con lo que ya enseña la
+clasificación y se la pasa al menú de compartir de tu móvil; nunca sabemos con quién la compartes. Tu conversación con Claude
+sobre tu bot se queda en la pantalla, y lo que escribes se envía como se explica más abajo para el chat de Bot League. La app
+no lleva ningún kit de publicidad ni de analítica. Puedes borrar tu cuenta desde la app, y con ella todo lo anterior.</li>
 <li>Solo en tu navegador, no en nuestros servidores: en la página Seguimiento, qué acciones elegiste ver (entre ellas las que
 buscaste ahí), cuántas a la vez y cómo se dibujan los gráficos. Y en la página donde escribes para Opinión, el artículo que estás
 escribiendo, hasta que lo envías. Borrar los datos de la web en tu navegador lo elimina.</li>
