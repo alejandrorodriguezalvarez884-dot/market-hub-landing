@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-11-08.
+Última actualización: 2026-11-09.
 
 ## Qué se pidió
 
@@ -21,6 +21,25 @@ Decisiones del usuario:
 - Cada posición guarda **acciones y precio medio**; los favoritos son solo tickers.
 
 ## Dónde estamos
+
+> 2026-11-09: **La app de iPhone de Bot League entra con Google y con Apple** (rama `bl-google-apple`, **sin desplegar**;
+> la app es `market-hub-bots-mobile`, misma rama). Dos cambios pequeños en el login de la app, sin tocar el de la web:
+> - **Google** (`appsignin.py`): la vuelta del navegador también puede ir a **`botleague://auth`** (además de
+>   `markethub://auth` y lo que diga `MARKETHUB_APP_REDIRECTS`), y la página de vuelta nombra la app a la que vuelve
+>   ("Returning to Bot League…"). **En Google Cloud no hay que añadir nada**: Google vuelve siempre a
+>   `https://themarkethub.app/api/app/auth/google/callback`, que ya está en el cliente OAuth desde el 2026-10-07;
+>   `botleague://` es solo el salto del portal a la app.
+> - **Apple** (`applesignin.py`, `applerevoke.py`): acepta tokens hechos para **`app.themarkethub.bots`** además de
+>   `app.themarkethub.hub` (`APP_AUDIENCES`). Las dos apps son del mismo equipo de desarrollador, así que Apple da a la
+>   misma persona el mismo `sub` en las dos: es la misma cuenta. Avisar a Apple antes de borrar una cuenta se hace ahora
+>   con el `client_id` de la app a la que se dio el código (el `aud` del token).
+> - Tests nuevos en `test_app_google.py` y `test_app_apple.py` (la vuelta a Bot League, el nombre de la página, la misma
+>   cuenta desde las dos apps, el `aud` de Bot League, la revocación con su `client_id`); 426 en verde.
+> - Probado además en el simulador con la app de Bot League en Expo Go, contra este portal en local con un sustituto de
+>   la página de Google: start → callback → vuelta a la app → `finish` → token, y Bot League lo acepta. Con el cliente
+>   OAuth de verdad en local Google responde `redirect_uri_mismatch` (la vuelta a `127.0.0.1` no está registrada): normal.
+> - **Falta**: el OK del usuario para fusionar y **desplegar** (`make deploy`); hasta entonces la app de Bot League en
+>   producción solo entra con email y contraseña (el portal rechaza `botleague://auth` y el `aud` de Bot League).
 
 > 2026-11-09: **Desplegado** `market-hub-00073-xjb` desde un export limpio de b9cb1f7 (la lista «A fondo» de la página
 > Media, con el vídeo largo del caso Jensen Huang), con el OK del usuario, por `gcloud run deploy market-hub --source`
