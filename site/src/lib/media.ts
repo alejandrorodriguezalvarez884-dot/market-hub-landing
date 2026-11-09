@@ -17,7 +17,7 @@ export interface Video {
 
 export interface Playlist {
   name: string;
-  about: Record<Lang, string>; // in each language of the site; the videos themselves are in English
+  about: Record<Lang, string>; // in each language of the site; the videos are in English (Money 101) or Spanish (A fondo)
   url: string; // the playlist on YouTube; empty until it is known, and the channel is linked instead
   videos: Video[];
   shorts: Video[];
@@ -26,6 +26,19 @@ export interface Playlist {
 export const YOUTUBE = {
   channel: "https://www.youtube.com/@TheMarketHub-y7c",
   playlists: [
+    {
+      // The long videos, in Spanish, that go with the reels asked for on Instagram (the-market-hub-media, skill long-video).
+      name: "A fondo",
+      about: {
+        en: "The long version of our reels, in Spanish: one story at length, telling apart what is confirmed, what the press reports and what is only a hypothesis.",
+        es: "La versión larga de nuestros reels: una historia contada entera, separando lo confirmado, lo que cuenta la prensa y lo que solo es una hipótesis.",
+      },
+      url: "",
+      videos: [
+        { id: "oLFyoiVBUi8", title: "El caso Jensen Huang, a fondo: lo que se sabe, lo que cuenta la prensa y lo que no", length: "10:10", cover: "jensen-huang.jpg" },
+      ],
+      shorts: [],
+    },
     {
       name: "Money 101",
       about: {
