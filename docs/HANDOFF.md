@@ -22,7 +22,14 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-> 2026-11-09: **La app de iPhone de Bot League entra con Google y con Apple** (rama `bl-google-apple`, **sin desplegar**;
+> 2026-11-09: **Desplegado** `market-hub-00074-nng` desde un export limpio de 55309c1 (Google y Apple para la app de Bot
+> League, la entrada de abajo), con el OK del usuario, por `gcloud run deploy market-hub --source` sin flags.
+> Configuración igual antes y después (variables y recursos). Comprobado en https://themarkethub.app: `start` con
+> `botleague://auth` y con `markethub://auth` manda a Google con la vuelta de siempre, y Google abre su página sin
+> `redirect_uri_mismatch`; con otra web, 400; `/api/app/auth/apple` con un token inventado, 401; `/`, `/es/`,
+> `/community/bots/` y `/api/health` en 200.
+
+> 2026-11-09: **La app de iPhone de Bot League entra con Google y con Apple** (rama `bl-google-apple`, fusionada y **desplegada**, arriba;
 > la app es `market-hub-bots-mobile`, misma rama). Dos cambios pequeños en el login de la app, sin tocar el de la web:
 > - **Google** (`appsignin.py`): la vuelta del navegador también puede ir a **`botleague://auth`** (además de
 >   `markethub://auth` y lo que diga `MARKETHUB_APP_REDIRECTS`), y la página de vuelta nombra la app a la que vuelve
