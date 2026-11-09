@@ -20,7 +20,7 @@ from markethub import applesignin
 from markethub.api import create_app
 from markethub.applerevoke import REVOKE, TOKEN, AppleRevoker, NotRevoked
 from markethub.tokens import AppTokens
-from markethub.applesignin import APP_AUDIENCE, ISSUER, AppleFlow, AppleKeys, shown_name
+from markethub.applesignin import APP_AUDIENCE, APP_AUDIENCES, BOT_LEAGUE_AUDIENCE, ISSUER, AppleFlow, AppleKeys, shown_name
 
 SUB = "001234.0a1b2c3d4e5f60718293a4b5c6d7e8f9.1234"
 OURS = "ap_001234-0a1b2c3d4e5f60718293a4b5c6d7e8f9-1234"
@@ -73,6 +73,7 @@ class AppleAccounts:
         self.codes = {"code-1": "refresh-1"}
         self.revoked: list[tuple[str, str]] = []
         self.secrets: list[dict] = []
+        self.apps: list[str] = []  # the app each request to Apple was made for
         self.down = False
 
     def signed(self, secret: str) -> bool:
@@ -89,7 +90,8 @@ class AppleAccounts:
             if self.down:
                 raise httpx.ConnectError("down")
             form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
-            assert form["client_id"] == APP_AUDIENCE and self.signed(form["client_secret"])
+            assert form["client_id"] in APP_AUDIENCES and self.signed(form["client_secret"])
+            self.apps.append(form["client_id"])
             if str(request.url) == TOKEN:
                 assert form["grant_type"] == "authorization_code"
                 token = self.codes.pop(form["code"], None)  # a code is good once
@@ -157,6 +159,18 @@ def test_apple_gives_the_name_once_and_it_is_kept(phone, apple):
     assert again["user"]["name"] == "Ana García" and again["new"] is False
 
 
+def test_bot_leagues_app_signs_in_with_apple_to_the_same_account(phone, apple, users):
+    """Bot League's iPhone app (app.themarkethub.bots) is this developer's too: Apple gives the
+    same person the same "sub" there, and it is the same account as in My Hub's app."""
+    first = enter(phone, apple.token(nonce(phone), aud=BOT_LEAGUE_AUDIENCE), name="Ana")
+    assert first.status_code == 200, first.text
+    assert first.json()["user"]["id"] == OURS and first.json()["new"] is True
+    again = enter(phone, apple.token(nonce(phone), aud=APP_AUDIENCE)).json()
+    assert again["user"]["id"] == OURS and again["new"] is False and again["user"]["name"] == "Ana"
+    assert phone.get("/api/me", headers={"authorization": f"Bearer {first.json()['token']}"}).json()["user"]["id"] == OURS
+    assert APP_AUDIENCES == ("app.themarkethub.hub", "app.themarkethub.bots")
+
+
 def test_an_apple_account_with_no_name_and_a_hidden_address_is_a_member(phone, apple, users):
     said = enter(phone, apple.token(nonce(phone), email="x7k2@privaterelay.appleid.com")).json()
     assert said["user"]["name"] == "Member" and said["user"]["email"] == "x7k2@privaterelay.appleid.com"
@@ -185,6 +199,7 @@ def test_an_apple_account_has_no_password_here_and_does_not_moderate(phone, appl
 
 @pytest.mark.parametrize("over, why", [
     ({"aud": "com.someone.else"}, "another app's token"), ({"aud": "host.exp.Exponent"}, "Expo Go's token"),
+    ({"aud": "app.themarkethub"}, "a name like ours"), ({"aud": [APP_AUDIENCE]}, "an audience that is not one name"),
     ({"iss": "https://accounts.google.com"}, "another issuer"), ({"exp": int(time.time()) - 3600}, "run out"),
     ({"sub": None}, "no account"), ({"sub": "../../etc/passwd"}, "not an account's id")])
 def test_a_token_that_is_not_apples_for_this_app_now_opens_nothing(phone, apple, users, over, why):
@@ -272,6 +287,15 @@ def test_before_an_apple_account_is_deleted_apple_revokes_its_token(phone, apple
     # Nothing of it is kept, and the account is still there until it is deleted.
     assert "refresh" not in str(users.get(OURS)) and "code-1" not in str(users.get(OURS))
     assert phone.delete("/api/me", headers={"authorization": f"Bearer {token}"}).json() == {"deleted": True}
+
+
+def test_an_account_signed_in_from_bot_leagues_app_is_revoked_for_that_app(phone, apple, accounts):
+    """Apple takes a code only from the app it gave it to: Bot League's code goes as Bot League's."""
+    token = enter(phone, apple.token(nonce(phone), aud=BOT_LEAGUE_AUDIENCE)).json()["token"]
+    r = revoke(phone, token, apple.token(nonce(phone), aud=BOT_LEAGUE_AUDIENCE))
+    assert r.status_code == 200 and accounts.revoked == [("refresh-1", "refresh_token")]
+    assert accounts.apps == [BOT_LEAGUE_AUDIENCE, BOT_LEAGUE_AUDIENCE]
+    assert {said["sub"] for said in accounts.secrets} == {BOT_LEAGUE_AUDIENCE}
 
 
 def test_only_the_account_that_is_signed_in_has_its_token_revoked(phone, apple, accounts):

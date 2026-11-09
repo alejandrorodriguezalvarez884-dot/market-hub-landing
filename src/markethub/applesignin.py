@@ -41,9 +41,13 @@ from .auth import InvalidToken
 
 ISSUER = "https://appleid.apple.com"
 KEYS = "https://appleid.apple.com/auth/keys"
-# The app's identifier (ios.bundleIdentifier in its app.json): who Apple made the token for. A
-# token made for any other app, Expo Go among them, is not taken.
+# The apps' identifiers (ios.bundleIdentifier in each app.json): who Apple made the token for.
+# My Hub's (market-hub-mobile) and Bot League's (market-hub-bots-mobile). Both are this developer's,
+# so Apple gives the same "sub" to the same person in each: one account, whichever app. A token
+# made for any other app, Expo Go among them, is not taken.
 APP_AUDIENCE = "app.themarkethub.hub"
+BOT_LEAGUE_AUDIENCE = "app.themarkethub.bots"
+APP_AUDIENCES = (APP_AUDIENCE, BOT_LEAGUE_AUDIENCE)
 ID_PREFIX = "ap_"
 SUB = re.compile(r"[A-Za-z0-9._-]{1,120}")
 NONCE_SECONDS = 600  # from asking for the nonce to posting the token
@@ -55,6 +59,7 @@ KEYS_RETRY_SECONDS = 60  # but not more often than this, whatever a token claims
 class AppleUser:
     id: str  # ours: the prefix and Apple's stable "sub"
     email: str  # as Apple gives it: maybe a relay address, maybe none
+    app: str = APP_AUDIENCE  # the app the token was made for, one of APP_AUDIENCES
 
 
 # token -> its claims, once its signature and its expiry hold. Tests pass their own.
@@ -133,7 +138,8 @@ def verify(token: str, flow: AppleFlow, verifier: Verifier) -> AppleUser:
         raise InvalidToken("invalid token") from exc
     if claims.get("iss") != ISSUER:
         raise InvalidToken("wrong issuer")
-    if claims.get("aud") != APP_AUDIENCE:
+    audience = claims.get("aud")
+    if audience not in APP_AUDIENCES:
         raise InvalidToken("wrong audience")
     if not flow.fresh(str(claims.get("nonce") or "")):
         raise InvalidToken("wrong nonce")
@@ -142,7 +148,7 @@ def verify(token: str, flow: AppleFlow, verifier: Verifier) -> AppleUser:
         raise InvalidToken("no subject")
     # Apple writes "true" as a word in some tokens. An address it has not verified is not kept.
     verified = str(claims.get("email_verified")).lower() == "true"
-    return AppleUser(id=ID_PREFIX + sub.replace(".", "-"), email=str(claims.get("email") or "") if verified else "")
+    return AppleUser(id=ID_PREFIX + sub.replace(".", "-"), email=str(claims.get("email") or "") if verified else "", app=str(audience))
 
 
 def shown_name(given: str, kept: str) -> str:

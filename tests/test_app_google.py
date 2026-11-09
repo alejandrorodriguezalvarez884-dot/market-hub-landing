@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from conftest import CLIENT_ID, fake_verifier, sign_in
 from markethub.api import create_app
-from markethub.appsignin import APP_REDIRECT, AppRedirects, GoogleFlow, challenge_of, leaving_page
+from markethub.appsignin import APP_REDIRECT, BOT_LEAGUE_REDIRECT, AppRedirects, GoogleFlow, app_name, challenge_of, leaving_page
 
 SECRET = "s" * 43  # what the app keeps; its SHA-256 is the challenge
 EXPO = "exp://ab12cd-ana-8081.exp.direct/--/auth"
@@ -66,8 +66,9 @@ def finish(phone, code, secret=SECRET):
 
 def test_only_the_apps_own_addresses_are_ways_back():
     only = AppRedirects()
-    assert only.allowed("markethub://auth")
-    for other in ("markethub://auth/x", "markethub://authx", "https://evil.example/auth", "exp://192.168.0.2:8081/--/auth", "", "markethub://auth?x=1"):
+    assert only.allowed("markethub://auth") and only.allowed("botleague://auth")
+    for other in ("markethub://auth/x", "markethub://authx", "https://evil.example/auth", "exp://192.168.0.2:8081/--/auth", "", "markethub://auth?x=1",
+                  "botleague://auth/x", "botleague://authx", "botleague://auth?x=1", "botleague:auth", "otherleague://auth"):
         assert not only.allowed(other)
     dev = AppRedirects(" exp://*-ana-8081.exp.direct/--/auth , ")
     assert dev.allowed("markethub://auth") and dev.allowed(EXPO)
@@ -102,7 +103,7 @@ def test_start_refuses_a_way_back_that_is_not_the_app_or_a_challenge_that_is_not
 # --- The whole way ---------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("redirect", [APP_REDIRECT, EXPO])
+@pytest.mark.parametrize("redirect", [APP_REDIRECT, BOT_LEAGUE_REDIRECT, EXPO])
 def test_the_app_signs_in_with_google(phone, users, redirect):
     _, asked = at_google(start(phone, redirect))
     back = come_back(phone, asked)
@@ -119,6 +120,25 @@ def test_the_app_signs_in_with_google(phone, users, redirect):
     me = phone.get("/api/me", headers={"authorization": f"Bearer {body['token']}"})
     assert me.status_code == 200 and me.json()["user"] == body["user"]
     assert phone.get("/api/me").status_code == 401  # nothing but the token says who it is
+
+
+def test_the_page_on_the_way_back_names_the_app_it_goes_back_to(phone):
+    for redirect, name in ((APP_REDIRECT, "Market Hub"), (BOT_LEAGUE_REDIRECT, "Bot League"), (EXPO, "Market Hub")):
+        _, asked = at_google(start(phone, redirect))
+        back = come_back(phone, asked)
+        assert f"Returning to {name}" in back.text and f"Return to {name}</a>" in back.text
+        assert app_name(redirect) == name
+        cancelled = come_back(phone, at_google(start(phone, redirect))[1], id_token=None)
+        assert f"Returning to {name}" in cancelled.text and sent_to(cancelled) == (redirect, {"error": "cancelled"})
+
+
+def test_bot_leagues_app_is_the_same_account_as_my_hubs(phone):
+    """Signed in with Google in My Hub's app and then in Bot League's: one account."""
+    _, asked = at_google(start(phone, APP_REDIRECT))
+    first = finish(phone, sent_to(come_back(phone, asked))[1]["code"]).json()
+    _, asked = at_google(start(phone, BOT_LEAGUE_REDIRECT))
+    again = finish(phone, sent_to(come_back(phone, asked))[1]["code"]).json()
+    assert first["new"] is True and again["new"] is False and again["user"]["id"] == first["user"]["id"] == "2001"
 
 
 def test_it_is_the_same_account_as_on_the_site(client, phone):

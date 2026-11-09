@@ -53,24 +53,27 @@ class AppleRevoker:
             raise ValueError("the Sign in with Apple key is not an elliptic-curve key")
         self.client = client or httpx.Client(timeout=10)
 
-    def client_secret(self) -> str:
-        """What stands for a password with Apple: a short-lived JWT signed with the developer's key."""
+    def client_secret(self, client_id: str | None = None) -> str:
+        """What stands for a password with Apple: a short-lived JWT signed with the developer's key,
+        for one app (the one the code was given to)."""
         now = int(time.time())
         head = _b64(json.dumps({"alg": "ES256", "kid": self.key_id}, separators=(",", ":")).encode())
-        body = _b64(json.dumps({"iss": self.team_id, "iat": now, "exp": now + SECRET_SECONDS, "aud": ISSUER, "sub": self.client_id},
+        body = _b64(json.dumps({"iss": self.team_id, "iat": now, "exp": now + SECRET_SECONDS, "aud": ISSUER, "sub": client_id or self.client_id},
                                separators=(",", ":")).encode())
         r, s = decode_dss_signature(self._key.sign(f"{head}.{body}".encode(), ec.ECDSA(hashes.SHA256())))
         return f"{head}.{body}.{_b64(r.to_bytes(32, 'big') + s.to_bytes(32, 'big'))}"
 
-    def _post(self, address: str, **fields: str) -> httpx.Response:
+    def _post(self, address: str, client_id: str, **fields: str) -> httpx.Response:
         try:
-            return self.client.post(address, data={"client_id": self.client_id, "client_secret": self.client_secret(), **fields})
+            return self.client.post(address, data={"client_id": client_id, "client_secret": self.client_secret(client_id), **fields})
         except httpx.HTTPError:
             raise NotRevoked("Apple did not answer") from None
 
-    def revoke(self, authorization_code: str) -> None:
-        """Trade the code the phone was just given for a token, and have Apple revoke it."""
-        answer = self._post(TOKEN, code=authorization_code, grant_type="authorization_code")
+    def revoke(self, authorization_code: str, app: str | None = None) -> None:
+        """Trade the code the phone was just given for a token, and have Apple revoke it. ``app``
+        is the app the code was given to (My Hub's unless said): Apple takes it only from that one."""
+        client_id = app or self.client_id
+        answer = self._post(TOKEN, client_id, code=authorization_code, grant_type="authorization_code")
         try:
             tokens = answer.json() if answer.status_code == 200 else {}
         except ValueError:
@@ -78,7 +81,7 @@ class AppleRevoker:
         token, hint = (tokens.get("refresh_token"), "refresh_token") if tokens.get("refresh_token") else (tokens.get("access_token"), "access_token")
         if not token:
             raise NotRevoked("Apple did not take the code")
-        if self._post(REVOKE, token=str(token), token_type_hint=hint).status_code != 200:
+        if self._post(REVOKE, client_id, token=str(token), token_type_hint=hint).status_code != 200:
             raise NotRevoked("Apple did not revoke the token")
 
 

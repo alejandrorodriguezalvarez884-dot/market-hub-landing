@@ -151,7 +151,7 @@ from .submissions import Submissions, default_submissions
 from . import applesignin
 from .applerevoke import AppleRevoker, NotRevoked, default_revoker
 from .appweb import ToolPages, entering_page
-from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, back_to_app, google_address, leaving_page
+from .appsignin import CHALLENGE, AppRedirects, GoogleFlow, app_name, back_to_app, google_address, leaving_page
 from .auth import InvalidToken, Verifier, google_verifier, verify
 from .config import (APP_REDIRECTS, BOT_LEAGUE_URL, PASSWORD_TRIES_PER_IP_PER_HOUR, REGISTRATIONS_PER_IP_PER_HOUR,
                      COMMENTS_PER_USER_PER_HOUR, COMMUNITY_MEMBERS, COOKIE_DOMAIN, EARNINGS_RADAR_URL, FUNDAMENTALS_LAB_URL, GOOGLE_CLIENT_ID, OPTIONS_LAB_URL, PEER_MAP_URL, PER_IP_PER_HOUR, PLAYGROUND_URL,
@@ -600,7 +600,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         if not client_id:
             raise HTTPException(404, "Signing in with Google is not on.")
         if not redirects.allowed(redirect) or not CHALLENGE.fullmatch(challenge):
-            raise HTTPException(400, "This is not the Market Hub app asking.")
+            raise HTTPException(400, "This is not a Market Hub app asking.")
         state, nonce = google_flow.begin(redirect, challenge)
         return RedirectResponse(google_address(client_id, f"{public_address(request)}/api/app/auth/google/callback", state, nonce), 302)
 
@@ -615,11 +615,13 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
         if not began or not redirects.allowed(began["r"]):
             return HTMLResponse(leaving_page(None, "This sign-in took too long. Go back to the app and try again."), 400)
 
+        app_named = app_name(began["r"])
+
         def leave(words: str, **said: str) -> Response:
-            return HTMLResponse(leaving_page(back_to_app(began["r"], **said), words))
+            return HTMLResponse(leaving_page(back_to_app(began["r"], **said), words, app_named))
 
         if not field("id_token"):  # the user said no to Google, or Google said no
-            return leave("Sign-in was not completed. Returning to Market Hub…", error="cancelled")
+            return leave(f"Sign-in was not completed. Returning to {app_named}…", error="cancelled")
         seen: dict = {}
 
         def checking(token: str, audience: str) -> dict:
@@ -632,10 +634,10 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
                 raise InvalidToken("wrong nonce")
         except InvalidToken as exc:
             log.info("sign-in refused (app): %s", exc)
-            return leave("Google sign-in could not be verified. Returning to Market Hub…", error="refused")
+            return leave(f"Google sign-in could not be verified. Returning to {app_named}…", error="refused")
         said = google_welcome(g)
         log.info("sign-in ok (app) new=%s", said["new"])
-        return leave("Signed in. Returning to Market Hub…", code=google_flow.code(g.id, began["c"], said["new"]))
+        return leave(f"Signed in. Returning to {app_named}…", code=google_flow.code(g.id, began["c"], said["new"]))
 
     @app.post("/api/app/auth/google/finish")
     def app_google_finish(request: Request, code: str = Body(embed=True, max_length=2048), verifier_: str = Body(embed=True, alias="verifier", max_length=200)) -> dict:
@@ -695,7 +697,7 @@ def create_app(users: UserStore | None = None, market: Fmp | None = None, direct
             log.info("apple revoke refused: another account")
             raise HTTPException(401, "That is not the Apple account you are signed in with.")
         try:
-            revoker.revoke(authorization_code)
+            revoker.revoke(authorization_code, a.app)
         except NotRevoked as exc:
             log.info("apple revoke failed: %s", exc)
             raise HTTPException(502, "Apple could not be told. Your account can still be deleted.") from None

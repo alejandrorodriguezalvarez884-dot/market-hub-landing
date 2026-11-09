@@ -31,9 +31,12 @@ from urllib.parse import urlencode
 from itsdangerous import BadData, URLSafeTimedSerializer
 
 GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
-# The app's own address, where a build of the app is installed. Others are added by the service's
-# settings (MARKETHUB_APP_REDIRECTS), for the app while it is run from a developer's machine.
+# The apps' own addresses, where a build of each is installed: My Hub's (market-hub-mobile) and
+# Bot League's (market-hub-bots-mobile). Others are added by the service's settings
+# (MARKETHUB_APP_REDIRECTS), for an app while it is run from a developer's machine.
 APP_REDIRECT = "markethub://auth"
+BOT_LEAGUE_REDIRECT = "botleague://auth"
+APP_NAMES = {APP_REDIRECT: "Market Hub", BOT_LEAGUE_REDIRECT: "Bot League"}
 # The SHA-256 of the app's secret, in URL-safe base64 without padding (RFC 7636, "S256").
 CHALLENGE = re.compile(r"[A-Za-z0-9_-]{43}")
 STATE_SECONDS = 600  # from opening the browser to coming back from Google
@@ -49,7 +52,7 @@ class AppRedirects:
     and digits only, so it never reaches past a dot or a slash into somebody else's address."""
 
     def __init__(self, extra: str = ""):
-        written = [APP_REDIRECT, *(p.strip() for p in extra.split(",") if p.strip())]
+        written = [*APP_NAMES, *(p.strip() for p in extra.split(",") if p.strip())]
         self._patterns = [re.compile(re.escape(p).replace(r"\*", "[A-Za-z0-9]+")) for p in written]
 
     def allowed(self, address: str) -> bool:
@@ -98,17 +101,22 @@ def google_address(client_id: str, callback: str, state: str, nonce: str) -> str
         "scope": "openid email profile", "nonce": nonce, "state": state, "prompt": "select_account"})
 
 
+def app_name(redirect: str) -> str:
+    """The app the browser goes back to, as the leaving page names it."""
+    return APP_NAMES.get(redirect, "Bot League" if redirect.startswith("botleague://") else "Market Hub")
+
+
 def back_to_app(redirect: str, **said: str) -> str:
     return f"{redirect}{'&' if '?' in redirect else '?'}{urlencode(said)}"
 
 
-def leaving_page(address: str | None, words: str) -> str:
+def leaving_page(address: str | None, words: str, app: str = "Market Hub") -> str:
     """The page the browser shows for a moment on its way back to the app. It goes there by
     itself; the button is for a browser that will not open an app without being asked."""
     go = ""
     if address:
         target = json.dumps(address).replace("<", "\\u003c")
-        go = (f'<p><a class="b" href="{html.escape(address, quote=True)}">Return to Market Hub</a></p>'
+        go = (f'<p><a class="b" href="{html.escape(address, quote=True)}">Return to {html.escape(app)}</a></p>'
               f"<script>location.replace({target})</script>")
     return ("<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
             "<meta name=robots content=noindex><title>Market Hub</title>"
