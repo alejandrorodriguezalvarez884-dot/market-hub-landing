@@ -22,8 +22,10 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-> 2026-11-10: **Página para salir, `/signout/`** (y `/es/signout/`; `views/SignOut.astro`, textos en `i18n/signout.ts`), **sin
-> desplegar**. El usuario: en Bot League no había forma de cerrar sesión. Las herramientas leen la cookie `mh_session` pero
+> 2026-11-10: **Página para salir, `/signout/`** (y `/es/signout/`; `views/SignOut.astro`, textos en `i18n/signout.ts`),
+> **desplegada** en `market-hub-00078-kn6` desde un export limpio de dc7465f con el OK del usuario («Sí, despliega»), por
+> `gcloud run deploy market-hub --source` sin flags; configuración igual antes y después; `/signout/`, `/es/signout/`, `/` y
+> `/api/health` en 200. El usuario: en Bot League no había forma de cerrar sesión. Las herramientas leen la cookie `mh_session` pero
 > nunca la tocan, así que la que quiera ofrecer "Salir" manda aquí con `?next=` (una ruta del portal o una herramienta https
 > de un subdominio, como en `/signin/`; si no, la portada). Si se llega desde una página del portal o de una herramienta
 > (el `Referer`), sale al momento con `POST /api/auth/logout` y vuelve a `next`; desde cualquier otro sitio pregunta antes
