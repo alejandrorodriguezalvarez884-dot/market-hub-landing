@@ -22,10 +22,13 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
-> 2026-11-10: **Sin desplegar.** La lista «A fondo» de la página Media lleva el segundo vídeo largo, «Quién pone el precio
+> 2026-11-10: **Desplegado** `market-hub-00077-vbt` desde un export limpio de 63337d5, con el OK del usuario («Sí, despliega»), por
+> `gcloud run deploy market-hub --source` sin flags. La lista «A fondo» de la página Media lleva el segundo vídeo largo, «Quién pone el precio
 > en la bolsa, y por qué no se está quieto» (`uxlIWKueoBI`, 11:14; portada `site/public/media/como-se-mueve-el-precio.jpg`,
 > la miniatura del vídeo). El texto de la lista ya no habla solo del caso Huang: «una historia o una idea contada entera,
-> con cada cifra de su fuente» (en y es, `site/src/lib/media.ts`). `make check` en verde. Desplegarlo es decisión del usuario.
+> con cada cifra de su fuente» (en y es, `site/src/lib/media.ts`). `make check` en verde. Configuración igual antes y después (variables, recursos,
+> anotaciones y cuenta de servicio). Comprobado: `/`, `/es/`, `/media/`, `/es/media/`, `/api/health` y la portada nueva en 200, y el
+> vídeo en la página.
 
 > 2026-11-09 (noche): **Desplegado** `market-hub-00076-dnh` desde un export limpio de 5f39bca, con el OK del usuario: la
 > página de privacidad cuenta lo que guarda la app de Bot League para iPhone (rama `bot-league-app-privacy`, fusionada en
