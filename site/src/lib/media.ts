@@ -30,12 +30,13 @@ export const YOUTUBE = {
       // The long videos, in Spanish, that go with the reels asked for on Instagram (the-market-hub-media, skill long-video).
       name: "A fondo",
       about: {
-        en: "The long version of our reels, in Spanish: one story at length, telling apart what is confirmed, what the press reports and what is only a hypothesis.",
-        es: "La versión larga de nuestros reels: una historia contada entera, separando lo confirmado, lo que cuenta la prensa y lo que solo es una hipótesis.",
+        en: "The long version of our reels, in Spanish: one story or one idea at length, with every figure from its source.",
+        es: "La versión larga de nuestros reels: una historia o una idea contada entera, con cada cifra de su fuente.",
       },
       url: "",
       videos: [
         { id: "oLFyoiVBUi8", title: "El caso Jensen Huang, a fondo: lo que se sabe, lo que cuenta la prensa y lo que no", length: "10:10", cover: "jensen-huang.jpg" },
+        { id: "uxlIWKueoBI", title: "Quién pone el precio en la bolsa, y por qué no se está quieto", length: "11:14", cover: "como-se-mueve-el-precio.jpg" },
       ],
       shorts: [],
     },

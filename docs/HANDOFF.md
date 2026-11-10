@@ -1,6 +1,6 @@
 # Estado del proyecto y cómo continuar
 
-Última actualización: 2026-11-09.
+Última actualización: 2026-11-10.
 
 ## Qué se pidió
 
@@ -21,6 +21,11 @@ Decisiones del usuario:
 - Cada posición guarda **acciones y precio medio**; los favoritos son solo tickers.
 
 ## Dónde estamos
+
+> 2026-11-10: **Sin desplegar.** La lista «A fondo» de la página Media lleva el segundo vídeo largo, «Quién pone el precio
+> en la bolsa, y por qué no se está quieto» (`uxlIWKueoBI`, 11:14; portada `site/public/media/como-se-mueve-el-precio.jpg`,
+> la miniatura del vídeo). El texto de la lista ya no habla solo del caso Huang: «una historia o una idea contada entera,
+> con cada cifra de su fuente» (en y es, `site/src/lib/media.ts`). `make check` en verde. Desplegarlo es decisión del usuario.
 
 > 2026-11-09 (noche): **Desplegado** `market-hub-00076-dnh` desde un export limpio de 5f39bca, con el OK del usuario: la
 > página de privacidad cuenta lo que guarda la app de Bot League para iPhone (rama `bot-league-app-privacy`, fusionada en
