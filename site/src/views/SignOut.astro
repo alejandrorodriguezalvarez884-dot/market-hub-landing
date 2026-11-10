@@ -1,0 +1,99 @@
+---
+// Sign-out, for the tools on the hub's subdomains (Bot League first): they read the portal's
+// session cookie but never clear it, so a member who signs out there comes here with ?next= and
+// goes back once the portal has cleared it. Coming from a page of the hub or one of its tools, it
+// signs out at once; from anywhere else it asks first, so a foreign link cannot sign anyone out.
+import Layout from "../layouts/Layout.astro";
+import Logo from "../components/Logo.astro";
+import { SITE_NAME, link } from "../lib/site";
+import type { Lang } from "../i18n";
+import { signout } from "../i18n/signout";
+
+interface Props {
+	lang: Lang;
+}
+const { lang } = Astro.props;
+const t = signout[lang];
+---
+
+<Layout noindex title={`${t.title} — ${SITE_NAME}`} description={t.description}>
+	<div class="mx-auto flex min-h-screen max-w-[1240px] flex-col px-5">
+		<header class="flex h-14 items-center justify-between">
+			<Logo />
+			<a href={link("/", lang)} class="text-sm text-muted hover:text-ink-strong">← {SITE_NAME}</a>
+		</header>
+		<main class="grid flex-1 content-center py-12">
+			<section id="ask" hidden>
+				<h1 class="lede">{t.h1}</h1>
+				<p class="mt-5 max-w-md text-ink">{t.lede}</p>
+				<div class="mt-8 flex flex-wrap gap-3">
+					<button id="out" class="btn btn-primary" type="button">{t.signOut}</button>
+					<a id="cancel" class="btn btn-ghost" href={link("/", lang)}>{t.cancel}</a>
+				</div>
+			</section>
+			<p id="note" class="text-sm text-muted" role="status">{t.leaving}</p>
+		</main>
+	</div>
+</Layout>
+
+<script>
+	import { api, config, signedIn } from "../lib/api";
+	import { inLang, lang } from "../i18n";
+	import { signout } from "../i18n/signout";
+	import { link } from "../lib/site";
+
+	const t = signout[lang()];
+	const $ = (id: string) => document.getElementById(id)!;
+
+	// A page of this site, or a tool on an https subdomain of the hub's domain: as on the sign-in page.
+	const ours = (u: URL, domain: string | null) =>
+		u.origin === location.origin || (!!domain && u.protocol === "https:" && u.hostname.endsWith(`.${domain}`) && !u.username && !u.password);
+
+	function nextFrom(domain: string | null): string {
+		const n = new URLSearchParams(location.search).get("next") ?? "";
+		if (n.startsWith("/") && !n.startsWith("//")) return inLang(n, lang());
+		try {
+			const u = new URL(n);
+			if (u.origin !== location.origin && ours(u, domain)) return u.href;
+		} catch {
+			/* not a URL */
+		}
+		return link("/");
+	}
+
+	async function leave(next: string) {
+		$("ask").hidden = true;
+		$("note").textContent = t.leaving;
+		$("note").hidden = false;
+		try {
+			await api("/api/auth/logout", { method: "POST" });
+			location.replace(next);
+		} catch {
+			$("note").textContent = t.failed;
+			$("ask").hidden = false;
+		}
+	}
+
+	async function start() {
+		let domain: string | null = null;
+		try {
+			domain = (await config()).domain;
+		} catch {
+			/* without it, only this site's own pages are a way back */
+		}
+		const next = nextFrom(domain);
+		if (!(await signedIn().catch(() => true))) return location.replace(next);
+		let from: URL | null = null;
+		try {
+			from = document.referrer ? new URL(document.referrer) : null;
+		} catch {
+			/* no referrer */
+		}
+		if (from && ours(from, domain)) return leave(next);
+		($("cancel") as HTMLAnchorElement).href = next;
+		$("out").addEventListener("click", () => leave(next));
+		$("note").hidden = true;
+		$("ask").hidden = false;
+	}
+	start();
+</script>

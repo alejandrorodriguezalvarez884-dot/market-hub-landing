@@ -22,6 +22,15 @@ Decisiones del usuario:
 
 ## Dónde estamos
 
+> 2026-11-10: **Página para salir, `/signout/`** (y `/es/signout/`; `views/SignOut.astro`, textos en `i18n/signout.ts`), **sin
+> desplegar**. El usuario: en Bot League no había forma de cerrar sesión. Las herramientas leen la cookie `mh_session` pero
+> nunca la tocan, así que la que quiera ofrecer "Salir" manda aquí con `?next=` (una ruta del portal o una herramienta https
+> de un subdominio, como en `/signin/`; si no, la portada). Si se llega desde una página del portal o de una herramienta
+> (el `Referer`), sale al momento con `POST /api/auth/logout` y vuelve a `next`; desde cualquier otro sitio pregunta antes
+> («¿Salir de The Market Hub?»), para que un enlace ajeno no pueda sacar a nadie. Sin sesión, vuelve directamente. Nada
+> cambia en la API. La primera que la usa es Bot League. Probado en local con las dos webs (una cuenta de prueba, salir,
+> y Bot League vuelve a «Entrar»); `make test` y `make check` en verde.
+
 > 2026-11-10: **Desplegado** `market-hub-00077-vbt` desde un export limpio de 63337d5, con el OK del usuario («Sí, despliega»), por
 > `gcloud run deploy market-hub --source` sin flags. La lista «A fondo» de la página Media lleva el segundo vídeo largo, «Quién pone el precio
 > en la bolsa, y por qué no se está quieto» (`uxlIWKueoBI`, 11:14; portada `site/public/media/como-se-mueve-el-precio.jpg`,
